@@ -30,6 +30,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onPriceProgress:        (cb) => ipcRenderer.on('price-progress', (_e, d) => cb(d)),
   offPriceProgress:       ()   => ipcRenderer.removeAllListeners('price-progress'),
 
+  // Portfolio (long-term module)
+  getPortfolio:         ()               => ipcRenderer.invoke('get-portfolio'),
+  savePortfolio:        (updates)        => ipcRenderer.invoke('save-portfolio', updates),
+  importPortfolioCsv:   ()               => ipcRenderer.invoke('import-portfolio-csv'),
+
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window-minimize'),
   maximizeWindow: () => ipcRenderer.send('window-maximize'),

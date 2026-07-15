@@ -1869,3 +1869,7 @@ html, body {
   height: 14px;
   cursor: pointer;
 }
+
+/* ─── Portfolio holdings table ─── */
+#pf-holdings-table th,
+#pf-holdings-table td { white-space: nowrap; }

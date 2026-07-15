@@ -47,6 +47,13 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
           Dashboard
         </a>
+        <a class="nav-link" data-view="portfolio">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+          Portfolio
+        </a>
+
+        <div class="nav-sep"></div>
+
         <a class="nav-link" data-view="top25">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
           Top 25 Overall
@@ -450,6 +457,94 @@
       </section>
 
       <!-- Settings View -->
+      <!-- Portfolio View (long-term module) -->
+      <section class="view" id="view-portfolio">
+        <div class="view-header">
+          <div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
+              <h1 class="view-title" style="margin-bottom: 0;">Portfolio</h1>
+              <span class="preview-badge" style="margin: 0;" id="pf-source-badge">no data</span>
+            </div>
+            <span class="view-subtitle">Long-term holdings — allocation, drift &amp; concentration</span>
+          </div>
+          <button class="settings-action-btn" id="pf-import-btn" style="width:auto">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Import IBKR CSV
+          </button>
+        </div>
+
+        <div class="metric-cards" id="pf-metric-cards">
+          <div class="metric-card"><div class="metric-label">Total Value</div><div class="metric-value" id="pf-total-value">—</div></div>
+          <div class="metric-card"><div class="metric-label" id="pf-cash-label">Cash</div><div class="metric-value" id="pf-cash">—</div></div>
+          <div class="metric-card"><div class="metric-label">Employer Stock</div><div class="metric-value" id="pf-employer-pct">—</div></div>
+          <div class="metric-card"><div class="metric-label">Largest Position</div><div class="metric-value" id="pf-largest">—</div></div>
+          <div class="metric-card"><div class="metric-label">Buckets Off Target</div><div class="metric-value" id="pf-drift-count">—</div></div>
+        </div>
+
+        <div class="empty-state" id="pf-empty-state" style="display:none">
+          <div class="empty-state-icon">◔</div>
+          <h3 class="empty-state-title">No portfolio data yet</h3>
+          <p class="empty-state-body">Export your positions from IBKR (Client Portal → Portfolio → Export) and click <strong>Import IBKR CSV</strong> above.</p>
+        </div>
+
+        <div id="pf-content" style="display:none">
+          <div class="table-wrapper">
+            <table class="data-table" id="pf-holdings-table">
+              <thead>
+                <tr>
+                  <th data-col="symbol">Symbol</th>
+                  <th data-col="marketValue">Market Value</th>
+                  <th data-col="weightPct">Weight</th>
+                  <th data-col="costBasis">Cost Basis</th>
+                  <th data-col="pnl">Unrl. P&amp;L</th>
+                  <th data-col="pnlPct">P&amp;L %</th>
+                  <th data-col="currency">Ccy</th>
+                  <th data-col="bucket">Bucket</th>
+                  <th>Employer</th>
+                </tr>
+              </thead>
+              <tbody id="pf-holdings-tbody"></tbody>
+            </table>
+          </div>
+
+          <div class="settings-grid" style="margin-top:24px; grid-template-columns: minmax(340px, 1fr) minmax(480px, 1.4fr)">
+            <div class="settings-card">
+              <div class="settings-card-title">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                Target Allocation
+              </div>
+              <p class="settings-card-desc">Buckets group holdings by their role in your plan: <strong>core</strong> = broad index funds you buy and hold for decades (e.g. VTI, VEA); <strong>satellite</strong> = individual stocks and niche/sector bets; <strong>cash</strong> = uninvested money. Set a target % for each; when reality drifts too far from target, the Drift table flags what to rebalance.</p>
+              <button class="settings-action-btn" id="pf-autobucket-btn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Auto-assign buckets
+              </button>
+              <p class="setting-desc">Classifies well-known broad-market index ETFs as core and everything else as satellite. Only fills in unassigned rows — your manual choices are kept.</p>
+              <div id="pf-targets-fields"></div>
+              <div class="settings-field">
+                <label class="settings-field-label" for="pf-tolerance-input">Tolerance (± pct points)</label>
+                <input type="number" class="schedule-select" id="pf-tolerance-input" min="1" max="25" step="1" value="5">
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                Drift vs. Target
+              </div>
+              <p class="settings-card-desc">Suggested trades to return to target — informational only; place any trades yourself at your broker.</p>
+              <div class="table-wrapper">
+                <table class="data-table" id="pf-drift-table">
+                  <thead>
+                    <tr><th>Bucket</th><th>Target</th><th>Actual</th><th>Drift</th><th>Action</th></tr>
+                  </thead>
+                  <tbody id="pf-drift-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="view" id="view-settings">
         <div class="view-header">
           <h1 class="view-title">Settings</h1>

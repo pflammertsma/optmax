@@ -1416,12 +1416,212 @@ el('wc-minimize').addEventListener('click', () => window.electronAPI.minimizeWin
 el('wc-maximize').addEventListener('click', () => window.electronAPI.maximizeWindow());
 el('wc-close').addEventListener('click',    () => window.electronAPI.closeWindow());
 
+// ─── Portfolio view (long-term module) ───────────────────────────────────────
+const PF_BUCKETS = ['core', 'satellite', 'cash', 'unassigned'];
+let portfolio = null;
+let pfSort = { col: 'marketValue', dir: 'desc' };
+
+// Avoids "-0.00%" from float dust
+function pfPct(v) {
+  if (v == null) return '—';
+  return fmt.pct(Math.abs(v) < 0.005 ? 0 : v);
+}
+
+function pfSignedCurrency(v) {
+  if (v == null) return '—';
+  const s = fmt.currency(Math.abs(v));
+  return v < 0 ? `<span style="color:var(--red)">-${s}</span>` : `<span style="color:var(--green)">${s}</span>`;
+}
+
+function pfSignedPct(v) {
+  if (v == null) return '—';
+  const color = v < 0 ? 'var(--red)' : 'var(--green)';
+  return `<span style="color:${color}">${v >= 0 ? '+' : ''}${v.toFixed(2)}%</span>`;
+}
+
+// Broad-market, buy-and-hold index ETFs → 'core'; anything else → 'satellite'.
+// Conservative list: only unambiguous total-market / regional index funds.
+const PF_CORE_ETFS = new Set([
+  'VTI', 'VOO', 'SPY', 'IVV', 'ITOT', 'SCHB',            // US total market / S&P 500
+  'VT', 'ACWI',                                          // global
+  'VXUS', 'VEA', 'VWO', 'IEFA', 'IEMG', 'EFA', 'EEM',    // ex-US / intl / EM
+  'IWDA', 'IWDC', 'VUSA', 'VWRL', 'VWCE', 'IUSC',        // UCITS equivalents
+]);
+
+function pfBucketOptions(selected) {
+  return PF_BUCKETS
+    .filter(b => b !== 'cash')
+    .map(b => `<option value="${b}" ${b === (selected || 'unassigned') ? 'selected' : ''}>${b}</option>`)
+    .join('');
+}
+
+function renderPortfolio(p) {
+  portfolio = p;
+  const has = p.holdings.length > 0;
+  el('pf-empty-state').style.display = has ? 'none' : '';
+  el('pf-content').style.display = has ? '' : 'none';
+
+  el('pf-source-badge').textContent = p.updatedAt
+    ? `${p.source || 'manual'} · ${new Date(p.updatedAt).toLocaleDateString()}`
+    : 'no data';
+
+  const d = p.derived;
+  el('pf-total-value').textContent = has ? fmt.currency(d.totalValue) : '—';
+  el('pf-cash').textContent = has ? fmt.currency(p.cash || 0) : '—';
+  el('pf-cash-label').textContent = p.baseCurrency ? `Cash (${p.baseCurrency})` : 'Cash';
+  const conc = d.concentration;
+  el('pf-employer-pct').textContent = has ? fmt.pct(conc.pct) : '—';
+  el('pf-employer-pct').style.color = conc.pct > 15 ? 'var(--red)' : conc.pct > 10 ? '#f59e0b' : '';
+  const top = d.topPositions[0];
+  el('pf-largest').textContent = top ? `${top.symbol} · ${top.weightPct.toFixed(1)}%` : '—';
+  const offCount = d.drift.filter(r => r.rebalance).length;
+  el('pf-drift-count').textContent = has ? String(offCount) : '—';
+  el('pf-drift-count').style.color = offCount > 0 ? '#f59e0b' : 'var(--green)';
+
+  if (!has) return;
+
+  // Holdings table — rows carry their original index so edits survive sorting
+  const rows = p.holdings.map((h, i) => {
+    const pnl = (h.costBasis != null && h.marketValue != null) ? h.marketValue - h.costBasis : null;
+    return {
+      idx: i,
+      symbol:      h.symbol,
+      marketValue: h.marketValue ?? 0,
+      weightPct:   d.totalValue > 0 ? ((h.marketValue || 0) / d.totalValue) * 100 : 0,
+      costBasis:   h.costBasis ?? null,
+      pnl,
+      pnlPct:      (pnl != null && h.costBasis > 0) ? (pnl / h.costBasis) * 100 : null,
+      currency:    h.currency || null,
+      bucket:      h.bucket || 'unassigned',
+      isEmployerStock: !!h.isEmployerStock,
+    };
+  });
+
+  const { col, dir } = pfSort;
+  const mul = dir === 'desc' ? -1 : 1;
+  rows.sort((a, b) => {
+    const av = a[col], bv = b[col];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;             // nulls always last
+    if (bv == null) return -1;
+    if (typeof av === 'string') return mul * av.localeCompare(bv);
+    return mul * (av - bv);
+  });
+
+  el('pf-holdings-table').querySelectorAll('thead th[data-col]').forEach(th => {
+    if (th.dataset.col === col) th.setAttribute('data-sort', dir);
+    else th.removeAttribute('data-sort');
+  });
+
+  el('pf-holdings-tbody').innerHTML = rows.map(r => `
+    <tr>
+      <td class="symbol-cell">${r.symbol}</td>
+      <td>${fmt.currency(r.marketValue)}</td>
+      <td>${pfPct(r.weightPct)}</td>
+      <td>${r.costBasis != null ? fmt.currency(r.costBasis) : '—'}</td>
+      <td>${pfSignedCurrency(r.pnl)}</td>
+      <td>${pfSignedPct(r.pnlPct)}</td>
+      <td>${r.currency || '—'}</td>
+      <td><select class="schedule-select pf-bucket-select" data-idx="${r.idx}">${pfBucketOptions(r.bucket)}</select></td>
+      <td><input type="checkbox" class="pf-employer-check" data-idx="${r.idx}" ${r.isEmployerStock ? 'checked' : ''}></td>
+    </tr>`).join('');
+
+  el('pf-holdings-tbody').querySelectorAll('.pf-bucket-select').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      const holdings = [...portfolio.holdings];
+      holdings[+sel.dataset.idx] = { ...holdings[+sel.dataset.idx], bucket: sel.value === 'unassigned' ? null : sel.value };
+      renderPortfolio(await window.electronAPI.savePortfolio({ holdings }));
+    });
+  });
+  el('pf-holdings-tbody').querySelectorAll('.pf-employer-check').forEach(chk => {
+    chk.addEventListener('change', async () => {
+      const holdings = [...portfolio.holdings];
+      holdings[+chk.dataset.idx] = { ...holdings[+chk.dataset.idx], isEmployerStock: chk.checked };
+      renderPortfolio(await window.electronAPI.savePortfolio({ holdings }));
+    });
+  });
+
+  // Target fields
+  const targetFor = b => (p.targets.find(t => t.bucket === b) || {}).targetPct ?? '';
+  el('pf-targets-fields').innerHTML = PF_BUCKETS.filter(b => b !== 'unassigned').map(b => `
+    <div class="settings-field">
+      <label class="settings-field-label" for="pf-target-${b}">${b} target %</label>
+      <input type="number" class="schedule-select pf-target-input" id="pf-target-${b}" data-bucket="${b}" min="0" max="100" step="1" value="${targetFor(b)}">
+    </div>`).join('');
+
+  el('pf-targets-fields').querySelectorAll('.pf-target-input').forEach(inp => {
+    inp.addEventListener('change', async () => {
+      const targets = PF_BUCKETS.filter(b => b !== 'unassigned')
+        .map(b => {
+          const v = parseFloat(el(`pf-target-${b}`).value);
+          return Number.isFinite(v) && v > 0 ? { bucket: b, targetPct: v } : null;
+        })
+        .filter(Boolean);
+      renderPortfolio(await window.electronAPI.savePortfolio({ targets }));
+    });
+  });
+  el('pf-tolerance-input').value = p.tolerancePct;
+
+  // Drift table
+  el('pf-drift-tbody').innerHTML = d.drift.map(r => {
+    const driftColor = r.rebalance ? (r.driftPct > 0 ? '#f59e0b' : 'var(--red)') : 'var(--green)';
+    const action = r.rebalance
+      ? `${r.tradeValue > 0 ? 'Buy' : 'Sell'} ${fmt.currency(Math.abs(r.tradeValue))}`
+      : 'On target';
+    return `<tr>
+      <td>${r.bucket}</td>
+      <td>${r.targetPct.toFixed(0)}%</td>
+      <td>${fmt.pct(r.actualPct)}</td>
+      <td style="color:${driftColor}">${r.driftPct >= 0 ? '+' : ''}${r.driftPct.toFixed(1)}pp</td>
+      <td>${action}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function initPortfolioView() {
+  // Sortable holdings headers — same toggle behavior as the CSP tables
+  el('pf-holdings-table').querySelectorAll('thead th[data-col]').forEach(th => {
+    th.classList.add('sortable-th');
+    th.addEventListener('click', () => {
+      const col = th.dataset.col;
+      const dir = pfSort.col === col && pfSort.dir === 'desc' ? 'asc' : 'desc';
+      pfSort = { col, dir };
+      if (portfolio) renderPortfolio(portfolio);
+    });
+  });
+
+  el('pf-autobucket-btn').addEventListener('click', async () => {
+    if (!portfolio) return;
+    const holdings = portfolio.holdings.map(h =>
+      h.bucket ? h : { ...h, bucket: PF_CORE_ETFS.has(h.symbol) ? 'core' : 'satellite' }
+    );
+    renderPortfolio(await window.electronAPI.savePortfolio({ holdings }));
+  });
+
+  el('pf-import-btn').addEventListener('click', async () => {
+    const result = await window.electronAPI.importPortfolioCsv();
+    if (result.canceled) return;
+    if (!result.success) { setStatus('error', result.error || 'Import failed'); return; }
+    renderPortfolio(result.portfolio);
+    if (result.warnings?.length) console.warn('CSV import warnings:', result.warnings);
+  });
+
+  el('pf-tolerance-input').addEventListener('change', async () => {
+    const v = parseFloat(el('pf-tolerance-input').value);
+    if (!Number.isFinite(v) || v <= 0) return;
+    renderPortfolio(await window.electronAPI.savePortfolio({ tolerancePct: v }));
+  });
+
+  renderPortfolio(await window.electronAPI.getPortfolio());
+}
+
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 initSettingsUI();
 initScreenerWatchlist();
 initScreenerFilters();
 initScreenerSorting();
 initDiscoverView();
+initPortfolioView();
 initSortableTable('table-top25',    () => allData.filter(d => d._score && d._score.totalScore > 0));
 initSortableTable('table-under10k', () => allData.filter(d => d._score && d._score.totalScore > 0 && d.currentPrice <= 100));
 initSortableTable('table-megacaps', () => allData.filter(d => d.marketCap != null && d.marketCap >= 200e9));

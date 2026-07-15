@@ -1,13 +1,18 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const YahooFinance = require('yahoo-finance2').default;
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 const { findClosestDate, computeHV, computeIVR, detectMeanReversion } = require('./lib/strategies');
+const {
+  parsePositionsCsv, totalValue, allocationByHolding, allocationByBucket,
+  computeDrift, employerConcentration, topConcentrations,
+} = require('./lib/portfolio');
 
 const CACHE_FILE      = path.join(app.getPath('userData'), 'data.json');
+const PORTFOLIO_FILE  = path.join(app.getPath('userData'), 'portfolio.json');
 const SETTINGS_FILE   = path.join(app.getPath('userData'), 'settings.json');
 const DISC_CACHE_FILE = path.join(app.getPath('userData'), 'discovery-cache.json');
 const SEED_CACHE_FILE = path.join(__dirname, 'lib', 'discovery-seed.json');
@@ -96,6 +101,46 @@ function savePriceUpdate(data) {
   const cache = loadCache() || {};
   const payload = { ...cache, pricedAt: new Date().toISOString(), data };
   fs.writeFileSync(CACHE_FILE, JSON.stringify(payload), 'utf8');
+}
+
+// ── Portfolio (long-term module) ──────────────────────────────────────────────
+const DEFAULT_PORTFOLIO = {
+  holdings: [],          // { symbol, quantity, marketValue, costBasis, currency, bucket, isEmployerStock }
+  cash: 0,
+  targets: [],           // { bucket, targetPct }
+  employerSymbols: [],
+  tolerancePct: 5,
+  baseCurrency: null,
+  updatedAt: null,
+  source: null,          // 'manual' | 'csv' | 'ibkr'
+};
+
+function loadPortfolio() {
+  try {
+    if (fs.existsSync(PORTFOLIO_FILE)) {
+      return { ...DEFAULT_PORTFOLIO, ...JSON.parse(fs.readFileSync(PORTFOLIO_FILE, 'utf8')) };
+    }
+  } catch {}
+  return { ...DEFAULT_PORTFOLIO };
+}
+
+function savePortfolio(p) {
+  fs.writeFileSync(PORTFOLIO_FILE, JSON.stringify(p), 'utf8');
+}
+
+// Portfolio plus derived metrics the renderer needs (math stays in lib/portfolio.js).
+function portfolioView(p) {
+  return {
+    ...p,
+    derived: {
+      totalValue:     totalValue(p.holdings, p.cash),
+      byHolding:      allocationByHolding(p.holdings, p.cash),
+      byBucket:       allocationByBucket(p.holdings, p.cash),
+      drift:          computeDrift(p.holdings, p.targets, p.cash, p.tolerancePct),
+      concentration:  employerConcentration(p.holdings, p.cash, p.employerSymbols),
+      topPositions:   topConcentrations(p.holdings, p.cash, 5),
+    },
+  };
 }
 
 // ── Discovery cache ───────────────────────────────────────────────────────────
@@ -734,6 +779,55 @@ app.whenReady().then(() => {
       return { success: false, error: err.message };
     } finally {
       discoveryRunning = false;
+    }
+  });
+
+  // ── Portfolio (long-term module) ─────────────────────────────────────────
+  ipcMain.handle('get-portfolio', () => portfolioView(loadPortfolio()));
+
+  ipcMain.handle('save-portfolio', (_event, updates) => {
+    const merged = { ...loadPortfolio(), ...updates, updatedAt: new Date().toISOString() };
+    savePortfolio(merged);
+    return portfolioView(merged);
+  });
+
+  ipcMain.handle('import-portfolio-csv', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      title: 'Import IBKR positions CSV',
+      filters: [{ name: 'CSV files', extensions: ['csv'] }],
+      properties: ['openFile'],
+    });
+    if (canceled || !filePaths.length) return { success: false, canceled: true };
+
+    try {
+      const text = fs.readFileSync(filePaths[0], 'utf8');
+      const { holdings, cash, errors, baseCurrency } = parsePositionsCsv(text);
+      if (!holdings.length && errors.length) {
+        return { success: false, error: errors.join('; ') };
+      }
+
+      // Preserve manual annotations (bucket, employer flag) across re-imports
+      const prev = loadPortfolio();
+      const prevBySymbol = new Map(prev.holdings.map(h => [h.symbol, h]));
+      for (const h of holdings) {
+        const old = prevBySymbol.get(h.symbol);
+        if (old) {
+          h.bucket = old.bucket;
+          h.isEmployerStock = old.isEmployerStock;
+        }
+      }
+
+      const merged = {
+        ...prev, holdings, cash,
+        baseCurrency: baseCurrency || prev.baseCurrency || null,
+        updatedAt: new Date().toISOString(),
+        source: 'csv',
+      };
+      savePortfolio(merged);
+      return { success: true, portfolio: portfolioView(merged), warnings: errors };
+    } catch (err) {
+      return { success: false, error: err.message };
     }
   });
 
