@@ -208,6 +208,42 @@ console.log('Running test/guidance.test.js...');
   assert.strictEqual(items.some(i => i.type === 'glidepath'), true);
   assert.strictEqual(items.find(i => i.type === 'glidepath').severity, 'warning');
 
+  // Watchlist-rebalance satellite underweight warning
+  holdings = [
+    { symbol: 'VTI', marketValue: 9000, bucket: 'core' },
+    { symbol: 'AAPL', marketValue: 1000, bucket: 'satellite' }
+  ];
+  let mockTargets = [
+    { bucket: 'core', targetPct: 80 },
+    { bucket: 'satellite', targetPct: 20 }
+  ];
+  let mockWatchlistData = [
+    { symbol: 'MSFT', score: 85, grade: 'A' },
+    { symbol: 'GOOG', score: 75, grade: 'B' }
+  ];
+  items = generatePortfolioGuidance(holdings, 0, mockTargets, {}, {}, mockWatchlistData);
+  assert.strictEqual(items.some(i => i.id === 'rebalance-watchlist-satellite'), true);
+  assert.ok(items.find(i => i.id === 'rebalance-watchlist-satellite').message.includes('MSFT'));
+
+  // Volatility Harvesting: Covered Call Opportunities (quantity >= 100, high IV/IVR)
+  holdings = [
+    { symbol: 'AAPL', marketValue: 18000, quantity: 100 }
+  ];
+  let mockQuotes = {
+    AAPL: { impliedVolatility: 0.45 }
+  };
+  items = generatePortfolioGuidance(holdings, 0, [], {}, mockQuotes);
+  assert.strictEqual(items.some(i => i.id === 'covered-call-AAPL'), true);
+  assert.strictEqual(items.find(i => i.id === 'covered-call-AAPL').severity, 'info');
+
+  // Volatility Harvesting: Cash-Secured Put Opportunities (excess cash + high grade put opps)
+  holdings = [
+    { symbol: 'VTI', marketValue: 20000 }
+  ];
+  items = generatePortfolioGuidance(holdings, 15000, [], { cashDragThreshold: 5000 }, {}, mockWatchlistData);
+  assert.strictEqual(items.some(i => i.id === 'cash-secured-puts-deploy'), true);
+  assert.strictEqual(items.find(i => i.id === 'cash-secured-puts-deploy').severity, 'info');
+
   console.log('  ✓ generatePortfolioGuidance tests passed');
 })();
 

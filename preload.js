@@ -55,7 +55,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Guidance (compliance engine)
   analyzeTicker:        (symbol, holdings, cash) => ipcRenderer.invoke('analyze-ticker', symbol, holdings, cash),
-  getPortfolioGuidance: (holdings, cash, targets) => ipcRenderer.invoke('get-portfolio-guidance', holdings, cash, targets),
+  getPortfolioGuidance: (holdings, cash, targets, watchlistData) => ipcRenderer.invoke('get-portfolio-guidance', holdings, cash, targets, watchlistData),
 
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window-minimize'),

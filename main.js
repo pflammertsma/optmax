@@ -1252,7 +1252,7 @@ app.whenReady().then(() => {
     return payload;
   });
 
-  ipcMain.handle('get-portfolio-guidance', async (_event, holdings, cash, targets) => {
+  ipcMain.handle('get-portfolio-guidance', async (_event, holdings, cash, targets, watchlistData) => {
     const settings = loadSettings();
     const quotes = {};
     if (Array.isArray(holdings)) {
@@ -1267,7 +1267,7 @@ app.whenReady().then(() => {
         }
       }));
     }
-    return generatePortfolioGuidance(holdings, cash, targets, settings, quotes);
+    return generatePortfolioGuidance(holdings, cash, targets, settings, quotes, watchlistData);
   });
 
   // Trust ONLY the loopback gateway's self-signed cert — so the embedded login

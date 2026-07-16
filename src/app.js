@@ -1653,7 +1653,17 @@ function renderPortfolio(p) {
           </div>
         </div>`;
     } else {
-      window.electronAPI.getPortfolioGuidance(p.holdings, p.cash, p.targets)
+      const watchlistData = (window.allData || allData || [])
+        .filter(d => (window.starredList || starredList || []).includes(d.symbol) || (window.watchlist || watchlist || []).includes(d.symbol))
+        .map(d => ({
+          symbol: d.symbol,
+          score: d._score?.totalScore ?? 0,
+          grade: d._score?.grade ?? 'F',
+          ivr: d.ivr ?? null,
+          impliedVolatility: d.impliedVolatility ?? null,
+          regularMarketPrice: d.regularMarketPrice ?? d.currentPrice ?? null
+        }));
+      window.electronAPI.getPortfolioGuidance(p.holdings, p.cash, p.targets, watchlistData)
         .then(guidanceItems => {
           if (guidanceItems.length === 0) {
             listEl.innerHTML = `
