@@ -1633,8 +1633,16 @@ function renderPortfolio(p) {
   el('pf-holdings-tbody').querySelectorAll('.pf-employer-check').forEach(chk => {
     chk.addEventListener('change', async () => {
       const holdings = [...portfolio.holdings];
-      holdings[+chk.dataset.idx] = { ...holdings[+chk.dataset.idx], isEmployerStock: chk.checked };
-      renderPortfolio(await window.electronAPI.savePortfolio({ holdings }));
+      const holding = { ...holdings[+chk.dataset.idx], isEmployerStock: chk.checked };
+      holdings[+chk.dataset.idx] = holding;
+      // Keep the durable employerSymbols list in sync so the flag survives re-imports
+      let employerSymbols = [...(portfolio.employerSymbols || [])];
+      if (chk.checked) {
+        if (!employerSymbols.includes(holding.symbol)) employerSymbols.push(holding.symbol);
+      } else {
+        employerSymbols = employerSymbols.filter(s => s !== holding.symbol);
+      }
+      renderPortfolio(await window.electronAPI.savePortfolio({ holdings, employerSymbols }));
     });
   });
 
@@ -1720,10 +1728,69 @@ function renderPortfolio(p) {
       <td>${action}</td>
     </tr>`;
   }).join('');
+
+  loadPortfolioHealth(has);
 }
 
-async function initPortfolioView() {
-  // Sortable holdings headers — same toggle behavior as the CSP tables
+// ─── Portfolio health + dividends (async, quote-backed) ─────────────────────
+let pfHealthLoading = false;
+
+async function loadPortfolioHealth(hasHoldings) {
+  const card = el('pf-health-card');
+  const navBadge = el('nav-health-badge');
+  const emptyState = el('pf-health-empty-state');
+  if (emptyState) emptyState.style.display = hasHoldings ? 'none' : '';
+  if (!hasHoldings) {
+    el('pf-health-grade').textContent = '—';
+    el('pf-dividends').textContent = '—';
+    if (card) card.style.display = 'none';
+    if (navBadge) navBadge.innerHTML = '';
+    return;
+  }
+  if (pfHealthLoading) return;
+  pfHealthLoading = true;
+  try {
+    const result = await window.electronAPI.getPortfolioHealth();
+    if (!result || !result.health) return;
+    const { health, dividends } = result;
+
+    // Metric cards + sidebar badge
+    el('pf-health-grade').innerHTML =
+      `${renderGradeBadge(health.grade)} <span style="font-size:0.6em; color:var(--text-secondary)">${health.totalScore}/100</span>`;
+    el('pf-dividends').innerHTML = fmt.currency(dividends.annual);
+    if (navBadge) navBadge.innerHTML = renderGradeBadge(health.grade);
+
+    // Breakdown card
+    if (card) {
+      card.style.display = '';
+      el('pf-health-badge').innerHTML = renderGradeBadge(health.grade);
+      el('pf-health-caption').textContent = health.caps.length
+        ? health.gradeLabel
+        : `${health.totalScore}/100 — ${health.gradeLabel}. Each dimension below explains its score and the one action that would most improve it.`;
+
+      el('pf-health-breakdown').innerHTML = health.breakdown.map(b => {
+        const ratio = b.max > 0 ? b.score / b.max : 0;
+        const color = ratio >= 0.8 ? 'var(--green)' : ratio >= 0.4 ? '#f59e0b' : 'var(--red)';
+        return `
+          <div style="margin-bottom:14px">
+            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px">
+              <span style="font-size:13px; font-weight:600">${b.label}</span>
+              <span style="font-size:12px; color:${color}">${b.score}/${b.max}</span>
+            </div>
+            <div class="score-bar-track"><div class="score-bar-fill" style="width:${ratio * 100}%; background:${color}"></div></div>
+            <div style="font-size:12px; color:var(--text-secondary); margin-top:4px">${b.detail}</div>
+            <div style="font-size:12px; color:var(--text-main); margin-top:2px">→ ${b.action}</div>
+          </div>`;
+      }).join('');
+    }
+  } catch (err) {
+    console.error('Failed to load portfolio health:', err);
+  } finally {
+    pfHealthLoading = false;
+  }
+}
+
+async function initPortfolioView() {  // Sortable holdings headers — same toggle behavior as the CSP tables
   el('pf-holdings-table').querySelectorAll('thead th[data-col]').forEach(th => {
     th.classList.add('sortable-th');
     th.addEventListener('click', () => {
@@ -1748,6 +1815,27 @@ async function initPortfolioView() {
     if (!result.success) { setStatus('error', result.error || 'Import failed'); return; }
     renderPortfolio(result.portfolio);
     if (result.warnings?.length) console.warn('CSV import warnings:', result.warnings);
+  });
+
+  el('pf-prices-btn').addEventListener('click', async () => {
+    const btn = el('pf-prices-btn');
+    btn.disabled = true;
+    const prevLabel = btn.innerHTML;
+    btn.textContent = 'Refreshing…';
+    try {
+      const result = await window.electronAPI.refreshPortfolioPrices();
+      if (result.success) {
+        renderPortfolio(result.portfolio);
+        setStatus('live', `Prices updated (${result.updated} holdings${result.skipped.length ? `, ${result.skipped.length} kept imported values` : ''})`);
+      } else {
+        setStatus('error', 'Price refresh failed');
+      }
+    } catch {
+      setStatus('error', 'Price refresh failed');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = prevLabel;
+    }
   });
 
   el('pf-tolerance-input').addEventListener('change', async () => {

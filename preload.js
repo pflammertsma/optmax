@@ -35,6 +35,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   savePortfolio:        (updates)        => ipcRenderer.invoke('save-portfolio', updates),
   importPortfolioCsv:   ()               => ipcRenderer.invoke('import-portfolio-csv'),
 
+  // Portfolio health + live prices
+  refreshPortfolioPrices: ()             => ipcRenderer.invoke('refresh-portfolio-prices'),
+  getPortfolioHealth:     ()             => ipcRenderer.invoke('get-portfolio-health'),
+
   // Guidance (compliance engine)
   analyzeTicker:        (symbol, holdings, cash) => ipcRenderer.invoke('analyze-ticker', symbol, holdings, cash),
   getPortfolioGuidance: (holdings, cash, targets) => ipcRenderer.invoke('get-portfolio-guidance', holdings, cash, targets),

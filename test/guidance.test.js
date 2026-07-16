@@ -46,6 +46,15 @@ console.log('Running test/guidance.test.js...');
   assert.strictEqual(r.isPfic, false);
   assert.strictEqual(r.suitability, 'caution');
 
+  // 4-letter US-listed stock held in USD must NOT be pattern-flagged as PFIC (SIDU regression)
+  r = analyzeTicker('SIDU', [{ symbol: 'SIDU', marketValue: 1000, currency: 'USD' }], 0, null);
+  assert.strictEqual(r.type, 'stock');
+  assert.strictEqual(r.isPfic, false);
+
+  // ...but an unknown 4-letter symbol held in a foreign currency still is
+  r = analyzeTicker('XDWD', [{ symbol: 'XDWD', marketValue: 1000, currency: 'CHF' }], 0, null);
+  assert.strictEqual(r.isPfic, true);
+
   // Dynamic Yahoo Finance Bond ETF
   r = analyzeTicker('BND', [], 0, {
     quoteType: 'ETF',

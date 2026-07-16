@@ -13,6 +13,17 @@ const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 const quoteCache = new Map();
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
+// A quote is only trustworthy for a holding if it's for the same exchange
+// listing — Yahoo resolves bare tickers like ETL/UMI/IUSC to US instruments,
+// not the SIX/Euronext listings IBKR reports. Currency mismatch → null.
+async function fetchQuoteForHolding(holding) {
+  const quote = await fetchCachedQuote(holding.symbol);
+  if (!quote) return null;
+  const hCcy = (holding.currency || 'USD').toUpperCase();
+  const qCcy = (quote.currency || 'USD').toUpperCase();
+  return qCcy === hCcy ? quote : null;
+}
+
 async function fetchCachedQuote(symbol) {
   if (!symbol) return null;
   const key = symbol.toUpperCase().trim();
@@ -34,9 +45,11 @@ const {
   computeDrift, employerConcentration, topConcentrations,
 } = require('./lib/portfolio');
 const { analyzeTicker, generatePortfolioGuidance } = require('./lib/guidance');
+const { computePortfolioHealth, projectAnnualDividends } = require('./lib/health');
 
 const CACHE_FILE      = path.join(app.getPath('userData'), 'data.json');
-const PORTFOLIO_FILE  = path.join(app.getPath('userData'), 'portfolio.json');
+const PORTFOLIO_FILE    = path.join(app.getPath('userData'), 'portfolio.json');
+const HEALTH_CACHE_FILE = path.join(app.getPath('userData'), 'health-cache.json');
 const SETTINGS_FILE   = path.join(app.getPath('userData'), 'settings.json');
 const DISC_CACHE_FILE = path.join(app.getPath('userData'), 'discovery-cache.json');
 const SEED_CACHE_FILE = path.join(__dirname, 'lib', 'discovery-seed.json');
@@ -153,6 +166,39 @@ function loadPortfolio() {
 
 function savePortfolio(p) {
   fs.writeFileSync(PORTFOLIO_FILE, JSON.stringify(p), 'utf8');
+}
+
+// ── Health cache ──────────────────────────────────────────────────────────────
+// The health score is a pure function of these inputs, so a fingerprint over
+// them is the single source of truth for "did the portfolio change" — it
+// catches every write path (CSV import, price refresh, bucket/target edits,
+// even external edits to portfolio.json) without per-caller bookkeeping.
+const HEALTH_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // quotes drift; refresh daily regardless
+
+function portfolioFingerprint(p, settings) {
+  const crypto = require('crypto');
+  const material = JSON.stringify({
+    holdings: p.holdings,
+    cash: p.cash,
+    targets: p.targets,
+    tolerancePct: p.tolerancePct,
+    employerSymbols: p.employerSymbols,
+    cashDragThreshold: settings.cashDragThreshold ?? null,
+  });
+  return crypto.createHash('sha1').update(material).digest('hex');
+}
+
+function loadHealthCache() {
+  try {
+    if (fs.existsSync(HEALTH_CACHE_FILE)) {
+      return JSON.parse(fs.readFileSync(HEALTH_CACHE_FILE, 'utf8'));
+    }
+  } catch {}
+  return null;
+}
+
+function saveHealthCache(payload) {
+  fs.writeFileSync(HEALTH_CACHE_FILE, JSON.stringify(payload), 'utf8');
 }
 
 // Portfolio plus derived metrics the renderer needs (math stays in lib/portfolio.js).
@@ -844,12 +890,16 @@ app.whenReady().then(() => {
       // Preserve manual annotations (bucket, employer flag) across re-imports
       const prev = loadPortfolio();
       const prevBySymbol = new Map(prev.holdings.map(h => [h.symbol, h]));
+      const employerSyms = new Set((prev.employerSymbols || []).map(s => s.toUpperCase()));
       for (const h of holdings) {
         const old = prevBySymbol.get(h.symbol);
         if (old) {
           h.bucket = old.bucket;
           h.isEmployerStock = old.isEmployerStock;
         }
+        // employerSymbols is the durable source of truth — it survives imports
+        // even when the holding itself is new (e.g. a fresh RSU transfer).
+        if (employerSyms.has(h.symbol)) h.isEmployerStock = true;
       }
 
       const merged = {
@@ -877,6 +927,95 @@ app.whenReady().then(() => {
     return analyzeTicker(symbol, holdings, cash, quote);
   });
 
+  // ── Live price refresh for portfolio holdings ─────────────────────────────
+  ipcMain.handle('refresh-portfolio-prices', async () => {
+    const p = loadPortfolio();
+    const base = (p.baseCurrency || 'USD').toUpperCase();
+    const fxCache = {};
+    let updated = 0;
+    const skipped = [];
+
+    for (const h of p.holdings || []) {
+      if (!h.quantity || h.quantity <= 0) { skipped.push(h.symbol); continue; }
+      try {
+        const quote = await fetchCachedQuote(h.symbol);
+        const price = quote?.regularMarketPrice;
+        if (!price || price <= 0) { skipped.push(h.symbol); continue; }
+
+        // Only trust the quote when its listing currency matches the holding's —
+        // a mismatch usually means Yahoo resolved a different exchange listing
+        // of the same ticker. Those keep their imported value.
+        const qCcy = (quote.currency || 'USD').toUpperCase();
+        const hCcy = (h.currency || base).toUpperCase();
+        if (qCcy !== hCcy) { skipped.push(h.symbol); continue; }
+
+        let fx = 1;
+        if (qCcy !== base) {
+          if (!(qCcy in fxCache)) {
+            const fxq = await fetchCachedQuote(`${qCcy}${base}=X`);
+            fxCache[qCcy] = fxq?.regularMarketPrice || null;
+          }
+          fx = fxCache[qCcy];
+          if (!fx) { skipped.push(h.symbol); continue; }
+        }
+
+        h.marketValue = h.quantity * price * fx;
+        h.priceUpdatedAt = new Date().toISOString();
+        updated++;
+      } catch {
+        skipped.push(h.symbol);
+      }
+    }
+
+    if (updated > 0) {
+      p.pricesUpdatedAt = new Date().toISOString();
+      savePortfolio(p);
+    }
+    return { success: true, portfolio: portfolioView(p), updated, skipped };
+  });
+
+  // ── Portfolio health grade + dividend projection ──────────────────────────
+  ipcMain.handle('get-portfolio-health', async (_event, opts = {}) => {
+    const p = loadPortfolio();
+    if (!p.holdings || p.holdings.length === 0) return null;
+    const settings = loadSettings();
+
+    // Recompute only when the inputs actually changed (or the cache is stale —
+    // quote-derived data like dividends drifts even with an unchanged portfolio).
+    const fingerprint = portfolioFingerprint(p, settings);
+    if (!opts.force) {
+      const cached = loadHealthCache();
+      if (cached?.health &&
+          cached.fingerprint === fingerprint &&
+          Date.now() - new Date(cached.computedAt).getTime() < HEALTH_CACHE_MAX_AGE_MS) {
+        return { ...cached, fromCache: true };
+      }
+    }
+
+    const quotes = {};
+    await Promise.all(p.holdings.map(async h => {
+      try {
+        const q = await fetchQuoteForHolding(h);
+        if (q) quotes[h.symbol.toUpperCase()] = q;
+      } catch (err) {
+        console.warn(`Health quote fetch failed for ${h.symbol}:`, err.message);
+      }
+    }));
+
+    const health = computePortfolioHealth({
+      holdings: p.holdings,
+      cash: p.cash,
+      targets: p.targets,
+      tolerancePct: p.tolerancePct,
+      quotes,
+      settings,
+    });
+    const dividends = projectAnnualDividends(p.holdings, quotes);
+    const payload = { fingerprint, computedAt: new Date().toISOString(), health, dividends };
+    saveHealthCache(payload);
+    return payload;
+  });
+
   ipcMain.handle('get-portfolio-guidance', async (_event, holdings, cash, targets) => {
     const settings = loadSettings();
     const quotes = {};
@@ -884,7 +1023,7 @@ app.whenReady().then(() => {
       await Promise.all(holdings.map(async h => {
         try {
           if (h.symbol) {
-            const q = await fetchCachedQuote(h.symbol);
+            const q = await fetchQuoteForHolding(h);
             if (q) quotes[h.symbol.toUpperCase()] = q;
           }
         } catch (err) {

@@ -45,6 +45,11 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           Guidance
         </a>
+        <a class="nav-link" data-view="health" id="nav-health">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          Health
+          <span id="nav-health-badge" style="margin-left:auto; display:flex; align-items:center;"></span>
+        </a>
 
         <div class="nav-sep"></div>
 
@@ -461,15 +466,23 @@
             </div>
             <span class="view-subtitle">Long-term holdings — allocation, drift &amp; concentration</span>
           </div>
-          <button class="settings-action-btn" id="pf-import-btn" style="width:auto">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Import IBKR CSV
-          </button>
+          <div style="display:flex; gap:8px;">
+            <button class="settings-action-btn" id="pf-prices-btn" style="width:auto">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Refresh Prices
+            </button>
+            <button class="settings-action-btn" id="pf-import-btn" style="width:auto">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Import IBKR CSV
+            </button>
+          </div>
         </div>
 
         <div class="metric-cards" id="pf-metric-cards">
+          <div class="metric-card"><div class="metric-label">Health Grade</div><div class="metric-value" id="pf-health-grade">—</div></div>
           <div class="metric-card"><div class="metric-label">Total Value</div><div class="metric-value" id="pf-total-value">—</div></div>
           <div class="metric-card"><div class="metric-label" id="pf-cash-label">Cash</div><div class="metric-value" id="pf-cash">—</div></div>
+          <div class="metric-card"><div class="metric-label">Est. Dividends / yr</div><div class="metric-value" id="pf-dividends">—</div></div>
           <div class="metric-card"><div class="metric-label">Employer Stock</div><div class="metric-value" id="pf-employer-pct">—</div></div>
           <div class="metric-card"><div class="metric-label">Largest Position</div><div class="metric-value" id="pf-largest">—</div></div>
           <div class="metric-card"><div class="metric-label">Buckets Off Target</div><div class="metric-value" id="pf-drift-count">—</div></div>
@@ -501,6 +514,32 @@
             </table>
           </div>
 
+        </div>
+      </section>
+
+      <!-- Health View -->
+      <section class="view" id="view-health">
+        <div class="view-header">
+          <div>
+            <h1 class="view-title">Portfolio Health</h1>
+            <span class="view-subtitle">A 100-point grade across concentration, diversification, drift, tax hygiene &amp; cash deployment</span>
+          </div>
+        </div>
+
+        <div class="empty-state" id="pf-health-empty-state" style="display:none">
+          <div class="empty-state-icon">◔</div>
+          <h3 class="empty-state-title">No portfolio data yet</h3>
+          <p class="empty-state-body">Import your holdings in the Portfolio view to see a health grade.</p>
+        </div>
+
+        <div class="settings-card" id="pf-health-card" style="display:none">
+          <div class="settings-card-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            Score Breakdown
+            <span id="pf-health-badge" style="margin-left:auto"></span>
+          </div>
+          <p class="settings-card-desc" id="pf-health-caption"></p>
+          <div id="pf-health-breakdown"></div>
         </div>
       </section>
 
