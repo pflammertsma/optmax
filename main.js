@@ -3,6 +3,10 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+
+if (process.argv.includes('--smoke-test')) {
+  app.setPath('userData', path.join(__dirname, 'test', 'mock-userData'));
+}
 const YahooFinance = require('yahoo-finance2').default;
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 const { findClosestDate, computeHV, computeIVR, detectMeanReversion } = require('./lib/strategies');
@@ -10,6 +14,7 @@ const {
   parsePositionsCsv, totalValue, allocationByHolding, allocationByBucket,
   computeDrift, employerConcentration, topConcentrations,
 } = require('./lib/portfolio');
+const { analyzeTicker, generatePortfolioGuidance } = require('./lib/guidance');
 
 const CACHE_FILE      = path.join(app.getPath('userData'), 'data.json');
 const PORTFOLIO_FILE  = path.join(app.getPath('userData'), 'portfolio.json');
@@ -783,8 +788,14 @@ app.whenReady().then(() => {
     }
   });
 
-  // ── Portfolio (long-term module) ─────────────────────────────────────────
-  ipcMain.handle('get-portfolio', () => portfolioView(loadPortfolio()));
+  ipcMain.handle('get-portfolio', () => {
+    try {
+      return portfolioView(loadPortfolio());
+    } catch (err) {
+      console.error('IPC get-portfolio error:', err);
+      throw err;
+    }
+  });
 
   ipcMain.handle('save-portfolio', (_event, updates) => {
     const merged = { ...loadPortfolio(), ...updates, updatedAt: new Date().toISOString() };
@@ -830,6 +841,14 @@ app.whenReady().then(() => {
     } catch (err) {
       return { success: false, error: err.message };
     }
+  });
+
+  ipcMain.handle('analyze-ticker', (_event, symbol, holdings, cash) => {
+    return analyzeTicker(symbol, holdings, cash);
+  });
+
+  ipcMain.handle('get-portfolio-guidance', (_event, holdings, cash, targets) => {
+    return generatePortfolioGuidance(holdings, cash, targets);
   });
 
   createWindow();

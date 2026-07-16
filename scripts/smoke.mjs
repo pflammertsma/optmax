@@ -13,14 +13,20 @@ fs.mkdirSync(SHOT_DIR, { recursive: true });
 console.log('Launching PortMax…');
 const app = await electron.launch({
   executablePath: ELECTRON,
-  args: [ROOT],
+  args: [ROOT, '--smoke-test'],
   timeout: 30_000,
 });
+
+const proc = app.process();
+proc.stdout.on('data', data => console.log('MAIN OUT:', data.toString()));
+proc.stderr.on('data', data => console.log('MAIN ERR:', data.toString()));
 
 const page = app.windows().find(w => !w.url().startsWith('devtools://'))
           ?? await app.firstWindow();
 
 await page.waitForLoadState('domcontentloaded');
+page.on('console', msg => console.log('PAGE LOG:', msg.text()));
+page.on('pageerror', err => console.log('PAGE ERROR:', err.message));
 console.log('Window loaded:', page.url());
 
 // Wait for boot sequence (initSettingsUI + initWatchlists + loadInitialData)
@@ -46,12 +52,16 @@ async function shot(name) {
 // ── 01 Dashboard ─────────────────────────────────────────────────────────────
 await shot('01-dashboard');
 
+// ── 01b Portfolio ────────────────────────────────────────────────────────────
+await nav('portfolio');
+await shot('01b-portfolio');
+
 // ── Read UI state ─────────────────────────────────────────────────────────────
 const state = await page.evaluate(() => ({
   statusText: document.getElementById('status-text')?.textContent,
   activeView: document.querySelector('.view.active')?.id,
   navLinks:   [...document.querySelectorAll('.nav-link')].map(l => l.textContent.trim()),
-  views: ['view-dashboard','view-screener','view-top25','view-under10k',
+  views: ['view-dashboard','view-portfolio','view-screener','view-top25','view-under10k',
           'view-megacaps','view-favorites','view-discover','view-settings']
     .map(id => ({ id, exists: !!document.getElementById(id) })),
   helpBtn: !!document.getElementById('help-btn'),

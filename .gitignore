@@ -12,3 +12,9 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+# Ignore all Electron-generated user data in the mock folder
+test/mock-userData/*
+# Allow tracking the mock configuration JSON files
+!test/mock-userData/data.json
+!test/mock-userData/portfolio.json
+!test/mock-userData/settings.json

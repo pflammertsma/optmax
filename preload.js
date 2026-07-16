@@ -35,6 +35,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   savePortfolio:        (updates)        => ipcRenderer.invoke('save-portfolio', updates),
   importPortfolioCsv:   ()               => ipcRenderer.invoke('import-portfolio-csv'),
 
+  // Guidance (compliance engine)
+  analyzeTicker:        (symbol, holdings, cash) => ipcRenderer.invoke('analyze-ticker', symbol, holdings, cash),
+  getPortfolioGuidance: (holdings, cash, targets) => ipcRenderer.invoke('get-portfolio-guidance', holdings, cash, targets),
+
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window-minimize'),
   maximizeWindow: () => ipcRenderer.send('window-maximize'),

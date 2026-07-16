@@ -384,6 +384,18 @@ test('missing FX rate imports unconverted with a warning', () => {
   assert.ok(r.errors.some(e => e.includes('CHF')));
 });
 
+test('parses and populates individual lot data for holdings', () => {
+  const r = parsePositionsCsv(activityCsv);
+  const vti = r.holdings.find(h => h.symbol === 'VTI');
+  assert.ok(vti);
+  assert.strictEqual(vti.lots.length, 1);
+  assert.strictEqual(vti.lots[0].quantity, 60);
+  approx(vti.lots[0].costBasis, 14400);
+  approx(vti.lots[0].costPrice, 240);
+  approx(vti.lots[0].marketValue, 18000);
+  approx(vti.lots[0].unrealizedPnl, 3600);
+});
+
 // ─── Summary ─────────────────────────────────────────────────────────────────
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

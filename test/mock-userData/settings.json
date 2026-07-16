@@ -1,0 +1,7 @@
+{
+  "refreshIntervalDays": 1,
+  "minMarginPct": 5,
+  "priceRefreshHours": 4,
+  "watchlist": ["AAPL", "GOOG", "MSFT", "VTI"],
+  "starred": ["AAPL"]
+}

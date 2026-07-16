@@ -1608,6 +1608,37 @@ function renderPortfolio(p) {
       <td>${action}</td>
     </tr>`;
   }).join('');
+
+  // Fetch and render compliance guidance alerts
+  window.electronAPI.getPortfolioGuidance(p.holdings, p.cash, p.targets)
+    .then(guidanceItems => {
+      const listEl = el('pf-guidance-list');
+      if (!listEl) return;
+      if (guidanceItems.length === 0) {
+        listEl.innerHTML = `
+          <div class="guidance-item severity-info" style="border: 1px dashed rgba(6, 182, 212, 0.35); background: transparent;">
+            <span class="guidance-icon">✓</span>
+            <div class="guidance-content">
+              <span class="guidance-title">Portfolio is compliant</span>
+              <span class="guidance-message">No PFIC assets, elevated employer concentrations, or cash drag detected. Your current holdings are structured appropriately.</span>
+            </div>
+          </div>`;
+        return;
+      }
+      
+      listEl.innerHTML = guidanceItems.map(item => {
+        const icon = item.severity === 'error' ? '✕' : '⚠';
+        return `
+          <div class="guidance-item severity-${item.severity}">
+            <span class="guidance-icon">${icon}</span>
+            <div class="guidance-content">
+              <span class="guidance-title">${item.title}</span>
+              <span class="guidance-message">${item.message}</span>
+            </div>
+          </div>`;
+      }).join('');
+    })
+    .catch(err => console.error('Failed to load portfolio guidance:', err));
 }
 
 async function initPortfolioView() {
@@ -1643,6 +1674,73 @@ async function initPortfolioView() {
     if (!Number.isFinite(v) || v <= 0) return;
     renderPortfolio(await window.electronAPI.savePortfolio({ tolerancePct: v }));
   });
+
+  // Ticker Compliance Lookup Search Wire-up
+  async function runTickerLookup() {
+    const input = el('pf-lookup-input');
+    const resultBox = el('pf-lookup-result');
+    if (!input || !resultBox) return;
+
+    const symbol = input.value.trim().toUpperCase();
+    if (!symbol) return;
+
+    resultBox.classList.remove('hidden');
+    resultBox.innerHTML = '<div style="color: var(--text-muted); font-size:12px;">Analyzing ticker context...</div>';
+
+    try {
+      const res = await window.electronAPI.analyzeTicker(symbol, portfolio?.holdings || [], portfolio?.cash || 0);
+      if (!res) {
+        resultBox.innerHTML = '<div style="color: var(--red); font-size:12px;">Failed to analyze ticker.</div>';
+        return;
+      }
+
+      const badgeClass = `suitability-${res.suitability}`;
+      const badgeText = res.suitability === 'danger' ? 'High Risk' : res.suitability === 'caution' ? 'Caution' : 'Suitable';
+      
+      let holdingNote = 'Not currently held.';
+      if (res.weightPct > 0) {
+        holdingNote = `Holds **${res.weightPct.toFixed(1)}%** of your portfolio.`;
+      }
+
+      resultBox.innerHTML = `
+        <div class="lookup-result-header">
+          <span class="lookup-ticker">${res.symbol}</span>
+          <span class="lookup-badge ${badgeClass}">${badgeText}</span>
+        </div>
+        <div class="lookup-row">
+          <span class="lookup-label">Asset Type</span>
+          <span class="lookup-value" style="text-transform: capitalize;">${res.type}</span>
+        </div>
+        <div class="lookup-row">
+          <span class="lookup-label">Domicile</span>
+          <span class="lookup-value">${res.domicile}</span>
+        </div>
+        <div class="lookup-row">
+          <span class="lookup-label">Tax Class</span>
+          <span class="lookup-value">${res.isPfic ? 'PFIC (Foreign pooled fund)' : 'Standard (Non-PFIC)'}</span>
+        </div>
+        <div class="lookup-row">
+          <span class="lookup-label">Portfolio Impact</span>
+          <span class="lookup-value">${holdingNote}</span>
+        </div>
+        <div class="lookup-details">
+          <strong>Guidance:</strong> ${res.reason}<br><br>
+          ${res.details}
+        </div>
+      `;
+    } catch (e) {
+      resultBox.innerHTML = `<div style="color: var(--red); font-size:12px;">Error: ${e.message}</div>`;
+    }
+  }
+
+  const lookupBtn = el('pf-lookup-btn');
+  const lookupInput = el('pf-lookup-input');
+  if (lookupBtn) lookupBtn.addEventListener('click', runTickerLookup);
+  if (lookupInput) {
+    lookupInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') runTickerLookup();
+    });
+  }
 
   renderPortfolio(await window.electronAPI.getPortfolio());
 }

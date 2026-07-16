@@ -1,0 +1,88 @@
+{
+  "holdings": [
+    {
+      "symbol": "VTI",
+      "quantity": 50,
+      "marketValue": 15000,
+      "costBasis": 12000,
+      "currency": "USD",
+      "bucket": "core",
+      "isEmployerStock": false,
+      "lots": [
+        {
+          "quantity": 50,
+          "costPrice": 240,
+          "costBasis": 12000,
+          "marketValue": 15000,
+          "unrealizedPnl": 3000,
+          "acquisitionDate": "20240115"
+        }
+      ]
+    },
+    {
+      "symbol": "CSPX",
+      "quantity": 20,
+      "marketValue": 6000,
+      "costBasis": 5500,
+      "currency": "USD",
+      "bucket": "satellite",
+      "isEmployerStock": false,
+      "lots": [
+        {
+          "quantity": 20,
+          "costPrice": 275,
+          "costBasis": 5500,
+          "marketValue": 6000,
+          "unrealizedPnl": 500,
+          "acquisitionDate": "20240215"
+        }
+      ]
+    },
+    {
+      "symbol": "GOOG",
+      "quantity": 120,
+      "marketValue": 18000,
+      "costBasis": 17000,
+      "currency": "USD",
+      "bucket": "satellite",
+      "isEmployerStock": true,
+      "lots": [
+        {
+          "quantity": 80,
+          "costPrice": 125,
+          "costBasis": 10000,
+          "marketValue": 12000,
+          "unrealizedPnl": 2000,
+          "acquisitionDate": "20240315"
+        },
+        {
+          "quantity": 20,
+          "costPrice": 200,
+          "costBasis": 4000,
+          "marketValue": 2000,
+          "unrealizedPnl": -2000,
+          "acquisitionDate": "20250615"
+        },
+        {
+          "quantity": 20,
+          "costPrice": 150,
+          "costBasis": 3000,
+          "marketValue": 4000,
+          "unrealizedPnl": 1000,
+          "acquisitionDate": "20250815"
+        }
+      ]
+    }
+  ],
+  "cash": 8000,
+  "targets": [
+    { "bucket": "core", "targetPct": 80 },
+    { "bucket": "satellite", "targetPct": 15 },
+    { "bucket": "cash", "targetPct": 5 }
+  ],
+  "employerSymbols": ["GOOG"],
+  "tolerancePct": 5,
+  "baseCurrency": "USD",
+  "updatedAt": "2026-07-16T00:00:00.000Z",
+  "source": "manual"
+}
