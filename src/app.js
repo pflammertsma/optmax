@@ -29,15 +29,17 @@ let screenerSort = { col: 'score', dir: 'desc' };
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
 const fmt = {
-  currency: v => v == null ? '—' : '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+  currency: v => v == null ? '—' : `<span class="privacy-amount">$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>`,
   pct:      v => v == null ? '—' : v.toFixed(2) + '%',
   num:      v => v == null ? '—' : v.toLocaleString('en-US'),
   mktcap:   v => {
     if (v == null || v <= 0) return '—';
-    if (v >= 1e12) return '$' + (v / 1e12).toFixed(2) + 'T';
-    if (v >= 1e9)  return '$' + (v / 1e9).toFixed(2) + 'B';
-    if (v >= 1e6)  return '$' + (v / 1e6).toFixed(2) + 'M';
-    return '$' + v.toLocaleString('en-US');
+    let val;
+    if (v >= 1e12) val = '$' + (v / 1e12).toFixed(2) + 'T';
+    else if (v >= 1e9)  val = '$' + (v / 1e9).toFixed(2) + 'B';
+    else if (v >= 1e6)  val = '$' + (v / 1e6).toFixed(2) + 'M';
+    else val = '$' + v.toLocaleString('en-US');
+    return `<span class="privacy-amount">${val}</span>`;
   }
 };
 
@@ -152,7 +154,7 @@ function renderDashboardStarred() {
         <div style="display: flex; flex-direction: column; gap: 4px;">
           <div style="display: flex; align-items: center; gap: 6px;">
             <span class="preview-symbol" style="font-size: 14px; font-weight: 600; color: var(--cyan);">${d.symbol}</span>
-            <span class="preview-info" style="font-weight: 600; color: var(--text-primary); margin: 0;">$${d.currentPrice.toFixed(2)}</span>
+            <span class="preview-info privacy-amount" style="font-weight: 600; color: var(--text-primary); margin: 0;">$${d.currentPrice.toFixed(2)}</span>
             ${d._score ? renderGradeBadge(d._score.grade) : ''}
           </div>
           <span class="preview-info" style="font-size: 11px; color: var(--text-secondary);">${fmt.currency(d.strike)} strike · ${d.dte}d</span>
@@ -183,7 +185,7 @@ function renderPreviewList(containerId, items) {
         <div style="display: flex; flex-direction: column; gap: 4px;">
           <div style="display: flex; align-items: center; gap: 6px;">
             <span class="preview-symbol" style="font-size: 14px; font-weight: 600; color: var(--cyan);">${d.symbol}</span>
-            <span class="preview-info" style="font-weight: 600; color: var(--text-primary); margin: 0;">$${d.currentPrice.toFixed(2)}</span>
+            <span class="preview-info privacy-amount" style="font-weight: 600; color: var(--text-primary); margin: 0;">$${d.currentPrice.toFixed(2)}</span>
             ${d._score ? renderGradeBadge(d._score.grade) : ''}
           </div>
           <span class="preview-info" style="font-size: 11px; color: var(--text-secondary);">${fmt.currency(d.strike)} strike · ${d.dte}d</span>
@@ -867,12 +869,12 @@ async function openModal(d) {
   }
 
   // Trade mechanics
-  el('mechanics-text').textContent =
-    `Sell 1 put contract with a $${d.strike.toFixed(2)} strike expiring in ${d.dte} days ` +
-    `for a premium of $${(d.premium * 100).toFixed(2)} (${fmt.pct(d.marginOfSafety)} below current price). ` +
-    `If assigned, you will be obligated to buy 100 shares at $${d.strike.toFixed(2)}, ` +
-    `requiring $${d.capitalRequired.toLocaleString()} in capital. ` +
-    `Your break-even price is $${d.breakEven.toFixed(2)}.`;
+  el('mechanics-text').innerHTML =
+    `Sell 1 put contract with a <span class="privacy-amount">$${d.strike.toFixed(2)}</span> strike expiring in ${d.dte} days ` +
+    `for a premium of <span class="privacy-amount">$${(d.premium * 100).toFixed(2)}</span> (${fmt.pct(d.marginOfSafety)} below current price). ` +
+    `If assigned, you will be obligated to buy 100 shares at <span class="privacy-amount">$${d.strike.toFixed(2)}</span>, ` +
+    `requiring <span class="privacy-amount">$${d.capitalRequired.toLocaleString()}</span> in capital. ` +
+    `Your break-even price is <span class="privacy-amount">$${d.breakEven.toFixed(2)}</span>.`;
 
   // Block explanation
   const expBox  = el('modal-block-explanation-box');
@@ -1416,6 +1418,34 @@ el('wc-minimize').addEventListener('click', () => window.electronAPI.minimizeWin
 el('wc-maximize').addEventListener('click', () => window.electronAPI.maximizeWindow());
 el('wc-close').addEventListener('click',    () => window.electronAPI.closeWindow());
 
+// ─── Privacy Mode ─────────────────────────────────────────────────────────────
+let isPrivacyMode = localStorage.getItem('privacyMode') === 'true';
+
+const EYE_OPEN = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+const EYE_CLOSED = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
+
+function updatePrivacyMode() {
+  const btn = el('wc-privacy');
+  if (btn) btn.innerHTML = isPrivacyMode ? EYE_CLOSED : EYE_OPEN;
+  if (isPrivacyMode) {
+    document.body.classList.add('privacy-active');
+  } else {
+    document.body.classList.remove('privacy-active');
+  }
+}
+
+function togglePrivacyMode() {
+  isPrivacyMode = !isPrivacyMode;
+  localStorage.setItem('privacyMode', isPrivacyMode);
+  updatePrivacyMode();
+}
+
+const privacyBtn = el('wc-privacy');
+if (privacyBtn) {
+  privacyBtn.addEventListener('click', togglePrivacyMode);
+}
+updatePrivacyMode();
+
 // ─── Portfolio view (long-term module) ───────────────────────────────────────
 const PF_BUCKETS = ['core', 'satellite', 'cash', 'unassigned'];
 let portfolio = null;
@@ -1429,8 +1459,10 @@ function pfPct(v) {
 
 function pfSignedCurrency(v) {
   if (v == null) return '—';
-  const s = fmt.currency(Math.abs(v));
-  return v < 0 ? `<span style="color:var(--red)">-${s}</span>` : `<span style="color:var(--green)">${s}</span>`;
+  const val = '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const raw = v < 0 ? `-${val}` : val;
+  const color = v < 0 ? 'var(--red)' : 'var(--green)';
+  return `<span class="privacy-amount" style="color:${color}">${raw}</span>`;
 }
 
 function pfSignedPct(v) {
@@ -1466,8 +1498,8 @@ function renderPortfolio(p) {
     : 'no data';
 
   const d = p.derived;
-  el('pf-total-value').textContent = has ? fmt.currency(d.totalValue) : '—';
-  el('pf-cash').textContent = has ? fmt.currency(p.cash || 0) : '—';
+  el('pf-total-value').innerHTML = has ? fmt.currency(d.totalValue) : '—';
+  el('pf-cash').innerHTML = has ? fmt.currency(p.cash || 0) : '—';
   el('pf-cash-label').textContent = p.baseCurrency ? `Cash (${p.baseCurrency})` : 'Cash';
   const conc = d.concentration;
   el('pf-employer-pct').textContent = has ? fmt.pct(conc.pct) : '—';
