@@ -1938,44 +1938,21 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     pill.style.background = st.bg;
     pill.style.borderColor = st.border;
     pill.title = s.state === 'needs-login'
-      ? 'Click to log in to IBKR (opens inside PortMax)'
+      ? 'IBKR Client Portal Gateway status'
       : s.state === 'unreachable'
-        ? `Gateway not running at ${s.gatewayUrl} — click to start it (set the folder in Settings first)`
-        : 'Connected to the Client Portal Gateway — click to re-check';
-    btn.disabled = s.state !== 'connected';
+        ? `Gateway not running at ${s.gatewayUrl}`
+        : 'Connected to the Client Portal Gateway';
+
+    if (s.state === 'connected') {
+      btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>Sync IBKR`;
+    } else if (s.state === 'needs-login') {
+      btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>Login to IBKR`;
+    } else if (s.state === 'unreachable') {
+      btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><polygon points="5 3 19 12 5 21 5 3"/></svg>Start Gateway`;
+    }
   };
 
-  el('pf-ibkr-status').addEventListener('click', async () => {
-    if (ibkrState === 'needs-login') {
-      openIbkrLogin();
-      return;
-    }
-    if (ibkrState === 'unreachable') {
-      // Offer to launch the gateway if the folder is configured
-      const running = await window.electronAPI.ibkrGatewayRunning();
-      if (!running.running) {
-        const start = await window.electronAPI.ibkrGatewayStart();
-        if (!start.success) {
-          setStatus('error', start.error || 'Could not start gateway');
-          return;
-        }
-        setStatus('loading', 'Starting IBKR gateway… (Java takes ~15–30s)');
-        const outcome = await superviseGatewayStartup(60000);
-        if (outcome === 'needs-login') {
-          setStatus('', 'Gateway ready — log in to IBKR');
-          openIbkrLogin();
-        } else if (outcome === 'connected') {
-          setStatus('live', 'IBKR connected — you can now Sync.');
-        } else if (outcome === 'died') {
-          const log = await window.electronAPI.ibkrGatewayLog(8);
-          const tail = log.tail.length ? ` Last log: "${log.tail[log.tail.length - 1]}"` : '';
-          setStatus('error', `Gateway exited during startup (code ${log.lastExit?.code ?? '?'}).${tail} Full log: ${log.logFile}`);
-        } else {
-          setStatus('error', `Gateway is running but not answering after 60s — check ${ (await window.electronAPI.ibkrGatewayLog(1)).logFile }`);
-        }
-        return;
-      }
-    }
+  el('pf-ibkr-status').addEventListener('click', () => {
     refreshIbkrStatus();
   });
 
@@ -2112,23 +2089,70 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
 
   el('pf-ibkr-sync-btn').addEventListener('click', async () => {
     const btn = el('pf-ibkr-sync-btn');
-    btn.disabled = true;
-    const prevLabel = btn.innerHTML;
-    btn.textContent = 'Syncing…';
-    try {
-      const result = await window.electronAPI.ibkrSync();
-      if (result.success) {
-        renderPortfolio(result.portfolio);
-        setStatus('live', `Synced ${result.portfolio.holdings.length} holdings from IBKR (${result.accountId})`);
-        if (result.warnings?.length) console.warn('IBKR sync warnings:', result.warnings);
-      } else {
-        setStatus('error', result.error || 'IBKR sync failed');
+    
+    if (ibkrState === 'connected') {
+      btn.disabled = true;
+      const prevLabel = btn.innerHTML;
+      btn.textContent = 'Syncing…';
+      try {
+        const result = await window.electronAPI.ibkrSync();
+        if (result.success) {
+          renderPortfolio(result.portfolio);
+          setStatus('live', `Synced ${result.portfolio.holdings.length} holdings from IBKR (${result.accountId})`);
+          if (result.warnings?.length) console.warn('IBKR sync warnings:', result.warnings);
+        } else {
+          setStatus('error', result.error || 'IBKR sync failed');
+        }
+      } catch {
+        setStatus('error', 'IBKR sync failed');
+      } finally {
+        btn.innerHTML = prevLabel;
+        refreshIbkrStatus();
       }
-    } catch {
-      setStatus('error', 'IBKR sync failed');
-    } finally {
-      btn.innerHTML = prevLabel;
-      refreshIbkrStatus();
+      return;
+    }
+    
+    if (ibkrState === 'needs-login') {
+      openIbkrLogin();
+      return;
+    }
+    
+    if (ibkrState === 'unreachable') {
+      btn.disabled = true;
+      const prevLabel = btn.innerHTML;
+      btn.textContent = 'Starting…';
+      try {
+        const running = await window.electronAPI.ibkrGatewayRunning();
+        if (!running.running) {
+          const start = await window.electronAPI.ibkrGatewayStart();
+          if (!start.success) {
+            setStatus('error', start.error || 'Could not start gateway');
+            btn.innerHTML = prevLabel;
+            btn.disabled = false;
+            return;
+          }
+          setStatus('loading', 'Starting IBKR gateway… (Java takes ~15–30s)');
+          const outcome = await superviseGatewayStartup(60000);
+          if (outcome === 'needs-login') {
+            setStatus('', 'Gateway ready — log in to IBKR');
+            openIbkrLogin();
+          } else if (outcome === 'connected') {
+            setStatus('live', 'IBKR connected — you can now Sync.');
+          } else if (outcome === 'died') {
+            const log = await window.electronAPI.ibkrGatewayLog(8);
+            const tail = log.tail.length ? ` Last log: "${log.tail[log.tail.length - 1]}"` : '';
+            setStatus('error', `Gateway exited during startup (code ${log.lastExit?.code ?? '?'}).${tail}`);
+          } else {
+            setStatus('error', 'Gateway is running but not answering after 60s');
+          }
+        }
+      } catch (err) {
+        setStatus('error', 'Failed to launch gateway: ' + err.message);
+      } finally {
+        btn.innerHTML = prevLabel;
+        btn.disabled = false;
+        refreshIbkrStatus();
+      }
     }
   });
 
