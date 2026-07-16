@@ -1821,6 +1821,68 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     if (result.warnings?.length) console.warn('CSV import warnings:', result.warnings);
   });
 
+  // ── IBKR gateway status + live sync ─────────────────────────────────────
+  let ibkrState = 'unreachable';
+
+  async function refreshIbkrStatus() {
+    const pill = el('pf-ibkr-status');
+    const btn = el('pf-ibkr-sync-btn');
+    if (!pill || !btn) return;
+    pill.textContent = 'IBKR: checking…';
+    const s = await window.electronAPI.ibkrStatus();
+    ibkrState = s.state;
+    const styles = {
+      'connected':   { text: 'IBKR: connected',       color: 'var(--green)', bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.25)' },
+      'needs-login': { text: 'IBKR: login required',  color: '#f59e0b',      bg: 'rgba(251,191,36,0.1)',  border: 'rgba(251,191,36,0.25)' },
+      'unreachable': { text: 'IBKR: gateway offline', color: 'var(--text-muted)', bg: 'transparent',      border: 'rgba(255,255,255,0.1)' },
+    };
+    const st = styles[s.state] || styles.unreachable;
+    pill.textContent = st.text;
+    pill.style.color = st.color;
+    pill.style.background = st.bg;
+    pill.style.borderColor = st.border;
+    pill.title = s.state === 'needs-login'
+      ? 'Click to open the gateway login page in your browser'
+      : s.state === 'unreachable'
+        ? `No Client Portal Gateway at ${s.gatewayUrl} — start it, then click to re-check`
+        : 'Connected to the Client Portal Gateway — click to re-check';
+    btn.disabled = s.state !== 'connected';
+  }
+
+  el('pf-ibkr-status').addEventListener('click', async () => {
+    if (ibkrState === 'needs-login') {
+      await window.electronAPI.ibkrOpenLogin();
+      // Give the login a moment, then re-check automatically
+      setTimeout(refreshIbkrStatus, 15000);
+      return;
+    }
+    refreshIbkrStatus();
+  });
+
+  el('pf-ibkr-sync-btn').addEventListener('click', async () => {
+    const btn = el('pf-ibkr-sync-btn');
+    btn.disabled = true;
+    const prevLabel = btn.innerHTML;
+    btn.textContent = 'Syncing…';
+    try {
+      const result = await window.electronAPI.ibkrSync();
+      if (result.success) {
+        renderPortfolio(result.portfolio);
+        setStatus('live', `Synced ${result.portfolio.holdings.length} holdings from IBKR (${result.accountId})`);
+        if (result.warnings?.length) console.warn('IBKR sync warnings:', result.warnings);
+      } else {
+        setStatus('error', result.error || 'IBKR sync failed');
+      }
+    } catch {
+      setStatus('error', 'IBKR sync failed');
+    } finally {
+      btn.innerHTML = prevLabel;
+      refreshIbkrStatus();
+    }
+  });
+
+  refreshIbkrStatus();
+
   el('pf-prices-btn').addEventListener('click', async () => {
     const btn = el('pf-prices-btn');
     btn.disabled = true;
