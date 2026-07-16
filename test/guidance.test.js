@@ -132,8 +132,8 @@ console.log('Running test/guidance.test.js...');
   ];
   let targets = [{ bucket: 'satellite', targetPct: 10 }];
   items = generatePortfolioGuidance(holdings, 0, targets);
-  assert.strictEqual(items.some(i => i.id === 'rebalance-stcg-VTI'), true);
-  assert.strictEqual(items.find(i => i.id === 'rebalance-stcg-VTI').severity, 'warning');
+  assert.strictEqual(items.some(i => i.id === 'rebalance-stcg-grouped-satellite'), true);
+  assert.strictEqual(items.find(i => i.id === 'rebalance-stcg-grouped-satellite').severity, 'warning');
 
   // Rebalancing near long-term warning
   const dateNearLong = new Date(todayVal.getTime() - 340 * 24 * 60 * 60 * 1000).toISOString().split('T')[0].replace(/-/g, '');
@@ -148,8 +148,8 @@ console.log('Running test/guidance.test.js...');
     }
   ];
   items = generatePortfolioGuidance(holdings, 0, targets);
-  assert.strictEqual(items.some(i => i.id === 'rebalance-near-ltcg-VTI-1'), true);
-  assert.strictEqual(items.find(i => i.id === 'rebalance-near-ltcg-VTI-1').severity, 'warning');
+  assert.strictEqual(items.some(i => i.id === 'rebalance-near-ltcg-grouped-satellite'), true);
+  assert.strictEqual(items.find(i => i.id === 'rebalance-near-ltcg-grouped-satellite').severity, 'warning');
 
   // Glidepath allocation drift warning
   const currentYearVal = new Date().getFullYear();

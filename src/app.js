@@ -1532,6 +1532,49 @@ function renderPortfolio(p) {
   el('pf-drift-count').textContent = has ? String(offCount) : '—';
   el('pf-drift-count').style.color = offCount > 0 ? '#f59e0b' : 'var(--green)';
 
+  // Fetch and render compliance guidance alerts
+  const listEl = el('pf-guidance-list');
+  if (listEl) {
+    if (!has) {
+      listEl.innerHTML = `
+        <div class="guidance-item severity-info" style="border: 1px dashed rgba(6, 182, 212, 0.35); background: transparent;">
+          <span class="guidance-icon">◔</span>
+          <div class="guidance-content">
+            <span class="guidance-title">No portfolio imported</span>
+            <span class="guidance-message">Import your IBKR Activity Statement in the Portfolio screen to generate compliance alerts.</span>
+          </div>
+        </div>`;
+    } else {
+      window.electronAPI.getPortfolioGuidance(p.holdings, p.cash, p.targets)
+        .then(guidanceItems => {
+          if (guidanceItems.length === 0) {
+            listEl.innerHTML = `
+              <div class="guidance-item severity-info" style="border: 1px dashed rgba(6, 182, 212, 0.35); background: transparent;">
+                <span class="guidance-icon">✓</span>
+                <div class="guidance-content">
+                  <span class="guidance-title">Portfolio is compliant</span>
+                  <span class="guidance-message">No PFIC assets, elevated employer concentrations, or cash drag detected. Your current holdings are structured appropriately.</span>
+                </div>
+              </div>`;
+            return;
+          }
+          
+          listEl.innerHTML = guidanceItems.map(item => {
+            const icon = item.severity === 'error' ? '✕' : item.severity === 'warning' ? '⚠' : 'ℹ';
+            return `
+              <div class="guidance-item severity-${item.severity}">
+                <span class="guidance-icon">${icon}</span>
+                <div class="guidance-content">
+                  <span class="guidance-title">${item.title}</span>
+                  <span class="guidance-message">${item.message}</span>
+                </div>
+              </div>`;
+          }).join('');
+        })
+        .catch(err => console.error('Failed to load portfolio guidance:', err));
+    }
+  }
+
   if (!has) return;
 
   // Holdings table — rows carry their original index so edits survive sorting
@@ -1603,6 +1646,53 @@ function renderPortfolio(p) {
       <input type="number" class="schedule-select pf-target-input" id="pf-target-${b}" data-bucket="${b}" min="0" max="100" step="1" value="${targetFor(b)}">
     </div>`).join('');
 
+  // Fetch settings for recommended allocation calculations
+  window.electronAPI.getSettings().then(settings => {
+    const currentYear = new Date().getFullYear();
+    const age = settings.birthYear ? currentYear - settings.birthYear : null;
+    const base = settings.glidepathBase ?? 110;
+    
+    const ageLabelEl = el('pf-rec-age-label');
+    const boxEl = el('pf-recommendation-box');
+    if (!ageLabelEl || !boxEl) return;
+
+    if (!age || age <= 0) {
+      ageLabelEl.textContent = 'Setup Birth Year in Settings';
+      el('pf-rec-core').textContent = '—';
+      el('pf-rec-sat').textContent = '—';
+      el('pf-rec-cash').textContent = '—';
+      const applyBtn = el('pf-apply-rec-btn');
+      if (applyBtn) applyBtn.style.display = 'none';
+      return;
+    }
+
+    const applyBtn = el('pf-apply-rec-btn');
+    if (applyBtn) applyBtn.style.display = '';
+    const equityTarget = Math.max(0, Math.min(100, base - age));
+    ageLabelEl.textContent = `Age ${age} (Equity Target: ${equityTarget}%)`;
+    
+    const cashRec = 5;
+    const satRec = 10;
+    const coreRec = 85;
+
+    el('pf-rec-core').textContent = `${coreRec}%`;
+    el('pf-rec-sat').textContent = `${satRec}%`;
+    el('pf-rec-cash').textContent = `${cashRec}%`;
+
+    if (applyBtn) {
+      const newApplyBtn = applyBtn.cloneNode(true);
+      applyBtn.parentNode.replaceChild(newApplyBtn, applyBtn);
+      newApplyBtn.addEventListener('click', async () => {
+        const targets = [
+          { bucket: 'core', targetPct: coreRec },
+          { bucket: 'satellite', targetPct: satRec },
+          { bucket: 'cash', targetPct: cashRec }
+        ];
+        renderPortfolio(await window.electronAPI.savePortfolio({ targets }));
+      });
+    }
+  }).catch(err => console.error('Failed to load settings for recommended allocation:', err));
+
   el('pf-targets-fields').querySelectorAll('.pf-target-input').forEach(inp => {
     inp.addEventListener('change', async () => {
       const targets = PF_BUCKETS.filter(b => b !== 'unassigned')
@@ -1630,37 +1720,6 @@ function renderPortfolio(p) {
       <td>${action}</td>
     </tr>`;
   }).join('');
-
-  // Fetch and render compliance guidance alerts
-  window.electronAPI.getPortfolioGuidance(p.holdings, p.cash, p.targets)
-    .then(guidanceItems => {
-      const listEl = el('pf-guidance-list');
-      if (!listEl) return;
-      if (guidanceItems.length === 0) {
-        listEl.innerHTML = `
-          <div class="guidance-item severity-info" style="border: 1px dashed rgba(6, 182, 212, 0.35); background: transparent;">
-            <span class="guidance-icon">✓</span>
-            <div class="guidance-content">
-              <span class="guidance-title">Portfolio is compliant</span>
-              <span class="guidance-message">No PFIC assets, elevated employer concentrations, or cash drag detected. Your current holdings are structured appropriately.</span>
-            </div>
-          </div>`;
-        return;
-      }
-      
-      listEl.innerHTML = guidanceItems.map(item => {
-        const icon = item.severity === 'error' ? '✕' : '⚠';
-        return `
-          <div class="guidance-item severity-${item.severity}">
-            <span class="guidance-icon">${icon}</span>
-            <div class="guidance-content">
-              <span class="guidance-title">${item.title}</span>
-              <span class="guidance-message">${item.message}</span>
-            </div>
-          </div>`;
-      }).join('');
-    })
-    .catch(err => console.error('Failed to load portfolio guidance:', err));
 }
 
 async function initPortfolioView() {

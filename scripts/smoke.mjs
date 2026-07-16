@@ -56,12 +56,20 @@ await shot('01-dashboard');
 await nav('portfolio');
 await shot('01b-portfolio');
 
+// ── 01d Targets ──────────────────────────────────────────────────────────────
+await nav('targets');
+await shot('01d-targets');
+
+// ── 01c Guidance ─────────────────────────────────────────────────────────────
+await nav('guidance');
+await shot('01c-guidance');
+
 // ── Read UI state ─────────────────────────────────────────────────────────────
 const state = await page.evaluate(() => ({
   statusText: document.getElementById('status-text')?.textContent,
   activeView: document.querySelector('.view.active')?.id,
   navLinks:   [...document.querySelectorAll('.nav-link')].map(l => l.textContent.trim()),
-  views: ['view-dashboard','view-portfolio','view-screener','view-top25','view-under10k',
+  views: ['view-dashboard','view-portfolio','view-targets','view-guidance','view-screener','view-top25','view-under10k',
           'view-megacaps','view-favorites','view-discover','view-settings']
     .map(id => ({ id, exists: !!document.getElementById(id) })),
   helpBtn: !!document.getElementById('help-btn'),
