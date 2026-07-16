@@ -23,7 +23,7 @@ Update when a phase lands or priorities change. (Last updated: 2026-07-16.)
 - [ ] **Health page self-sufficiency** — Health currently populates only after the Portfolio view has run once per session; it should call `get-portfolio-health` on its own init so landing on it cold works
 - [ ] **Index-implied employer exposure** — count the employer's weight inside held index funds (QQQ/VOX) toward the concentration figure (needs fund-holdings data; Yahoo doesn't provide it directly)
 - [ ] **Cost-drag health dimension** — weighted expense ratios via `quoteSummary`/`fundProfile`; deferred from the health scorer v1
-- [ ] **Metric-card overflow** — long values (e.g. `$1,854,155.22`) clip in the Total Value card
+- [x] **Metric-card overflow** — long values (e.g. `$1,854,155.22`) clip in the Total Value card
 
 ## Outstanding — major phases
 

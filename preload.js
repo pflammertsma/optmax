@@ -35,6 +35,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   savePortfolio:        (updates)        => ipcRenderer.invoke('save-portfolio', updates),
   importPortfolioCsv:   ()               => ipcRenderer.invoke('import-portfolio-csv'),
 
+  // IBKR Client Portal Gateway (Phase 2)
+  ibkrStatus:             ()             => ipcRenderer.invoke('ibkr-status'),
+  ibkrSync:               ()             => ipcRenderer.invoke('ibkr-sync'),
+  ibkrOpenLogin:          ()             => ipcRenderer.invoke('ibkr-open-login'),
+
   // Portfolio health + live prices
   refreshPortfolioPrices: ()             => ipcRenderer.invoke('refresh-portfolio-prices'),
   getPortfolioHealth:     ()             => ipcRenderer.invoke('get-portfolio-health'),

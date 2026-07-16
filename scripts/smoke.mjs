@@ -50,6 +50,7 @@ async function shot(name) {
 }
 
 // ── 01 Dashboard ─────────────────────────────────────────────────────────────
+await nav('dashboard');
 await shot('01-dashboard');
 
 // ── 01b Portfolio ────────────────────────────────────────────────────────────

@@ -73,6 +73,7 @@ function navigate(viewId) {
   if (view) view.classList.add('active');
   const link = document.querySelector(`.nav-link[data-view="${viewId}"]`);
   if (link) link.classList.add('active');
+  localStorage.setItem('activeView', viewId);
 }
 
 document.querySelectorAll('.nav-link').forEach(link => {
@@ -1526,17 +1527,30 @@ function renderPortfolio(p) {
     : 'no data';
 
   const d = p.derived;
-  el('pf-total-value').innerHTML = has ? fmt.currency(d.totalValue) : '—';
-  el('pf-cash').innerHTML = has ? fmt.currency(p.cash || 0) : '—';
+  const totalValStr = has ? fmt.currency(d.totalValue) : '—';
+  const cashValStr = has ? fmt.currency(p.cash || 0) : '—';
+
+  const totalEl = el('pf-total-value');
+  const cashEl = el('pf-cash');
+  
+  if (totalEl) {
+    totalEl.innerHTML = totalValStr;
+    if (totalValStr.length > 10) totalEl.classList.add('long-value');
+    else totalEl.classList.remove('long-value');
+  }
+
+  if (cashEl) {
+    cashEl.innerHTML = cashValStr;
+    if (cashValStr.length > 10) cashEl.classList.add('long-value');
+    else cashEl.classList.remove('long-value');
+  }
+
   el('pf-cash-label').textContent = p.baseCurrency ? `Cash (${p.baseCurrency})` : 'Cash';
   const conc = d.concentration;
   el('pf-employer-pct').textContent = has ? fmt.pct(conc.pct) : '—';
   el('pf-employer-pct').style.color = conc.pct > 15 ? 'var(--red)' : conc.pct > 10 ? '#f59e0b' : '';
   const top = d.topPositions[0];
   el('pf-largest').textContent = top ? `${top.symbol} · ${top.weightPct.toFixed(1)}%` : '—';
-  const offCount = d.drift.filter(r => r.rebalance).length;
-  el('pf-drift-count').textContent = has ? String(offCount) : '—';
-  el('pf-drift-count').style.color = offCount > 0 ? '#f59e0b' : 'var(--green)';
 
   // Fetch and render compliance guidance alerts
   const listEl = el('pf-guidance-list');
@@ -1917,3 +1931,9 @@ initSortableTable('table-megacaps', () => allData.filter(d => d.marketCap != nul
 initSortableTable('table-favorites', () => allData.filter(d => starredList.includes(d.symbol)));
 loadInitialData();
 loadScreenerData();
+
+// Restore active page view on reload
+const savedView = localStorage.getItem('activeView');
+if (savedView) {
+  navigate(savedView);
+}

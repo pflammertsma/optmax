@@ -46,6 +46,7 @@ const {
 } = require('./lib/portfolio');
 const { analyzeTicker, generatePortfolioGuidance } = require('./lib/guidance');
 const { computePortfolioHealth, projectAnnualDividends } = require('./lib/health');
+const { createIbkrClient } = require('./lib/ibkr');
 
 const CACHE_FILE      = path.join(app.getPath('userData'), 'data.json');
 const PORTFOLIO_FILE    = path.join(app.getPath('userData'), 'portfolio.json');
@@ -75,6 +76,7 @@ const DEFAULT_SETTINGS = {
   glidepathBase: 110,
   cashDragThreshold: 5000,
   employerSymbols: '',
+  ibkrGatewayUrl: 'https://localhost:5000',
 };
 
 function loadSettings() {
@@ -917,6 +919,75 @@ app.whenReady().then(() => {
       return { success: false, error: err.message };
     }
   });
+
+  // ── IBKR Client Portal Gateway (Phase 2) ───────────────────────────────────
+  const ibkrClientFor = () => createIbkrClient(loadSettings().ibkrGatewayUrl);
+  let ibkrLastAuthOk = 0;
+
+  // FX via Yahoo currency pairs — same source the price refresh uses.
+  async function yahooFxRate(source, target) {
+    const q = await fetchCachedQuote(`${source}${target}=X`);
+    return q?.regularMarketPrice || null;
+  }
+
+  ipcMain.handle('ibkr-status', async () => {
+    const status = await ibkrClientFor().getStatus();
+    if (status.authenticated) ibkrLastAuthOk = Date.now();
+    return { ...status, gatewayUrl: loadSettings().ibkrGatewayUrl };
+  });
+
+  ipcMain.handle('ibkr-sync', async () => {
+    try {
+      const result = await ibkrClientFor().syncPortfolio({ getFxRate: yahooFxRate });
+      if (!result.success) return result;
+      ibkrLastAuthOk = Date.now();
+
+      // Same annotation-preserving merge as the CSV import
+      const prev = loadPortfolio();
+      const prevBySymbol = new Map(prev.holdings.map(h => [h.symbol, h]));
+      const settings = loadSettings();
+      const employerSyms = new Set((settings.employerSymbols || '').toUpperCase().split(',').map(s => s.trim()).filter(Boolean));
+      for (const h of result.holdings) {
+        const old = prevBySymbol.get(h.symbol);
+        if (old) h.bucket = old.bucket;
+        if (employerSyms.has(h.symbol)) h.isEmployerStock = true;
+      }
+
+      const merged = {
+        ...prev,
+        holdings: result.holdings,
+        cash: result.cash,
+        baseCurrency: result.baseCurrency || prev.baseCurrency || null,
+        ibkrAccountId: result.accountId,
+        updatedAt: new Date().toISOString(),
+        source: 'ibkr',
+      };
+      savePortfolio(merged);
+      return {
+        success: true,
+        portfolio: portfolioView(merged),
+        accountId: result.accountId,
+        warnings: result.errors,
+      };
+    } catch (err) {
+      return { success: false, state: 'error', error: err.message };
+    }
+  });
+
+  ipcMain.handle('ibkr-open-login', () => {
+    const { shell } = require('electron');
+    shell.openExternal(loadSettings().ibkrGatewayUrl);
+    return { success: true };
+  });
+
+  // Keep the gateway session alive while the app is open — but only when a
+  // recent status check actually saw an authenticated session, so a stopped
+  // gateway doesn't produce a request-error every minute.
+  setInterval(async () => {
+    if (Date.now() - ibkrLastAuthOk > 15 * 60 * 1000) return;
+    const ok = await ibkrClientFor().tickle();
+    if (ok) ibkrLastAuthOk = Date.now();
+  }, 60 * 1000);
 
   ipcMain.handle('analyze-ticker', async (_event, symbol, holdings, cash) => {
     let quote = null;
