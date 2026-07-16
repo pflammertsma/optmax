@@ -39,6 +39,9 @@ const DEFAULT_SETTINGS = {
   monthlyYieldTarget: 1.0,
   deltaMin: 0.25,
   deltaMax: 0.35,
+  birthYear: 1984,
+  glidepathBase: 110,
+  cashDragThreshold: 5000,
 };
 
 function loadSettings() {
@@ -848,7 +851,8 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('get-portfolio-guidance', (_event, holdings, cash, targets) => {
-    return generatePortfolioGuidance(holdings, cash, targets);
+    const settings = loadSettings();
+    return generatePortfolioGuidance(holdings, cash, targets, settings);
   });
 
   createWindow();

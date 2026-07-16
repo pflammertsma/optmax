@@ -151,6 +151,20 @@ console.log('Running test/guidance.test.js...');
   assert.strictEqual(items.some(i => i.id === 'rebalance-near-ltcg-VTI-1'), true);
   assert.strictEqual(items.find(i => i.id === 'rebalance-near-ltcg-VTI-1').severity, 'warning');
 
+  // Glidepath allocation drift warning
+  const currentYearVal = new Date().getFullYear();
+  const birthYear = currentYearVal - 42; // age = 42
+  // glidepathBase = 110 => target equity = 110 - 42 = 68%
+  // holdings: VTI (100% of portfolio => actual equity = 100%)
+  // Drift = 100% - 68% = 32% (>5% tolerance => triggers glidepath warning)
+  holdings = [
+    { symbol: 'VTI', marketValue: 10000, isEmployerStock: false }
+  ];
+  const testSettings = { birthYear, glidepathBase: 110, cashDragThreshold: 5000 };
+  items = generatePortfolioGuidance(holdings, 0, [], testSettings);
+  assert.strictEqual(items.some(i => i.type === 'glidepath'), true);
+  assert.strictEqual(items.find(i => i.type === 'glidepath').severity, 'warning');
+
   console.log('  ✓ generatePortfolioGuidance tests passed');
 })();
 

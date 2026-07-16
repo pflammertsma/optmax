@@ -771,6 +771,33 @@
             </div>
           </div>
 
+          <!-- Long-Term Portfolio Settings Card -->
+          <div class="settings-card settings-card-portfolio">
+            <div class="settings-card-title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              Long-Term Portfolio Settings
+            </div>
+            <p class="settings-card-desc">Configure parameters for retirement glidepath calculations and cash drag thresholds.</p>
+
+            <div class="settings-field">
+              <label class="settings-field-label" for="settings-birth-year">Birth Year</label>
+              <input type="number" class="threshold-input" id="settings-birth-year" min="1900" max="2100" step="1" value="1984" style="width: 80px" />
+              <p class="setting-desc" style="margin-top:4px">Used to determine your current age for glidepath recommendations.</p>
+            </div>
+
+            <div class="settings-field">
+              <label class="settings-field-label" for="settings-glidepath-base">Glidepath Equity Base</label>
+              <input type="number" class="threshold-input" id="settings-glidepath-base" min="80" max="150" step="1" value="110" style="width: 80px" />
+              <p class="setting-desc" style="margin-top:4px">Formula: <code>target_equity % = Base - Age</code>. Standard is 110.</p>
+            </div>
+
+            <div class="settings-field">
+              <label class="settings-field-label" for="settings-cash-drag-threshold">Cash Drag Buffer ($)</label>
+              <input type="number" class="threshold-input" id="settings-cash-drag-threshold" min="0" max="100000" step="500" value="5000" style="width: 80px" />
+              <p class="setting-desc" style="margin-top:4px">Fires alert if uninvested cash exceeds this buffer and represents &gt;10% of portfolio.</p>
+            </div>
+          </div>
+
           <!-- Reset All Data Card -->
           <div class="settings-card" style="border-color: rgba(244, 63, 94, 0.2)">
             <div class="settings-card-title" style="color: var(--red)">

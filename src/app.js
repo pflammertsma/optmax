@@ -1197,6 +1197,11 @@ async function initSettingsUI() {
     setIfEl('yield-target-monthly', monthly);
     setIfEl('yield-target-annual',  (monthly * 12).toFixed(1));
 
+    // Portfolio long-term settings
+    setIfEl('settings-birth-year', settings.birthYear ?? 1984);
+    setIfEl('settings-glidepath-base', settings.glidepathBase ?? 110);
+    setIfEl('settings-cash-drag-threshold', settings.cashDragThreshold ?? 5000);
+
     // Leave screener filter slider to 0 by default as requested
     screenerFilters.minScore = 0;
     const slider = el('filter-min-score');
@@ -1246,6 +1251,23 @@ async function initSettingsUI() {
       if (ann) ann.value = (v * 12).toFixed(1);
     });
   }
+
+  // Portfolio settings change listeners
+  ['settings-birth-year', 'settings-glidepath-base', 'settings-cash-drag-threshold'].forEach(id => {
+    const e = el(id); if (!e) return;
+    e.addEventListener('change', async () => {
+      const key = {
+        'settings-birth-year': 'birthYear',
+        'settings-glidepath-base': 'glidepathBase',
+        'settings-cash-drag-threshold': 'cashDragThreshold',
+      }[id];
+      await window.electronAPI.saveSettings({ [key]: parseInt(e.value, 10) });
+      
+      // Trigger portfolio render to update alerts immediately on settings changes
+      const p = await window.electronAPI.getPortfolio();
+      if (p) renderPortfolio(p);
+    });
+  });
 
   const resetBtn = el('reset-all-data-btn');
   if (resetBtn) {
