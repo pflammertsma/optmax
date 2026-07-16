@@ -507,7 +507,6 @@
                   <th data-col="pnlPct">P&amp;L %</th>
                   <th data-col="currency">Ccy</th>
                   <th data-col="bucket">Bucket</th>
-                  <th>Employer</th>
                 </tr>
               </thead>
               <tbody id="pf-holdings-tbody"></tbody>
@@ -883,6 +882,12 @@
               <label class="settings-field-label" for="settings-cash-drag-threshold">Cash Drag Buffer ($)</label>
               <input type="number" class="threshold-input" id="settings-cash-drag-threshold" min="0" max="100000" step="500" value="5000" style="width: 80px" />
               <p class="setting-desc" style="margin-top:4px">Fires alert if uninvested cash exceeds this buffer and represents &gt;10% of portfolio.</p>
+            </div>
+
+            <div class="settings-field">
+              <label class="settings-field-label" for="settings-employer-symbols">Employer Stock Tickers</label>
+              <input type="text" class="threshold-input" id="settings-employer-symbols" placeholder="e.g. AAPL, MSFT" style="width: 200px" />
+              <p class="setting-desc" style="margin-top:4px">Comma-separated list of symbols you receive from your employer. Used to compute concentration risk.</p>
             </div>
           </div>
 

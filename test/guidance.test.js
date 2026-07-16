@@ -115,18 +115,18 @@ console.log('Running test/guidance.test.js...');
 
   // Employer stock concentration
   holdings = [
-    { symbol: 'VTI', marketValue: 50000, isEmployerStock: false },
-    { symbol: 'GOOG', marketValue: 12000, isEmployerStock: true }
+    { symbol: 'VTI', marketValue: 50000 },
+    { symbol: 'GOOG', marketValue: 12000 }
   ];
-  items = generatePortfolioGuidance(holdings, 0);
+  items = generatePortfolioGuidance(holdings, 0, [], { employerSymbols: 'GOOG' });
   // GOOG weight = 12/62 = 19.3% (>15% => error)
   assert.strictEqual(items.some(i => i.id === 'employer-concentration-hard'), true);
 
   holdings = [
-    { symbol: 'VTI', marketValue: 50000, isEmployerStock: false },
-    { symbol: 'GOOG', marketValue: 7000, isEmployerStock: true }
+    { symbol: 'VTI', marketValue: 50000 },
+    { symbol: 'GOOG', marketValue: 7000 }
   ];
-  items = generatePortfolioGuidance(holdings, 0);
+  items = generatePortfolioGuidance(holdings, 0, [], { employerSymbols: 'GOOG' });
   // GOOG weight = 7/57 = 12.2% (>10% => warning)
   assert.strictEqual(items.some(i => i.id === 'employer-concentration-soft'), true);
 

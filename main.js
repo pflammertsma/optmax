@@ -74,6 +74,7 @@ const DEFAULT_SETTINGS = {
   birthYear: 1984,
   glidepathBase: 110,
   cashDragThreshold: 5000,
+  employerSymbols: '',
 };
 
 function loadSettings() {
@@ -203,6 +204,8 @@ function saveHealthCache(payload) {
 
 // Portfolio plus derived metrics the renderer needs (math stays in lib/portfolio.js).
 function portfolioView(p) {
+  const settings = loadSettings();
+  const employerSyms = (settings.employerSymbols || '').split(',').map(s => s.trim()).filter(Boolean);
   return {
     ...p,
     derived: {
@@ -210,7 +213,7 @@ function portfolioView(p) {
       byHolding:      allocationByHolding(p.holdings, p.cash),
       byBucket:       allocationByBucket(p.holdings, p.cash),
       drift:          computeDrift(p.holdings, p.targets, p.cash, p.tolerancePct),
-      concentration:  employerConcentration(p.holdings, p.cash, p.employerSymbols),
+      concentration:  employerConcentration(p.holdings, p.cash, employerSyms),
       topPositions:   topConcentrations(p.holdings, p.cash, 5),
     },
   };

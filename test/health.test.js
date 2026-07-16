@@ -52,12 +52,13 @@ const healthy = {
 // Employer-concentrated portfolio (like a fresh RSU-heavy account)
 const concentrated = {
   holdings: [
-    { symbol: 'EMPL', marketValue: 45000, quantity: 200, isEmployerStock: true },
+    { symbol: 'EMPL', marketValue: 45000, quantity: 200 },
     { symbol: 'VTI', marketValue: 45000, quantity: 150, bucket: 'core' },
   ],
   cash: 10000,
   targets: [],
   quotes: { EMPL: stockQuote('EMPL'), VTI: etfQuote('VTI') },
+  settings: { employerSymbols: 'EMPL' },
 };
 
 // ─── computePortfolioHealth ──────────────────────────────────────────────────

@@ -148,19 +148,19 @@ test('tradeValue restores target (buy positive, sell negative)', () => {
 // ─── employerConcentration ───────────────────────────────────────────────────
 section('employerConcentration');
 
-test('uses isEmployerStock flag', () => {
-  const c = employerConcentration(sample);
+test('matches explicit symbol list case-insensitively', () => {
+  const c = employerConcentration(sample, 0, ['empl']);
   approx(c.pct, 15);
   assert.strictEqual(c.value, 15000);
 });
 
-test('also matches explicit symbol list case-insensitively', () => {
-  const c = employerConcentration(sample, 0, ['asml']);
-  approx(c.pct, 25); // EMPL flag + ASML symbol
+test('handles multiple matched symbols', () => {
+  const c = employerConcentration(sample, 0, ['empl', 'asml']);
+  approx(c.pct, 25);
 });
 
 test('cash dilutes concentration', () => {
-  const c = employerConcentration(sample, 50000);
+  const c = employerConcentration(sample, 50000, ['empl']);
   approx(c.pct, 10);
 });
 

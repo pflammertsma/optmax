@@ -9,14 +9,17 @@ The module is designed around a **target persona** described in
 stock, investing through IBKR, and planning to retire on those investments.
 Adjust the persona file to your own facts and the rest of the docs follow.
 
-**No code has been changed yet.** These are planning documents only, written so
-context persists across sessions. Read in this order:
+**Status:** Phase 1 is implemented (Portfolio/Targets/Guidance/Health views,
+Activity Statement import with FX, health grading with caching, live prices,
+compliance guidance). See [`roadmap.md`](roadmap.md) for what's done, what's
+outstanding, and the open decisions. Read in this order:
 
-1. [`situation.md`](situation.md) — the target persona: financial situation, goals, and constraints.
-2. [`strategy.md`](strategy.md) — investment approach: why stocks/ETFs over active options trading for this persona, the tax angle, employer-stock concentration risk, retirement glidepath.
-3. [`ibkr-integration.md`](ibkr-integration.md) — technical plan for connecting to IBKR via the Client Portal Web API.
-4. [`architecture.md`](architecture.md) — how this bolts onto the existing Electron app (system tray, background checks, notifications, new data model), without disturbing the existing CSP scanner.
-5. [`signals.md`](signals.md) — the catalog of concrete buy/sell/rebalance signals the app should be able to generate for a long-term stock/ETF portfolio.
+1. [`roadmap.md`](roadmap.md) — **current status**: done / outstanding / next-phase decisions.
+2. [`situation.md`](situation.md) — the target persona: financial situation, goals, and constraints.
+3. [`strategy.md`](strategy.md) — investment approach: why stocks/ETFs over active options trading for this persona, the tax angle, employer-stock concentration risk, retirement glidepath.
+4. [`ibkr-integration.md`](ibkr-integration.md) — technical plan for connecting to IBKR via the Client Portal Web API (Phase 2).
+5. [`architecture.md`](architecture.md) — how this bolts onto the existing Electron app (system tray, background checks, notifications, new data model), without disturbing the existing CSP scanner.
+6. [`signals.md`](signals.md) — the catalog of concrete buy/sell/rebalance signals the app should be able to generate for a long-term stock/ETF portfolio.
 
 ## Decisions made so far
 
@@ -27,11 +30,13 @@ context persists across sessions. Read in this order:
 | Background operation | **System tray + native OS notifications** | App keeps running when the window is closed; fires a notification when a signal triggers; the window is opened only when detail is wanted |
 | Primary strategy focus | **Stocks/ETFs, buy-and-hold, long horizon** — not active options trading | See [`strategy.md`](strategy.md) for the tax and concentration reasoning |
 
-## Open questions (to resolve before implementation starts)
+## Open questions
 
-See the bottom of each doc for section-specific open questions. The big ones:
+Most of the original open questions have been resolved in implementation:
 
-- Should the IBKR module be **read-only** (recommended — sync + signals only, all trades placed manually at the broker), or eventually explore semi-automated order placement?
-- What should count as "too concentrated" in employer stock before the app alerts (e.g., >10% / >15% / >20% of net worth)?
-- Should the stock-plan account (where employer grants vest) be synced too, or is manually logging vest events into the app good enough?
-- Target retirement asset allocation glidepath — define target % equities/bonds by age, or start equities-only?
+- IBKR module is **read-only** — all views present suggestions as informational; trades are placed manually at the broker.
+- Employer-stock concentration thresholds: warning >10%, critical alert >15%, health-grade cap at >25% (configurable ambitions can come later).
+- Stock-plan account (employer grants) stays **manual-entry** — no public API exists; a vest log is planned (Phase 4 in [`roadmap.md`](roadmap.md)).
+- Glidepath: age-indexed equity target (`base − age`, default base 110) implemented; bonds are reported as drift, not yet held.
+
+Remaining decisions live in the "Decisions still open" section of [`roadmap.md`](roadmap.md).

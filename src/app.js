@@ -1201,6 +1201,7 @@ async function initSettingsUI() {
     setIfEl('settings-birth-year', settings.birthYear ?? 1984);
     setIfEl('settings-glidepath-base', settings.glidepathBase ?? 110);
     setIfEl('settings-cash-drag-threshold', settings.cashDragThreshold ?? 5000);
+    setIfEl('settings-employer-symbols', settings.employerSymbols ?? '');
 
     // Leave screener filter slider to 0 by default as requested
     screenerFilters.minScore = 0;
@@ -1253,15 +1254,20 @@ async function initSettingsUI() {
   }
 
   // Portfolio settings change listeners
-  ['settings-birth-year', 'settings-glidepath-base', 'settings-cash-drag-threshold'].forEach(id => {
+  ['settings-birth-year', 'settings-glidepath-base', 'settings-cash-drag-threshold', 'settings-employer-symbols'].forEach(id => {
     const e = el(id); if (!e) return;
     e.addEventListener('change', async () => {
       const key = {
         'settings-birth-year': 'birthYear',
         'settings-glidepath-base': 'glidepathBase',
         'settings-cash-drag-threshold': 'cashDragThreshold',
+        'settings-employer-symbols': 'employerSymbols',
       }[id];
-      await window.electronAPI.saveSettings({ [key]: parseInt(e.value, 10) });
+      let val = e.value;
+      if (id !== 'settings-employer-symbols') {
+        val = parseInt(e.value, 10);
+      }
+      await window.electronAPI.saveSettings({ [key]: val });
       
       // Trigger portfolio render to update alerts immediately on settings changes
       const p = await window.electronAPI.getPortfolio();
@@ -1620,7 +1626,6 @@ function renderPortfolio(p) {
       <td>${pfSignedPct(r.pnlPct)}</td>
       <td>${r.currency || '—'}</td>
       <td><select class="schedule-select pf-bucket-select" data-idx="${r.idx}">${pfBucketOptions(r.bucket)}</select></td>
-      <td><input type="checkbox" class="pf-employer-check" data-idx="${r.idx}" ${r.isEmployerStock ? 'checked' : ''}></td>
     </tr>`).join('');
 
   el('pf-holdings-tbody').querySelectorAll('.pf-bucket-select').forEach(sel => {
@@ -1628,21 +1633,6 @@ function renderPortfolio(p) {
       const holdings = [...portfolio.holdings];
       holdings[+sel.dataset.idx] = { ...holdings[+sel.dataset.idx], bucket: sel.value === 'unassigned' ? null : sel.value };
       renderPortfolio(await window.electronAPI.savePortfolio({ holdings }));
-    });
-  });
-  el('pf-holdings-tbody').querySelectorAll('.pf-employer-check').forEach(chk => {
-    chk.addEventListener('change', async () => {
-      const holdings = [...portfolio.holdings];
-      const holding = { ...holdings[+chk.dataset.idx], isEmployerStock: chk.checked };
-      holdings[+chk.dataset.idx] = holding;
-      // Keep the durable employerSymbols list in sync so the flag survives re-imports
-      let employerSymbols = [...(portfolio.employerSymbols || [])];
-      if (chk.checked) {
-        if (!employerSymbols.includes(holding.symbol)) employerSymbols.push(holding.symbol);
-      } else {
-        employerSymbols = employerSymbols.filter(s => s !== holding.symbol);
-      }
-      renderPortfolio(await window.electronAPI.savePortfolio({ holdings, employerSymbols }));
     });
   });
 
