@@ -101,7 +101,7 @@ html, body {
 
 .logo-text { color: var(--text-primary); }
 .logo-accent {
-  background: linear-gradient(135deg, #818CF8, #C084FC);
+  background: linear-gradient(135deg, #00f0ff, #7000ff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

@@ -10,7 +10,7 @@ const ELECTRON = path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.e
 
 fs.mkdirSync(SHOT_DIR, { recursive: true });
 
-console.log('Launching OptMax…');
+console.log('Launching PortMax…');
 const app = await electron.launch({
   executablePath: ELECTRON,
   args: [ROOT],

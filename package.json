@@ -1,9 +1,9 @@
 {
-  "name": "optmax",
+  "name": "portmax",
   "version": "1.2.2",
   "description": "Cash-Secured Puts Tracker",
   "main": "main.js",
-  "desktopName": "OptMax.desktop",
+  "desktopName": "PortMax.desktop",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
@@ -22,8 +22,8 @@
     "playwright-core": "^1.61.0"
   },
   "build": {
-    "appId": "com.optmax.app",
-    "productName": "OptMax",
+    "appId": "com.portmax.app",
+    "productName": "PortMax",
     "directories": {
       "output": "dist"
     },
@@ -31,7 +31,7 @@
       {
         "provider": "github",
         "owner": "juliantoledo",
-        "repo": "optmax"
+        "repo": "portmax"
       }
     ],
     "win": {
@@ -50,7 +50,7 @@
       "gatekeeperAssess": false
     },
     "dmg": {
-      "title": "OptMax ${version}"
+      "title": "PortMax ${version}"
     },
     "linux": {
       "target": ["AppImage"],

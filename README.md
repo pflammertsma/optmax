@@ -1,6 +1,6 @@
-# OptMax
+# PortMax
 
-A desktop application for finding and tracking cash-secured put opportunities. OptMax scans options chains in real time, scores each opportunity using a unified **100-Point Scoring Engine**, and ranks them across multi-column sortable lists — so you spend less time screening and more time trading.
+A desktop application for finding and tracking cash-secured put opportunities. PortMax scans options chains in real time, scores each opportunity using a unified **100-Point Scoring Engine**, and ranks them across multi-column sortable lists — so you spend less time screening and more time trading.
 
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Electron](https://img.shields.io/badge/Electron-42-47848F?logo=electron)
@@ -101,8 +101,8 @@ Click **Detail** on any row to open a modal with:
 ### Install & Run
 
 ```bash
-git clone https://github.com/juliantoledo/optmax.git
-cd optmax
+git clone https://github.com/juliantoledo/portmax.git
+cd portmax
 npm install
 npm start
 ```
@@ -111,7 +111,7 @@ npm start
 
 ```bash
 npm run build
-# Output: dist/OptMax Setup 1.2.0.exe
+# Output: dist/PortMax Setup 1.2.0.exe
 ```
 
 ---
@@ -128,7 +128,7 @@ npm test
 
 ## Disclaimer
 
-OptMax is a personal research tool. Nothing in this application constitutes financial advice. Options trading involves substantial risk of loss. Always do your own due diligence before entering any trade.
+PortMax is a personal research tool. Nothing in this application constitutes financial advice. Options trading involves substantial risk of loss. Always do your own due diligence before entering any trade.
 
 ---
 

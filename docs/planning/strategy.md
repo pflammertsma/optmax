@@ -1,12 +1,12 @@
 # Investment Strategy Approach
 
-*Not financial advice — same disclaimer as the rest of OptMax. This is a
+*Not financial advice — same disclaimer as the rest of PortMax. This is a
 framework for the app's logic, tailored to the persona in
 [`situation.md`](situation.md), to be accepted, rejected, or tuned.*
 
 ## Why long-term stocks/ETFs over active options trading (for this persona)
 
-The existing OptMax scanner is optimized for **active income generation via
+The existing PortMax scanner is optimized for **active income generation via
 cash-secured puts** — frequent scanning, frequent entries/exits, chasing IV
 rank and yield. That's a reasonable strategy for someone who wants it as
 their focus. For this persona, three things point the other way:

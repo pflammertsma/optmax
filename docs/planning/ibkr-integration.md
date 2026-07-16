@@ -38,7 +38,7 @@ account balances, and market data without requiring the full TWS desktop UI.
 needs to be running and logged in for the sync to work. Realistically this
 means:
 - The app can auto-start the gateway process (bundled or pointed at a path
-  you configure) when OptMax launches.
+  you configure) when PortMax launches.
 - You'll periodically (likely daily) need to reauthenticate in a browser tab —
   this is an IBKR security requirement, not something we can fully automate
   away (and automating 2FA entry would be a bad idea security-wise regardless).

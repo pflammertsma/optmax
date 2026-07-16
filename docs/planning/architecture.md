@@ -1,4 +1,4 @@
-# Architecture Plan — Bolting a Portfolio Module onto OptMax
+# Architecture Plan — Bolting a Portfolio Module onto PortMax
 
 Goal: add long-term portfolio tracking, IBKR sync, and background signal
 notifications **without disturbing** the existing CSP scanner code paths,

@@ -1,4 +1,4 @@
-// Playwright driver for OptMax (Windows). Usage: node scripts/drive.mjs
+// Playwright driver for PortMax (Windows). Usage: node scripts/drive.mjs
 import { _electron as electron } from 'playwright-core';
 import * as readline from 'node:readline';
 import * as fs from 'node:fs';
@@ -112,5 +112,5 @@ rl.on('line', async line => {
 });
 rl.on('close', async () => { try { await COMMANDS.quit(); } catch {} process.exit(0); });
 
-console.log('OptMax driver — "help" for commands, "launch" to start');
+console.log('PortMax driver — "help" for commands, "launch" to start');
 rl.prompt();

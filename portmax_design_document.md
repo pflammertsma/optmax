@@ -1,7 +1,7 @@
-# OptMax: Cash-Secured Puts Tracker
+# PortMax: Portfolio & Options Maximizer
 ## Application Design & Architecture Document
 
-This document serves as a comprehensive blueprint for **OptMax**, a native desktop application designed to track, analyze, and discover the top 25 best stocks for selling cash-secured puts. It contains the technical stack, architectural decisions, UI/UX guidelines, and data processing logic required to recreate the application from scratch.
+This document serves as a comprehensive blueprint for **PortMax**, a native desktop application designed to track, analyze, and optimize your investments. It contains the technical stack, architectural decisions, UI/UX guidelines, and data processing logic.
 
 ---
 
@@ -16,7 +16,7 @@ This document serves as a comprehensive blueprint for **OptMax**, a native deskt
 ---
 
 ### 2. Application Architecture
-OptMax follows standard Electron IPC (Inter-Process Communication) architecture to ensure security and separation of concerns.
+PortMax follows standard Electron IPC (Inter-Process Communication) architecture to ensure security and separation of concerns.
 
 #### A. Main Process (`main.js`)
 - **Window Management**: Spawns a frameless BrowserWindow (`titleBarStyle: 'hiddenInset'`) with a default size of 1280x800.
@@ -30,7 +30,7 @@ OptMax follows standard Electron IPC (Inter-Process Communication) architecture 
 - Maps the `fetchData` and `loadInitialData` IPC calls so the renderer process can invoke them securely without enabling `nodeIntegration`.
 
 #### C. Renderer Process (`app.js`, `index.html`)
-- Handles DOM manipulation, routing between views (Dashboard, Overall List, Under $10k List), and formatting numbers/currency.
+- Handles DOM manipulation, routing between views (Dashboard, Overall List, Under $10k List, Portfolio), and formatting numbers/currency.
 - Renders dynamic data tables and interactive UI components.
 - Manages the Analysis Modal state and instantiates Chart.js instances.
 
@@ -51,8 +51,8 @@ The application utilizes a premium, dark-mode, glassmorphism aesthetic inspired 
 
 #### B. Layout & Navigation
 - **Sidebar**: Fixed left sidebar for navigation, containing a gradient logo, navigation links, and a live data status indicator.
-- **Main Content**: Dynamic main viewing area that swaps between three distinct sections.
-- **Window Dragging**: A dedicated `<div class="window-drag-region">` fixed to the absolute top of the viewport (`top: 0`, `height: 32px`, `z-index: 9999`) with `-webkit-app-region: drag;` applied. This enables seamless native-like window dragging while avoiding interactive element conflicts.
+- **Main Content**: Dynamic main viewing area that swaps between distinct sections.
+- **Window Dragging**: A dedicated `<div class="window-drag-region">` fixed to the absolute top of the viewport (`top: 0`, `height: 32px`, `z-index: 9999`) with `-webkit-app-region: drag;` applied. This enables native-like window dragging while avoiding interactive element conflicts.
 
 ---
 
@@ -73,10 +73,16 @@ The application utilizes a premium, dark-mode, glassmorphism aesthetic inspired 
 - **Mechanics Breakdown**: Plain-English explanation of the trade (e.g., *"If assigned, you will be obligated to buy 100 shares at $150..."*).
 - **Advanced Stats**: Displays Implied Volatility, Volume/Open Interest ratio, Break-Even price, and Margin of Safety.
 
+#### D. Portfolio Management & Signals
+- **IBKR Sync/Import**: Parses Client Portal CSV exports and Activity Statement CSV reports.
+- **Drift Analysis**: Compares actual asset allocation weights against configured targets and highlights drift.
+- **Rebalancing Guidance**: Computes specific trades needed to rebalance back to target weights.
+- **Concentration Tracking**: Pushes alerts if individual positions (especially employer stock) exceed safe net-worth thresholds.
+
 ---
 
 ### 5. Options Data Processing Logic
-The engine driving OptMax calculates the viability of cash-secured puts using the following pipeline:
+The engine driving PortMax calculates the viability of cash-secured puts using the following pipeline:
 
 1. **Ticker Iteration**: Loop through a predefined array of high-liquidity symbols (e.g., TSLA, AMD, PLTR).
 2. **Date Targeting**: Calculate a target expiration date ~30 days in the future.
@@ -96,9 +102,10 @@ The engine driving OptMax calculates the viability of cash-secured puts using th
 ---
 
 ### 6. Prompt Engineering Notes for Recreation
-If providing this document to an AI agent (like Claude) to recreate the app, use the following directives:
+If providing this document to an AI agent to recreate the app, use the following directives:
 - *"Create a Node.js project using `npm init -y` and install `electron`, `electron-builder`, and `yahoo-finance2`."*
 - *"Implement the Main Process (`main.js`) with a frameless window configuration (`titleBarStyle: 'hiddenInset'`) and secure IPC routing."*
 - *"Implement the exact mathematical logic for Options Data Processing as described in section 5, handling errors gracefully if a ticker has no options chain available."*
 - *"Strictly follow the Glassmorphism UI/UX design system outlined in Section 3 using vanilla CSS variables."*
 - *"Ensure the `-webkit-app-region: drag` trick is implemented perfectly to allow macOS users to move the window."*
+- *"Integrate the portfolio calculations in `lib/portfolio.js` for allocations, target drift, and RSU concentration tracking."*

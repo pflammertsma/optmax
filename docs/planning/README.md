@@ -1,6 +1,6 @@
 # Long-Term Portfolio Planning — Project Notes
 
-This folder documents the plan to extend OptMax (currently a pure cash-secured-put
+This folder documents the plan to extend PortMax (currently a pure cash-secured-put
 scanner) with a second, independent module focused on long-term stock/ETF
 portfolio management, retirement planning, and IBKR account sync.
 
