@@ -43,6 +43,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ibkrGatewayStop:        ()             => ipcRenderer.invoke('ibkr-gateway-stop'),
   ibkrGatewayRunning:     ()             => ipcRenderer.invoke('ibkr-gateway-running'),
   ibkrPickGatewayDir:     ()             => ipcRenderer.invoke('ibkr-pick-gateway-dir'),
+  ibkrGatewayLog:         (lines)        => ipcRenderer.invoke('ibkr-gateway-log', lines),
+  ibkrSaveCredentials:    (creds)        => ipcRenderer.invoke('ibkr-save-credentials', creds),
+  ibkrClearCredentials:   ()             => ipcRenderer.invoke('ibkr-clear-credentials'),
+  ibkrHasCredentials:     ()             => ipcRenderer.invoke('ibkr-has-credentials'),
+  ibkrGetCredentials:     ()             => ipcRenderer.invoke('ibkr-get-credentials'),
 
   // Portfolio health + live prices
   refreshPortfolioPrices: ()             => ipcRenderer.invoke('refresh-portfolio-prices'),

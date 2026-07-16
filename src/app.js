@@ -1209,10 +1209,12 @@ async function initSettingsUI() {
     setIfEl('settings-cash-drag-threshold', settings.cashDragThreshold ?? 5000);
     setIfEl('settings-employer-symbols', settings.employerSymbols ?? '');
     setIfEl('settings-ibkr-gateway-url', settings.ibkrGatewayUrl ?? 'https://localhost:5000');
+    setIfEl('settings-ibkr-username', settings.ibkrUsername ?? '');
     const dirLabel = el('pf-gateway-dir-label');
     if (dirLabel) dirLabel.textContent = settings.ibkrGatewayDir || 'not set';
     const autoStart = el('settings-ibkr-autostart');
     if (autoStart) autoStart.checked = !!settings.ibkrAutoStart;
+    refreshCredentialsStatus();
 
     // Leave screener filter slider to 0 by default as requested
     screenerFilters.minScore = 0;
@@ -1265,6 +1267,9 @@ async function initSettingsUI() {
   }
 
   // Portfolio settings change listeners
+  // (IBKR username + password are saved together via the dedicated Save
+  // button below, not here — the password must never pass through the
+  // generic plaintext saveSettings path.)
   ['settings-birth-year', 'settings-glidepath-base', 'settings-cash-drag-threshold', 'settings-employer-symbols', 'settings-ibkr-gateway-url'].forEach(id => {
     const e = el(id); if (!e) return;
     e.addEventListener('change', async () => {
@@ -1287,6 +1292,51 @@ async function initSettingsUI() {
       if (p) renderPortfolio(p);
     });
   });
+
+  // IBKR credentials: save (encrypted) / clear
+  async function refreshCredentialsStatus() {
+    const status = el('pf-credentials-status');
+    if (!status) return;
+    const s = await window.electronAPI.ibkrHasCredentials();
+    if (!s.encryptionAvailable) {
+      status.textContent = 'OS credential encryption unavailable on this machine';
+      status.style.color = 'var(--red)';
+    } else if (s.hasPassword) {
+      status.textContent = 'Password stored (encrypted)';
+      status.style.color = 'var(--green)';
+    } else {
+      status.textContent = 'No password stored';
+      status.style.color = 'var(--text-muted)';
+    }
+  }
+
+  const saveCredsBtn = el('pf-save-credentials');
+  if (saveCredsBtn) {
+    saveCredsBtn.addEventListener('click', async () => {
+      const username = el('settings-ibkr-username')?.value.trim() || '';
+      const passwordInput = el('settings-ibkr-password');
+      const password = passwordInput?.value || '';
+      const r = await window.electronAPI.ibkrSaveCredentials({ username, password });
+      if (r.success) {
+        if (passwordInput) passwordInput.value = ''; // never leave it sitting in the DOM
+        setStatus('live', 'IBKR credentials saved (encrypted)');
+      } else {
+        setStatus('error', r.error || 'Could not save credentials');
+      }
+      refreshCredentialsStatus();
+    });
+  }
+
+  const clearCredsBtn = el('pf-clear-credentials');
+  if (clearCredsBtn) {
+    clearCredsBtn.addEventListener('click', async () => {
+      await window.electronAPI.ibkrClearCredentials();
+      const u = el('settings-ibkr-username'); if (u) u.value = '';
+      const p = el('settings-ibkr-password'); if (p) p.value = '';
+      setStatus('live', 'IBKR credentials cleared');
+      refreshCredentialsStatus();
+    });
+  }
 
   // IBKR gateway folder picker + auto-start toggle
   const pickDirBtn = el('pf-pick-gateway-dir');
@@ -1897,9 +1947,21 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
         const start = await window.electronAPI.ibkrGatewayStart();
         if (!start.success) {
           setStatus('error', start.error || 'Could not start gateway');
+          return;
+        }
+        setStatus('loading', 'Starting IBKR gateway… (Java takes ~15–30s)');
+        const outcome = await superviseGatewayStartup(60000);
+        if (outcome === 'needs-login') {
+          setStatus('', 'Gateway ready — log in to IBKR');
+          openIbkrLogin();
+        } else if (outcome === 'connected') {
+          setStatus('live', 'IBKR connected — you can now Sync.');
+        } else if (outcome === 'died') {
+          const log = await window.electronAPI.ibkrGatewayLog(8);
+          const tail = log.tail.length ? ` Last log: "${log.tail[log.tail.length - 1]}"` : '';
+          setStatus('error', `Gateway exited during startup (code ${log.lastExit?.code ?? '?'}).${tail} Full log: ${log.logFile}`);
         } else {
-          setStatus('loading', 'Starting IBKR gateway… (Java takes ~15–30s)');
-          pollIbkrUntil(['needs-login', 'connected'], 40000);
+          setStatus('error', `Gateway is running but not answering after 60s — check ${ (await window.electronAPI.ibkrGatewayLog(1)).logFile }`);
         }
         return;
       }
@@ -1907,16 +1969,18 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     refreshIbkrStatus();
   });
 
-  // Poll the gateway status until it reaches one of `states` or times out —
-  // used after launching the gateway (slow Java startup) or after login.
-  async function pollIbkrUntil(states, timeoutMs) {
+  // After launching the gateway, poll until it answers (slow Java startup) —
+  // and bail out immediately if the process dies instead of booting.
+  async function superviseGatewayStartup(timeoutMs) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       await new Promise(r => setTimeout(r, 2000));
+      const running = await window.electronAPI.ibkrGatewayRunning();
+      if (!running.running) return 'died';
       await refreshIbkrStatus();
-      if (states.includes(ibkrState)) return ibkrState;
+      if (ibkrState === 'needs-login' || ibkrState === 'connected') return ibkrState;
     }
-    return ibkrState;
+    return 'timeout';
   }
 
   // ── Embedded IBKR login (webview) ───────────────────────────────────────
@@ -1929,6 +1993,7 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     if (!overlay || !host) return;
 
     const s = await window.electronAPI.ibkrStatus();
+    ibkrLoginHandled = false; // new login attempt → success may fire again
     // Build a fresh webview each open so it always targets the current URL
     host.innerHTML = '';
     if (loading) loading.style.display = '';
@@ -1938,18 +2003,90 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     wv.style.width = '100%';
     wv.style.height = '100%';
     wv.addEventListener('did-stop-loading', () => { if (loading) loading.style.display = 'none'; });
+
+    // The gateway's terminal page after auth is a bare "Client login succeeds"
+    // body. Capture it the moment it renders: close the modal and sync
+    // immediately instead of leaving raw text on screen (the status poll below
+    // stays as fallback in case the page text ever changes).
+    wv.addEventListener('did-stop-loading', () => {
+      wv.executeJavaScript(`(document.body?.innerText || '').slice(0, 200)`)
+        .then(text => {
+          if (/client login succeeds/i.test(text || '')) onIbkrLoginSuccess();
+        })
+        .catch(() => {});
+    });
+
+    // Prefill username + (if stored) password and auto-submit, landing the
+    // user straight at the 2FA prompt. Password is fetched fresh from the
+    // OS-encrypted store each time and never persisted in renderer state.
+    const creds = await window.electronAPI.ibkrGetCredentials();
+    const username = (creds.username || '').trim();
+    const password = creds.password || null;
+    if (username || password) {
+      wv.addEventListener('dom-ready', () => {
+        wv.executeJavaScript(`
+          (function fill(tries) {
+            const userInput = document.querySelector('#user_name')
+              || document.querySelector('#username')
+              || document.querySelector('input[name="username"]')
+              || document.querySelector('input[name="user_name"]')
+              || document.querySelector('input[type="text"][autocomplete*="user"]');
+            const passInput = document.querySelector('input[type="password"]');
+
+            if (userInput || passInput) {
+              const setVal = (el, val) => {
+                if (!el || !val || el.value) return;
+                el.value = val;
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+              };
+              setVal(userInput, ${JSON.stringify(username)});
+              setVal(passInput, ${JSON.stringify(password)});
+
+              if (${JSON.stringify(!!password)} && userInput?.value && passInput?.value) {
+                // Auto-submit only when BOTH fields are filled — never submit
+                // with just a username. Small delay lets IBKR's own JS validators run.
+                setTimeout(() => {
+                  const btn = document.querySelector('#submitForm')
+                    || document.querySelector('button[type="submit"]')
+                    || document.querySelector('input[type="submit"]')
+                    || [...document.querySelectorAll('button')].find(b => /log\\s*in/i.test(b.textContent || ''));
+                  if (btn) btn.click();
+                  else passInput.form?.requestSubmit?.();
+                }, 300);
+              } else if (passInput) {
+                passInput.focus();
+              }
+            } else if (tries > 0) {
+              setTimeout(() => fill(tries - 1), 500); // page may render the form late
+            }
+          })(10);
+        `).catch(() => {});
+      });
+    }
     host.appendChild(wv);
     overlay.classList.remove('hidden');
 
-    // While the modal is open, poll for successful auth and auto-close on connect
+    // While the modal is open, poll for successful auth as a fallback to the
+    // success-page capture above.
     clearInterval(ibkrLoginPoll);
     ibkrLoginPoll = setInterval(async () => {
       await refreshIbkrStatus();
-      if (ibkrState === 'connected') {
-        closeIbkrLogin();
-        setStatus('live', 'IBKR connected — you can now Sync.');
-      }
+      if (ibkrState === 'connected') onIbkrLoginSuccess();
     }, 3000);
+  }
+
+  // Idempotent: reachable from both the success-page capture and the status
+  // poll — whichever fires first closes the modal and kicks off a sync.
+  let ibkrLoginHandled = false;
+  async function onIbkrLoginSuccess() {
+    if (ibkrLoginHandled) return;
+    ibkrLoginHandled = true;
+    closeIbkrLogin();
+    setStatus('live', 'IBKR login successful — syncing your portfolio…');
+    await refreshIbkrStatus();
+    const syncBtn = el('pf-ibkr-sync-btn');
+    if (syncBtn && !syncBtn.disabled) syncBtn.click();
   }
 
   function closeIbkrLogin() {

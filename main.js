@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -80,6 +80,8 @@ const DEFAULT_SETTINGS = {
   ibkrGatewayUrl: 'https://localhost:5000',
   ibkrGatewayDir: '',
   ibkrAutoStart: false,
+  ibkrUsername: '',
+  ibkrPasswordEncrypted: '', // base64 ciphertext from Electron safeStorage — never plaintext
 };
 
 function loadSettings() {
@@ -576,10 +578,27 @@ function createWindow() {
 // The Client Portal Gateway is a Java program the user unzips locally. We start
 // it as a child process so they never touch a terminal, and tree-kill it on
 // quit so no orphaned Java lingers.
+//
+// stdout/stderr MUST be drained: the gateway logs heavily at startup, and an
+// unread 'pipe' fills its 64KB buffer and blocks the Java process mid-boot
+// (which presents as "starting…" forever). We stream everything to
+// gateway.log in userData — that both prevents the deadlock and gives the
+// user something to look at when startup fails.
+const GATEWAY_LOG_FILE = path.join(app.getPath('userData'), 'gateway.log');
 let gatewayProc = null;
+let gatewayLastExit = null;   // { code, at } of the most recent unexpected exit
 
 function isGatewayRunning() {
   return gatewayProc != null;
+}
+
+function gatewayLogTail(lines = 15) {
+  try {
+    const text = fs.readFileSync(GATEWAY_LOG_FILE, 'utf8');
+    return text.split(/\r?\n/).filter(Boolean).slice(-lines);
+  } catch {
+    return [];
+  }
 }
 
 function startGateway() {
@@ -589,17 +608,32 @@ function startGateway() {
     return { success: false, error: 'Gateway folder is not set (or missing). Point it at your unzipped clientportal.gw folder in Settings.' };
   }
   const spec = gatewayLaunchSpec(process.platform, dir);
-  if (!fs.existsSync(path.join(dir, spec.command))) {
-    return { success: false, error: `${spec.command} not found in ${dir} — is this the clientportal.gw folder?` };
+  if (!fs.existsSync(path.join(dir, spec.batPath))) {
+    return { success: false, error: `${spec.batPath} not found in ${dir} — is this the clientportal.gw folder?` };
   }
   try {
+    const log = fs.createWriteStream(GATEWAY_LOG_FILE, { flags: 'w' });
+    log.write(`[PortMax] launching gateway: ${spec.command} ${spec.args.join(' ')} (cwd ${spec.cwd}) at ${new Date().toISOString()}\n`);
     gatewayProc = spawn(spec.command, spec.args, {
-      cwd: spec.cwd, shell: spec.shell, windowsHide: true,
+      cwd: spec.cwd, shell: false, windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-    gatewayProc.on('exit', () => { gatewayProc = null; });
-    gatewayProc.on('error', () => { gatewayProc = null; });
-    return { success: true, pid: gatewayProc.pid };
+    gatewayLastExit = null;
+    gatewayProc.stdout.pipe(log, { end: false });
+    gatewayProc.stderr.pipe(log, { end: false });
+    gatewayProc.on('exit', (code) => {
+      gatewayLastExit = { code, at: new Date().toISOString() };
+      log.write(`\n[PortMax] gateway exited with code ${code} at ${gatewayLastExit.at}\n`);
+      log.end();
+      gatewayProc = null;
+    });
+    gatewayProc.on('error', (err) => {
+      gatewayLastExit = { code: null, error: err.message, at: new Date().toISOString() };
+      log.write(`\n[PortMax] gateway spawn error: ${err.message}\n`);
+      log.end();
+      gatewayProc = null;
+    });
+    return { success: true, pid: gatewayProc.pid, logFile: GATEWAY_LOG_FILE };
   } catch (err) {
     gatewayProc = null;
     return { success: false, error: err.message };
@@ -1034,7 +1068,15 @@ app.whenReady().then(() => {
   // Gateway process lifecycle
   ipcMain.handle('ibkr-gateway-start', () => startGateway());
   ipcMain.handle('ibkr-gateway-stop', () => { stopGateway(); return { success: true }; });
-  ipcMain.handle('ibkr-gateway-running', () => ({ running: isGatewayRunning() }));
+  ipcMain.handle('ibkr-gateway-running', () => ({
+    running: isGatewayRunning(),
+    lastExit: gatewayLastExit,
+  }));
+  ipcMain.handle('ibkr-gateway-log', (_event, lines) => ({
+    logFile: GATEWAY_LOG_FILE,
+    tail: gatewayLogTail(lines || 15),
+    lastExit: gatewayLastExit,
+  }));
 
   ipcMain.handle('ibkr-pick-gateway-dir', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
@@ -1049,6 +1091,55 @@ app.whenReady().then(() => {
     const merged = { ...loadSettings(), ibkrGatewayDir: dir };
     saveSettings(merged);
     return { dir, valid, expected: spec.command };
+  });
+
+  // ── IBKR credentials (encrypted, OS-backed) ────────────────────────────────
+  // safeStorage ties encryption to the OS user account (DPAPI on Windows,
+  // Keychain on macOS, libsecret on Linux) — the same posture as a browser's
+  // saved-password store. The password is a dedicated path, deliberately NOT
+  // routed through the generic save-settings handler, so it can never end up
+  // as plaintext in settings.json by accident.
+  ipcMain.handle('ibkr-save-credentials', (_event, { username, password }) => {
+    if (!safeStorage.isEncryptionAvailable()) {
+      return { success: false, error: 'OS-level credential encryption is unavailable on this machine.' };
+    }
+    const settings = loadSettings();
+    const updates = {};
+    if (username != null) updates.ibkrUsername = username;
+    if (password) {
+      updates.ibkrPasswordEncrypted = safeStorage.encryptString(password).toString('base64');
+    }
+    saveSettings({ ...settings, ...updates });
+    return { success: true };
+  });
+
+  ipcMain.handle('ibkr-clear-credentials', () => {
+    saveSettings({ ...loadSettings(), ibkrUsername: '', ibkrPasswordEncrypted: '' });
+    return { success: true };
+  });
+
+  ipcMain.handle('ibkr-has-credentials', () => {
+    const settings = loadSettings();
+    return {
+      hasUsername: !!settings.ibkrUsername,
+      hasPassword: !!settings.ibkrPasswordEncrypted,
+      encryptionAvailable: safeStorage.isEncryptionAvailable(),
+    };
+  });
+
+  // Returns plaintext — used only by the renderer immediately before filling
+  // the embedded login webview. Never persisted outside main; never logged.
+  ipcMain.handle('ibkr-get-credentials', () => {
+    const settings = loadSettings();
+    let password = null;
+    if (settings.ibkrPasswordEncrypted && safeStorage.isEncryptionAvailable()) {
+      try {
+        password = safeStorage.decryptString(Buffer.from(settings.ibkrPasswordEncrypted, 'base64'));
+      } catch (err) {
+        console.warn('Failed to decrypt stored IBKR password:', err.message);
+      }
+    }
+    return { username: settings.ibkrUsername || '', password };
   });
 
   // Keep the gateway session alive while the app is open — but only when a

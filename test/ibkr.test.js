@@ -145,6 +145,11 @@ test('unauthenticated session needs login', () => {
   assert.strictEqual(s.state, 'needs-login');
 });
 
+test('401/403 with empty body means the gateway is up but has no session (real-gateway behavior)', () => {
+  assert.strictEqual(interpretAuthStatus(401, null).state, 'needs-login');
+  assert.strictEqual(interpretAuthStatus(403, null).state, 'needs-login');
+});
+
 test('non-200 or empty body is unreachable', () => {
   assert.strictEqual(interpretAuthStatus(500, null).state, 'unreachable');
   assert.strictEqual(interpretAuthStatus(200, null).state, 'unreachable');
@@ -174,18 +179,20 @@ test('rejects malformed input', () => {
 // ─── gatewayLaunchSpec / treeKillSpec ────────────────────────────────────────
 section('gatewayLaunchSpec / treeKillSpec');
 
-test('windows launch uses run.bat through a shell', () => {
+test('windows launch uses explicit cmd.exe /c, never shell:true', () => {
   const spec = gatewayLaunchSpec('win32', 'C:\\IBKR\\clientportal.gw');
-  assert.strictEqual(spec.command, 'bin\\run.bat');
-  assert.deepStrictEqual(spec.args, ['root/conf.yaml']);
+  assert.strictEqual(spec.command, 'cmd.exe');
+  assert.deepStrictEqual(spec.args, ['/c', 'bin\\run.bat', 'root\\conf.yaml']);
   assert.strictEqual(spec.cwd, 'C:\\IBKR\\clientportal.gw');
-  assert.strictEqual(spec.shell, true);
+  assert.strictEqual(spec.shell, false);
+  assert.strictEqual(spec.batPath, 'bin\\run.bat');
 });
 
 test('unix launch uses run.sh without a shell', () => {
   const spec = gatewayLaunchSpec('linux', '/opt/clientportal.gw');
   assert.strictEqual(spec.command, './bin/run.sh');
   assert.strictEqual(spec.shell, false);
+  assert.strictEqual(spec.batPath, 'bin/run.sh');
 });
 
 test('windows tree-kill uses taskkill /T /F', () => {

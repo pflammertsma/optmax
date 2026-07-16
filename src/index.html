@@ -916,6 +916,22 @@
               </label>
               <p class="setting-desc" style="margin-top:4px">You still complete the IBKR login (with 2FA) yourself — that part can't be automated for security.</p>
             </div>
+
+            <div class="settings-field">
+              <label class="settings-field-label" for="settings-ibkr-username">IBKR Username</label>
+              <input type="text" class="threshold-input" id="settings-ibkr-username" placeholder="optional" style="width: 200px" autocomplete="off" />
+            </div>
+
+            <div class="settings-field">
+              <label class="settings-field-label" for="settings-ibkr-password">IBKR Password</label>
+              <input type="password" class="threshold-input" id="settings-ibkr-password" placeholder="enter to save/replace" style="width: 200px" autocomplete="new-password" />
+              <div style="display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap;">
+                <button class="settings-action-btn" id="pf-save-credentials" style="width:auto; margin:0;">Save</button>
+                <button class="settings-action-btn" id="pf-clear-credentials" style="width:auto; margin:0; background:transparent; border-color:rgba(244,63,94,0.3); color:#f43f5e;">Clear stored credentials</button>
+                <span id="pf-credentials-status" style="font-size:12px; color:var(--text-muted);"></span>
+              </div>
+              <p class="setting-desc" style="margin-top:4px">Stored encrypted via your OS's credential vault (Windows Credential Manager / macOS Keychain) — the same mechanism browsers use for saved passwords. Both fields are auto-filled at login, landing you straight at the 2FA prompt. Never sent anywhere but IBKR's own login page.</p>
+            </div>
           </div>
 
           <!-- Reset All Data Card -->
