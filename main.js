@@ -46,7 +46,8 @@ const {
 } = require('./lib/portfolio');
 const { analyzeTicker, generatePortfolioGuidance } = require('./lib/guidance');
 const { computePortfolioHealth, projectAnnualDividends } = require('./lib/health');
-const { createIbkrClient } = require('./lib/ibkr');
+const { createIbkrClient, isLoopbackGatewayUrl, gatewayLaunchSpec, treeKillSpec } = require('./lib/ibkr');
+const { spawn } = require('child_process');
 
 const CACHE_FILE      = path.join(app.getPath('userData'), 'data.json');
 const PORTFOLIO_FILE    = path.join(app.getPath('userData'), 'portfolio.json');
@@ -77,6 +78,8 @@ const DEFAULT_SETTINGS = {
   cashDragThreshold: 5000,
   employerSymbols: '',
   ibkrGatewayUrl: 'https://localhost:5000',
+  ibkrGatewayDir: '',
+  ibkrAutoStart: false,
 };
 
 function loadSettings() {
@@ -562,10 +565,58 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      webviewTag: true, // for the embedded IBKR gateway login page
     }
   });
   win.loadFile(path.join(__dirname, 'src', 'index.html'));
+}
+
+// ── IBKR gateway process manager ────────────────────────────────────────────
+// The Client Portal Gateway is a Java program the user unzips locally. We start
+// it as a child process so they never touch a terminal, and tree-kill it on
+// quit so no orphaned Java lingers.
+let gatewayProc = null;
+
+function isGatewayRunning() {
+  return gatewayProc != null;
+}
+
+function startGateway() {
+  if (gatewayProc) return { success: true, alreadyRunning: true };
+  const dir = loadSettings().ibkrGatewayDir;
+  if (!dir || !fs.existsSync(dir)) {
+    return { success: false, error: 'Gateway folder is not set (or missing). Point it at your unzipped clientportal.gw folder in Settings.' };
+  }
+  const spec = gatewayLaunchSpec(process.platform, dir);
+  if (!fs.existsSync(path.join(dir, spec.command))) {
+    return { success: false, error: `${spec.command} not found in ${dir} — is this the clientportal.gw folder?` };
+  }
+  try {
+    gatewayProc = spawn(spec.command, spec.args, {
+      cwd: spec.cwd, shell: spec.shell, windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    gatewayProc.on('exit', () => { gatewayProc = null; });
+    gatewayProc.on('error', () => { gatewayProc = null; });
+    return { success: true, pid: gatewayProc.pid };
+  } catch (err) {
+    gatewayProc = null;
+    return { success: false, error: err.message };
+  }
+}
+
+function stopGateway() {
+  if (!gatewayProc) return;
+  const { command, args } = treeKillSpec(process.platform, gatewayProc.pid);
+  try {
+    if (process.platform === 'win32') {
+      spawn(command, args, { windowsHide: true });
+    } else {
+      gatewayProc.kill('SIGTERM');
+    }
+  } catch {}
+  gatewayProc = null;
 }
 
 // ── IPC ───────────────────────────────────────────────────────────────────────
@@ -980,6 +1031,26 @@ app.whenReady().then(() => {
     return { success: true };
   });
 
+  // Gateway process lifecycle
+  ipcMain.handle('ibkr-gateway-start', () => startGateway());
+  ipcMain.handle('ibkr-gateway-stop', () => { stopGateway(); return { success: true }; });
+  ipcMain.handle('ibkr-gateway-running', () => ({ running: isGatewayRunning() }));
+
+  ipcMain.handle('ibkr-pick-gateway-dir', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      title: 'Select the clientportal.gw folder',
+      properties: ['openDirectory'],
+    });
+    if (canceled || !filePaths.length) return { canceled: true };
+    const dir = filePaths[0];
+    const spec = gatewayLaunchSpec(process.platform, dir);
+    const valid = fs.existsSync(path.join(dir, spec.command));
+    const merged = { ...loadSettings(), ibkrGatewayDir: dir };
+    saveSettings(merged);
+    return { dir, valid, expected: spec.command };
+  });
+
   // Keep the gateway session alive while the app is open — but only when a
   // recent status check actually saw an authenticated session, so a stopped
   // gateway doesn't produce a request-error every minute.
@@ -1108,14 +1179,33 @@ app.whenReady().then(() => {
     return generatePortfolioGuidance(holdings, cash, targets, settings, quotes);
   });
 
+  // Trust ONLY the loopback gateway's self-signed cert — so the embedded login
+  // webview (and our REST calls) load without a browser security interstitial.
+  // Every other certificate error is still rejected normally.
+  app.on('certificate-error', (event, _webContents, url, _error, _cert, callback) => {
+    if (isLoopbackGatewayUrl(url, loadSettings().ibkrGatewayUrl)) {
+      event.preventDefault();
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+
   createWindow();
   initScheduler();
   initPriceScheduler();
+
+  // Auto-start the gateway if the user opted in and pointed us at the folder.
+  if (loadSettings().ibkrAutoStart) {
+    setTimeout(() => startGateway(), 2000);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+app.on('before-quit', () => stopGateway());
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

@@ -39,6 +39,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ibkrStatus:             ()             => ipcRenderer.invoke('ibkr-status'),
   ibkrSync:               ()             => ipcRenderer.invoke('ibkr-sync'),
   ibkrOpenLogin:          ()             => ipcRenderer.invoke('ibkr-open-login'),
+  ibkrGatewayStart:       ()             => ipcRenderer.invoke('ibkr-gateway-start'),
+  ibkrGatewayStop:        ()             => ipcRenderer.invoke('ibkr-gateway-stop'),
+  ibkrGatewayRunning:     ()             => ipcRenderer.invoke('ibkr-gateway-running'),
+  ibkrPickGatewayDir:     ()             => ipcRenderer.invoke('ibkr-pick-gateway-dir'),
 
   // Portfolio health + live prices
   refreshPortfolioPrices: ()             => ipcRenderer.invoke('refresh-portfolio-prices'),

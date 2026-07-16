@@ -897,7 +897,24 @@
             <div class="settings-field">
               <label class="settings-field-label" for="settings-ibkr-gateway-url">IBKR Gateway URL</label>
               <input type="text" class="threshold-input" id="settings-ibkr-gateway-url" placeholder="https://localhost:5000" style="width: 200px" />
-              <p class="setting-desc" style="margin-top:4px">Address of the locally running IBKR Client Portal Gateway. Start the gateway, log in via your browser, then use <strong>Sync IBKR</strong> on the Portfolio page.</p>
+              <p class="setting-desc" style="margin-top:4px">Address of the locally running IBKR Client Portal Gateway. Leave as the default unless you changed the port.</p>
+            </div>
+
+            <div class="settings-field">
+              <label class="settings-field-label">Gateway Folder</label>
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <button class="settings-action-btn" id="pf-pick-gateway-dir" style="width:auto; margin:0;">Choose clientportal.gw folder…</button>
+                <span id="pf-gateway-dir-label" style="font-size:12px; color:var(--text-muted);">not set</span>
+              </div>
+              <p class="setting-desc" style="margin-top:4px">Point this at the folder you unzipped from <code>clientportal.gw.zip</code>. PortMax launches the gateway for you — no terminal needed.</p>
+            </div>
+
+            <div class="settings-field">
+              <label class="settings-field-label" for="settings-ibkr-autostart" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                <input type="checkbox" id="settings-ibkr-autostart" style="width:14px; height:14px;" />
+                Auto-start gateway when PortMax opens
+              </label>
+              <p class="setting-desc" style="margin-top:4px">You still complete the IBKR login (with 2FA) yourself — that part can't be automated for security.</p>
             </div>
           </div>
 
@@ -1056,6 +1073,24 @@
           <p><strong>Price Update</strong> — Lightweight update of current stock prices only. IV and volatility are not recalculated.</p>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <!-- IBKR embedded login modal -->
+  <div class="modal-overlay hidden" id="ibkr-login-overlay">
+    <div class="modal" style="width: 560px; max-width: 92vw; height: 640px; max-height: 90vh; display:flex; flex-direction:column;">
+      <button class="modal-close" id="ibkr-login-close">✕</button>
+      <div class="modal-header" style="padding-bottom: 12px;">
+        <div>
+          <h2 class="modal-company">Log in to IBKR</h2>
+          <span class="modal-exchange">Client Portal Gateway · your credentials go straight to IBKR</span>
+        </div>
+      </div>
+      <div class="modal-body" style="flex:1; padding:0; overflow:hidden;">
+        <div id="ibkr-login-loading" style="padding:24px; color:var(--text-secondary); font-size:13px;">Loading the gateway login page…</div>
+        <!-- webview injected here at open time so it always loads the current gateway URL -->
+        <div id="ibkr-webview-host" style="width:100%; height:100%;"></div>
       </div>
     </div>
   </div>

@@ -6,6 +6,9 @@ const {
   mapIbkrPositions,
   mapIbkrLedger,
   interpretAuthStatus,
+  isLoopbackGatewayUrl,
+  gatewayLaunchSpec,
+  treeKillSpec,
 } = require('../lib/ibkr');
 
 // ─── Minimal test runner ──────────────────────────────────────────────────────
@@ -145,6 +148,56 @@ test('unauthenticated session needs login', () => {
 test('non-200 or empty body is unreachable', () => {
   assert.strictEqual(interpretAuthStatus(500, null).state, 'unreachable');
   assert.strictEqual(interpretAuthStatus(200, null).state, 'unreachable');
+});
+
+// ─── isLoopbackGatewayUrl (TLS bypass guard) ─────────────────────────────────
+section('isLoopbackGatewayUrl');
+
+test('trusts the configured loopback gateway origin', () => {
+  assert.strictEqual(isLoopbackGatewayUrl('https://localhost:5000/sso/Login', 'https://localhost:5000'), true);
+  assert.strictEqual(isLoopbackGatewayUrl('https://127.0.0.1:5000/', 'https://127.0.0.1:5000'), true);
+});
+
+test('rejects a different port than configured', () => {
+  assert.strictEqual(isLoopbackGatewayUrl('https://localhost:5001/', 'https://localhost:5000'), false);
+});
+
+test('never trusts a non-loopback host, even if it matches the setting', () => {
+  assert.strictEqual(isLoopbackGatewayUrl('https://evil.example.com/', 'https://evil.example.com'), false);
+  assert.strictEqual(isLoopbackGatewayUrl('https://10.0.0.5:5000/', 'https://10.0.0.5:5000'), false);
+});
+
+test('rejects malformed input', () => {
+  assert.strictEqual(isLoopbackGatewayUrl('not-a-url', 'https://localhost:5000'), false);
+});
+
+// ─── gatewayLaunchSpec / treeKillSpec ────────────────────────────────────────
+section('gatewayLaunchSpec / treeKillSpec');
+
+test('windows launch uses run.bat through a shell', () => {
+  const spec = gatewayLaunchSpec('win32', 'C:\\IBKR\\clientportal.gw');
+  assert.strictEqual(spec.command, 'bin\\run.bat');
+  assert.deepStrictEqual(spec.args, ['root/conf.yaml']);
+  assert.strictEqual(spec.cwd, 'C:\\IBKR\\clientportal.gw');
+  assert.strictEqual(spec.shell, true);
+});
+
+test('unix launch uses run.sh without a shell', () => {
+  const spec = gatewayLaunchSpec('linux', '/opt/clientportal.gw');
+  assert.strictEqual(spec.command, './bin/run.sh');
+  assert.strictEqual(spec.shell, false);
+});
+
+test('windows tree-kill uses taskkill /T /F', () => {
+  const spec = treeKillSpec('win32', 4242);
+  assert.strictEqual(spec.command, 'taskkill');
+  assert.deepStrictEqual(spec.args, ['/pid', '4242', '/T', '/F']);
+});
+
+test('unix kill sends SIGTERM', () => {
+  const spec = treeKillSpec('linux', 4242);
+  assert.strictEqual(spec.command, 'kill');
+  assert.deepStrictEqual(spec.args, ['-TERM', '4242']);
 });
 
 // ─── createIbkrClient (mock transport) ───────────────────────────────────────

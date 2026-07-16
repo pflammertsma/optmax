@@ -77,7 +77,12 @@ function navigate(viewId) {
 }
 
 document.querySelectorAll('.nav-link').forEach(link => {
-  link.addEventListener('click', () => navigate(link.dataset.view));
+  link.addEventListener('click', () => {
+    navigate(link.dataset.view);
+    // Re-probe the gateway each time the Portfolio view is opened, so a gateway
+    // started (or logged into) after boot is reflected without a manual click.
+    if (link.dataset.view === 'portfolio') refreshIbkrStatus();
+  });
 });
 
 // ─── Status indicator ─────────────────────────────────────────────────────────
@@ -1203,6 +1208,11 @@ async function initSettingsUI() {
     setIfEl('settings-glidepath-base', settings.glidepathBase ?? 110);
     setIfEl('settings-cash-drag-threshold', settings.cashDragThreshold ?? 5000);
     setIfEl('settings-employer-symbols', settings.employerSymbols ?? '');
+    setIfEl('settings-ibkr-gateway-url', settings.ibkrGatewayUrl ?? 'https://localhost:5000');
+    const dirLabel = el('pf-gateway-dir-label');
+    if (dirLabel) dirLabel.textContent = settings.ibkrGatewayDir || 'not set';
+    const autoStart = el('settings-ibkr-autostart');
+    if (autoStart) autoStart.checked = !!settings.ibkrAutoStart;
 
     // Leave screener filter slider to 0 by default as requested
     screenerFilters.minScore = 0;
@@ -1255,7 +1265,7 @@ async function initSettingsUI() {
   }
 
   // Portfolio settings change listeners
-  ['settings-birth-year', 'settings-glidepath-base', 'settings-cash-drag-threshold', 'settings-employer-symbols'].forEach(id => {
+  ['settings-birth-year', 'settings-glidepath-base', 'settings-cash-drag-threshold', 'settings-employer-symbols', 'settings-ibkr-gateway-url'].forEach(id => {
     const e = el(id); if (!e) return;
     e.addEventListener('change', async () => {
       const key = {
@@ -1263,18 +1273,42 @@ async function initSettingsUI() {
         'settings-glidepath-base': 'glidepathBase',
         'settings-cash-drag-threshold': 'cashDragThreshold',
         'settings-employer-symbols': 'employerSymbols',
+        'settings-ibkr-gateway-url': 'ibkrGatewayUrl',
       }[id];
+      const textFields = ['settings-employer-symbols', 'settings-ibkr-gateway-url'];
       let val = e.value;
-      if (id !== 'settings-employer-symbols') {
+      if (!textFields.includes(id)) {
         val = parseInt(e.value, 10);
       }
       await window.electronAPI.saveSettings({ [key]: val });
-      
+
       // Trigger portfolio render to update alerts immediately on settings changes
       const p = await window.electronAPI.getPortfolio();
       if (p) renderPortfolio(p);
     });
   });
+
+  // IBKR gateway folder picker + auto-start toggle
+  const pickDirBtn = el('pf-pick-gateway-dir');
+  if (pickDirBtn) {
+    pickDirBtn.addEventListener('click', async () => {
+      const r = await window.electronAPI.ibkrPickGatewayDir();
+      if (r.canceled) return;
+      const label = el('pf-gateway-dir-label');
+      if (label) label.textContent = r.dir;
+      if (!r.valid) {
+        setStatus('error', `That folder has no ${r.expected} — pick the unzipped clientportal.gw folder`);
+      } else {
+        setStatus('live', 'Gateway folder set');
+      }
+    });
+  }
+  const autoStartChk = el('settings-ibkr-autostart');
+  if (autoStartChk) {
+    autoStartChk.addEventListener('change', () => {
+      window.electronAPI.saveSettings({ ibkrAutoStart: autoStartChk.checked });
+    });
+  }
 
   const resetBtn = el('reset-all-data-btn');
   if (resetBtn) {
@@ -1479,6 +1513,10 @@ updatePrivacyMode();
 const PF_BUCKETS = ['core', 'satellite', 'cash', 'unassigned'];
 let portfolio = null;
 let pfSort = { col: 'marketValue', dir: 'desc' };
+let ibkrState = 'unreachable';
+// Assigned in initPortfolioView; re-run when navigating to the Portfolio view
+// so the gateway pill reflects a gateway that came online after boot.
+let refreshIbkrStatus = () => {};
 
 // Avoids "-0.00%" from float dust
 function pfPct(v) {
@@ -1822,9 +1860,7 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
   });
 
   // ── IBKR gateway status + live sync ─────────────────────────────────────
-  let ibkrState = 'unreachable';
-
-  async function refreshIbkrStatus() {
+  refreshIbkrStatus = async function () {
     const pill = el('pf-ibkr-status');
     const btn = el('pf-ibkr-sync-btn');
     if (!pill || !btn) return;
@@ -1842,22 +1878,90 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     pill.style.background = st.bg;
     pill.style.borderColor = st.border;
     pill.title = s.state === 'needs-login'
-      ? 'Click to open the gateway login page in your browser'
+      ? 'Click to log in to IBKR (opens inside PortMax)'
       : s.state === 'unreachable'
-        ? `No Client Portal Gateway at ${s.gatewayUrl} — start it, then click to re-check`
+        ? `Gateway not running at ${s.gatewayUrl} — click to start it (set the folder in Settings first)`
         : 'Connected to the Client Portal Gateway — click to re-check';
     btn.disabled = s.state !== 'connected';
-  }
+  };
 
   el('pf-ibkr-status').addEventListener('click', async () => {
     if (ibkrState === 'needs-login') {
-      await window.electronAPI.ibkrOpenLogin();
-      // Give the login a moment, then re-check automatically
-      setTimeout(refreshIbkrStatus, 15000);
+      openIbkrLogin();
       return;
+    }
+    if (ibkrState === 'unreachable') {
+      // Offer to launch the gateway if the folder is configured
+      const running = await window.electronAPI.ibkrGatewayRunning();
+      if (!running.running) {
+        const start = await window.electronAPI.ibkrGatewayStart();
+        if (!start.success) {
+          setStatus('error', start.error || 'Could not start gateway');
+        } else {
+          setStatus('loading', 'Starting IBKR gateway… (Java takes ~15–30s)');
+          pollIbkrUntil(['needs-login', 'connected'], 40000);
+        }
+        return;
+      }
     }
     refreshIbkrStatus();
   });
+
+  // Poll the gateway status until it reaches one of `states` or times out —
+  // used after launching the gateway (slow Java startup) or after login.
+  async function pollIbkrUntil(states, timeoutMs) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 2000));
+      await refreshIbkrStatus();
+      if (states.includes(ibkrState)) return ibkrState;
+    }
+    return ibkrState;
+  }
+
+  // ── Embedded IBKR login (webview) ───────────────────────────────────────
+  let ibkrLoginPoll = null;
+
+  async function openIbkrLogin() {
+    const overlay = el('ibkr-login-overlay');
+    const host = el('ibkr-webview-host');
+    const loading = el('ibkr-login-loading');
+    if (!overlay || !host) return;
+
+    const s = await window.electronAPI.ibkrStatus();
+    // Build a fresh webview each open so it always targets the current URL
+    host.innerHTML = '';
+    if (loading) loading.style.display = '';
+    const wv = document.createElement('webview');
+    wv.setAttribute('src', s.gatewayUrl || 'https://localhost:5000');
+    wv.setAttribute('partition', 'persist:ibkr');
+    wv.style.width = '100%';
+    wv.style.height = '100%';
+    wv.addEventListener('did-stop-loading', () => { if (loading) loading.style.display = 'none'; });
+    host.appendChild(wv);
+    overlay.classList.remove('hidden');
+
+    // While the modal is open, poll for successful auth and auto-close on connect
+    clearInterval(ibkrLoginPoll);
+    ibkrLoginPoll = setInterval(async () => {
+      await refreshIbkrStatus();
+      if (ibkrState === 'connected') {
+        closeIbkrLogin();
+        setStatus('live', 'IBKR connected — you can now Sync.');
+      }
+    }, 3000);
+  }
+
+  function closeIbkrLogin() {
+    const overlay = el('ibkr-login-overlay');
+    const host = el('ibkr-webview-host');
+    clearInterval(ibkrLoginPoll);
+    ibkrLoginPoll = null;
+    if (overlay) overlay.classList.add('hidden');
+    if (host) host.innerHTML = ''; // tear down the webview
+  }
+
+  el('ibkr-login-close')?.addEventListener('click', closeIbkrLogin);
 
   el('pf-ibkr-sync-btn').addEventListener('click', async () => {
     const btn = el('pf-ibkr-sync-btn');

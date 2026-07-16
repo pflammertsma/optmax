@@ -27,12 +27,16 @@ Update when a phase lands or priorities change. (Last updated: 2026-07-16.)
 
 ## Outstanding — major phases
 
-### Phase 2 — IBKR live sync (`lib/ibkr.js`)
+### Phase 2 — IBKR live sync (`lib/ibkr.js`) — IMPLEMENTED
 Replace manual CSV import with the Client Portal Web API (local gateway
 process, daily browser re-login). Plan in [`ibkr-integration.md`](ibkr-integration.md).
-- [ ] Gateway process lifecycle (configure path/port, start/monitor, session status surfaced in UI)
-- [ ] Positions/balances sync mapped into the existing `portfolio.json` shape (same fingerprint invalidation applies automatically)
-- [ ] Fallbacks per the plan: Flex Query for daily position-of-record, CSV import stays as manual backstop
+- [x] `lib/ibkr.js` — HTTPS client for the local Client Portal Gateway (self-signed cert), pure mapping functions unit-tested (17 tests): positions→holdings, ledger→cash, auth-status interpretation, pagination, injected FX
+- [x] IPC: `ibkr-status`, `ibkr-sync`, `ibkr-open-login`; gateway URL in Settings; keep-alive tickle while authenticated
+- [x] Sync merges into existing `portfolio.json` (source 'ibkr'), preserving buckets + employer flags; FX via Yahoo `=X` pairs (same source as price refresh); fingerprint invalidation applies automatically
+- [x] Portfolio view: gateway status pill (connected / login-required / offline) + Sync IBKR button, re-probes on nav to Portfolio
+- [x] **Convenience layer (2.5):** PortMax auto-launches the gateway (spawns `clientportal.gw` from a configured folder, tree-kills on quit, opt-in auto-start on boot) so no terminal is needed; **embedded login** via an in-app `<webview>` (no external browser); **scoped TLS bypass** — `app.on('certificate-error')` trusts ONLY the loopback gateway origin (`isLoopbackGatewayUrl`, unit-tested), so the self-signed localhost cert loads with no interstitial and nothing else is trusted. Settings: gateway-folder picker + auto-start toggle. Pill is context-aware: offline→start gateway, needs-login→embedded login, auto-closes on connect.
+- Confirmed working against a **real IBKR gateway** (user's first live sync succeeded). Convenience layer verified against a mock gateway: embedded webview loads self-signed HTTPS with no cert prompt, and process spawn/tree-kill confirmed at the OS level.
+- [ ] **Not yet:** account selection UI for multi-account logins (uses the first account); Flex Query fallback; readiness spinner while Java boots (currently a status poll)
 
 ### Phase 3 — Background mode & notifications
 Plan in [`architecture.md`](architecture.md) §1–2, §6; signal catalog in [`signals.md`](signals.md).
