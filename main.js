@@ -9,6 +9,25 @@ if (process.argv.includes('--smoke-test')) {
 }
 const YahooFinance = require('yahoo-finance2').default;
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
+
+const quoteCache = new Map();
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+async function fetchCachedQuote(symbol) {
+  if (!symbol) return null;
+  const key = symbol.toUpperCase().trim();
+  const cached = quoteCache.get(key);
+  const now = Date.now();
+  if (cached && (now - cached.timestamp < CACHE_TTL_MS)) {
+    return cached.quote;
+  }
+  const quote = await yahooFinance.quote(symbol);
+  if (quote) {
+    quoteCache.set(key, { quote, timestamp: now });
+  }
+  return quote;
+}
+
 const { findClosestDate, computeHV, computeIVR, detectMeanReversion } = require('./lib/strategies');
 const {
   parsePositionsCsv, totalValue, allocationByHolding, allocationByBucket,
@@ -846,13 +865,34 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.handle('analyze-ticker', (_event, symbol, holdings, cash) => {
-    return analyzeTicker(symbol, holdings, cash);
+  ipcMain.handle('analyze-ticker', async (_event, symbol, holdings, cash) => {
+    let quote = null;
+    try {
+      if (symbol) {
+        quote = await fetchCachedQuote(symbol);
+      }
+    } catch (err) {
+      console.warn(`Failed to fetch quote for ${symbol} in analyze-ticker:`, err.message);
+    }
+    return analyzeTicker(symbol, holdings, cash, quote);
   });
 
-  ipcMain.handle('get-portfolio-guidance', (_event, holdings, cash, targets) => {
+  ipcMain.handle('get-portfolio-guidance', async (_event, holdings, cash, targets) => {
     const settings = loadSettings();
-    return generatePortfolioGuidance(holdings, cash, targets, settings);
+    const quotes = {};
+    if (Array.isArray(holdings)) {
+      await Promise.all(holdings.map(async h => {
+        try {
+          if (h.symbol) {
+            const q = await fetchCachedQuote(h.symbol);
+            if (q) quotes[h.symbol.toUpperCase()] = q;
+          }
+        } catch (err) {
+          console.warn(`Failed to fetch quote for ${h.symbol} in get-portfolio-guidance:`, err.message);
+        }
+      }));
+    }
+    return generatePortfolioGuidance(holdings, cash, targets, settings, quotes);
   });
 
   createWindow();

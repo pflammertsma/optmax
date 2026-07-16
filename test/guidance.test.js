@@ -46,6 +46,40 @@ console.log('Running test/guidance.test.js...');
   assert.strictEqual(r.isPfic, false);
   assert.strictEqual(r.suitability, 'caution');
 
+  // Dynamic Yahoo Finance Bond ETF
+  r = analyzeTicker('BND', [], 0, {
+    quoteType: 'ETF',
+    longName: 'Vanguard Total Bond Market Index Fund',
+    exchange: 'NGM',
+    currency: 'USD'
+  });
+  assert.strictEqual(r.type, 'bond etf');
+  assert.strictEqual(r.isPfic, false);
+  assert.strictEqual(r.suitability, 'excellent');
+  assert.match(r.details, /retirement glidepath target/);
+
+  // Dynamic Yahoo Finance European ETF (PFIC)
+  r = analyzeTicker('XYZ', [], 0, {
+    quoteType: 'ETF',
+    longName: 'Some Europe Fund',
+    exchange: 'AMS',
+    currency: 'EUR'
+  });
+  assert.strictEqual(r.type, 'etf');
+  assert.strictEqual(r.isPfic, true);
+  assert.strictEqual(r.suitability, 'danger');
+
+  // Dynamic Yahoo Finance Stock
+  r = analyzeTicker('AAPL', [], 0, {
+    quoteType: 'EQUITY',
+    longName: 'Apple Inc.',
+    exchange: 'NMS',
+    currency: 'USD'
+  });
+  assert.strictEqual(r.type, 'stock');
+  assert.strictEqual(r.isPfic, false);
+  assert.strictEqual(r.suitability, 'caution');
+
   console.log('  ✓ analyzeTicker tests passed');
 })();
 
