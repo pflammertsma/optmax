@@ -2233,7 +2233,7 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
       
       let holdingNote = 'Not currently held.';
       if (res.weightPct > 0) {
-        holdingNote = `Holds **${res.weightPct.toFixed(1)}%** of your portfolio.`;
+        holdingNote = `Holds <strong>${res.weightPct.toFixed(1)}%</strong> of your portfolio.`;
       }
 
       resultBox.innerHTML = `
