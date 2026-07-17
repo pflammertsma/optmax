@@ -54,6 +54,19 @@ function renderGradeBadge(grade) {
   return `<span class="grade-badge grade-badge-${grade}">${grade}</span>`;
 }
 
+function renderRecommendationBadge(rec) {
+  if (rec === 'Buy') {
+    return `<span style="color: var(--green); background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: 600; text-transform: uppercase;">Buy</span>`;
+  }
+  if (rec === 'Trim') {
+    return `<span style="color: #f59e0b; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: 600; text-transform: uppercase;">Trim</span>`;
+  }
+  if (rec === 'Hold') {
+    return `<span style="color: var(--text-secondary); background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: 600; text-transform: uppercase;">Hold</span>`;
+  }
+  return `<span style="color: var(--text-muted); font-size: 11px;">—</span>`;
+}
+
 function renderScoreBar(score, grade) {
   const color = gradeColor(grade);
   return `<div class="score-bar-track"><div class="score-bar-fill" style="width:${score}%;background:${color}"></div></div>`;
@@ -1707,6 +1720,7 @@ function renderPortfolio(p) {
       pnl,
       pnlPct:      (pnl != null && h.costBasis > 0) ? (pnl / h.costBasis) * 100 : null,
       currency:    h.currency || null,
+      recommendation: h.recommendation || { type: '—', reason: '' },
       bucket:      h.bucket || 'unassigned',
       isEmployerStock: !!h.isEmployerStock,
     };
@@ -1737,6 +1751,10 @@ function renderPortfolio(p) {
       <td>${pfSignedCurrency(r.pnl)}</td>
       <td>${pfSignedPct(r.pnlPct)}</td>
       <td>${r.currency || '—'}</td>
+      <td style="text-align: center; vertical-align: middle; padding: 6px 4px;">
+        ${renderRecommendationBadge(r.recommendation.type)}
+        ${r.recommendation.reason ? `<div style="font-size: 10px; color: var(--text-secondary); margin-top: 4px; max-width: 140px; white-space: normal; line-height: 1.2; text-align: center; display: block; margin-left: auto; margin-right: auto;">${r.recommendation.reason}</div>` : ''}
+      </td>
       <td><select class="schedule-select pf-bucket-select" data-idx="${r.idx}">${pfBucketOptions(r.bucket)}</select></td>
     </tr>`).join('');
 

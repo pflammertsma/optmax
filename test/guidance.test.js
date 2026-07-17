@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('assert');
-const { analyzeTicker, generatePortfolioGuidance } = require('../lib/guidance');
+const { analyzeTicker, generatePortfolioGuidance, calculateHoldingRecommendation } = require('../lib/guidance');
 
 console.log('Running test/guidance.test.js...');
 
@@ -245,6 +245,72 @@ console.log('Running test/guidance.test.js...');
   assert.strictEqual(items.find(i => i.id === 'cash-secured-puts-deploy').severity, 'info');
 
   console.log('  ✓ generatePortfolioGuidance tests passed');
+})();
+
+(function testCalculateHoldingRecommendation() {
+  console.log('calculateHoldingRecommendation');
+
+  // Options should get "—"
+  assert.strictEqual(calculateHoldingRecommendation({ symbol: 'AAPL  260717P00150000', assetCategory: 'OPT' }).type, '—');
+
+  // Core ETF underweight should get "Buy"
+  let holding = { symbol: 'VTI', bucket: 'core', marketValue: 5000 };
+  let drifts = [{ bucket: 'core', driftPct: -10, rebalance: true }];
+  let res = calculateHoldingRecommendation(holding, null, null, drifts, 5, 10000);
+  assert.strictEqual(res.type, 'Buy');
+  assert.ok(res.reason.includes('underweight'));
+
+  // Core ETF overweight should get "Trim"
+  drifts = [{ bucket: 'core', driftPct: 15, rebalance: true }];
+  res = calculateHoldingRecommendation(holding, null, null, drifts, 5, 10000);
+  assert.strictEqual(res.type, 'Trim');
+  assert.ok(res.reason.includes('overweight'));
+
+  // Core ETF balanced should get "Hold"
+  drifts = [{ bucket: 'core', driftPct: 2, rebalance: false }];
+  res = calculateHoldingRecommendation(holding, null, null, drifts, 5, 10000);
+  assert.strictEqual(res.type, 'Hold');
+  assert.ok(res.reason.includes('balanced'));
+
+  // Satellite stock exceeding 10% weight should get "Trim"
+  holding = { symbol: 'AAPL', bucket: 'satellite', marketValue: 2000 };
+  res = calculateHoldingRecommendation(holding, null, null, [], 5, 10000);
+  assert.strictEqual(res.type, 'Trim');
+  assert.ok(res.reason.includes('Exceeds 10%'));
+
+  // Satellite stock with poor screener grade should get "Trim"
+  holding = { symbol: 'AAPL', bucket: 'satellite', marketValue: 500 };
+  let watchlistInfo = { symbol: 'AAPL', score: 10, grade: 'E' };
+  res = calculateHoldingRecommendation(holding, null, watchlistInfo, [], 5, 10000);
+  assert.strictEqual(res.type, 'Trim');
+  assert.ok(res.reason.includes('Low watchlist rating'));
+
+  // Satellite stock underweight with good screener grade should get "Buy"
+  drifts = [{ bucket: 'satellite', driftPct: -15, rebalance: true }];
+  watchlistInfo = { symbol: 'AAPL', score: 85, grade: 'A' };
+  res = calculateHoldingRecommendation(holding, null, watchlistInfo, drifts, 5, 10000);
+  assert.strictEqual(res.type, 'Buy');
+  assert.ok(res.reason.includes('underweight'));
+
+  // Satellite stock underweight with technical pullback should get "Buy"
+  let quote = { regularMarketPrice: 150, twoHundredDayAverage: 140, fiftyTwoWeekHigh: 180 }; // 150 is 16.6% below 180 (high), above 140 (ma200)
+  res = calculateHoldingRecommendation(holding, quote, null, drifts, 5, 10000);
+  assert.strictEqual(res.type, 'Buy');
+  assert.ok(res.reason.includes('pullback'));
+
+  // Satellite stock underweight with YFinance analyst target mean price discount should get "Buy"
+  let quoteTargetBuy = { regularMarketPrice: 80, targetMeanPrice: 110 }; // 80 is 27.2% below 110 (20%+ discount)
+  res = calculateHoldingRecommendation(holding, quoteTargetBuy, null, drifts, 5, 10000);
+  assert.strictEqual(res.type, 'Buy');
+  assert.ok(res.reason.includes('discount'));
+
+  // Satellite stock exceeding target price should get "Trim"
+  let quoteTargetTrim = { regularMarketPrice: 125, targetMeanPrice: 100 }; // 125 is 25% above 100
+  res = calculateHoldingRecommendation(holding, quoteTargetTrim, null, drifts, 5, 10000);
+  assert.strictEqual(res.type, 'Trim');
+  assert.ok(res.reason.includes('exceeds'));
+
+  console.log('  ✓ calculateHoldingRecommendation tests passed');
 })();
 
 console.log('All test/guidance.test.js passed!');

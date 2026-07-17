@@ -44,7 +44,7 @@ const {
   parsePositionsCsv, totalValue, allocationByHolding, allocationByBucket,
   computeDrift, employerConcentration, topConcentrations,
 } = require('./lib/portfolio');
-const { analyzeTicker, generatePortfolioGuidance } = require('./lib/guidance');
+const { analyzeTicker, generatePortfolioGuidance, calculateHoldingRecommendation } = require('./lib/guidance');
 const { computePortfolioHealth, projectAnnualDividends } = require('./lib/health');
 const { createIbkrClient, isLoopbackGatewayUrl, gatewayLaunchSpec, treeKillSpec } = require('./lib/ibkr');
 const { spawn } = require('child_process');
@@ -213,15 +213,37 @@ function saveHealthCache(payload) {
 function portfolioView(p) {
   const settings = loadSettings();
   const employerSyms = (settings.employerSymbols || '').split(',').map(s => s.trim()).filter(Boolean);
+
+  const cache = loadDiscoveryCache() || {};
+  const cacheData = cache.data || [];
+  const watchlistMap = new Map(cacheData.map(d => [d.symbol?.toUpperCase(), d]));
+
+  const quotesMap = new Map();
+  for (const [k, v] of quoteCache.entries()) {
+    quotesMap.set(k, v.quote);
+  }
+
+  const total = totalValue(p.holdings, p.cash);
+  const drifts = computeDrift(p.holdings, p.targets, p.cash, p.tolerancePct);
+
+  const holdingsWithRecs = (p.holdings || []).map(h => {
+    const symbolUpper = h.symbol?.toUpperCase();
+    const q = quotesMap.get(symbolUpper);
+    const watchlistInfo = watchlistMap.get(symbolUpper);
+    const rec = calculateHoldingRecommendation(h, q, watchlistInfo, drifts, p.tolerancePct, total);
+    return { ...h, recommendation: rec };
+  });
+
   return {
     ...p,
+    holdings: holdingsWithRecs,
     derived: {
-      totalValue:     totalValue(p.holdings, p.cash),
-      byHolding:      allocationByHolding(p.holdings, p.cash),
-      byBucket:       allocationByBucket(p.holdings, p.cash),
-      drift:          computeDrift(p.holdings, p.targets, p.cash, p.tolerancePct),
-      concentration:  employerConcentration(p.holdings, p.cash, employerSyms),
-      topPositions:   topConcentrations(p.holdings, p.cash, 5),
+      totalValue:     total,
+      byHolding:      allocationByHolding(holdingsWithRecs, p.cash),
+      byBucket:       allocationByBucket(holdingsWithRecs, p.cash),
+      drift:          drifts,
+      concentration:  employerConcentration(holdingsWithRecs, p.cash, employerSyms),
+      topPositions:   topConcentrations(holdingsWithRecs, p.cash, 5),
     },
   };
 }
