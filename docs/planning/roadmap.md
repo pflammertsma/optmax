@@ -20,6 +20,8 @@ Update when a phase lands or priorities change. (Last updated: 2026-07-16.)
 
 ## Outstanding — small items
 
+- [x] **Screener showed the wrong data** — the "+ Add" field saves to the watchlist, but the Screener table was fed by the Discover market-scan cache (`screenerData`), so added symbols silently landed on the Dashboard instead, with no chip feedback (chip container was `display:none`). Fixed: the Screener table now reads the watchlist scan (`allData`, same source as the Dashboard), matching its "All watchlist stocks ranked by composite score" subtitle; Discover results still have their own dedicated table under Option Scanner. Watchlist is ~289 symbols (scanner universe), so instead of a chip wall: a "N stocks in your watchlist" count + on add, the new row scrolls into view and flashes with a success message (or a "hidden by filters" note). `removeFromWatchlist` now prunes `allData` in-memory so the table updates without a re-fetch.
+
 - [ ] **Health page self-sufficiency** — Health currently populates only after the Portfolio view has run once per session; it should call `get-portfolio-health` on its own init so landing on it cold works
 - [ ] **Index-implied employer exposure** — count the employer's weight inside held index funds (QQQ/VOX) toward the concentration figure (needs fund-holdings data; Yahoo doesn't provide it directly)
 - [ ] **Cost-drag health dimension** — weighted expense ratios via `quoteSummary`/`fundProfile`; deferred from the health scorer v1

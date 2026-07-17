@@ -167,14 +167,15 @@
         </div>
 
         <div class="watchlist-section" style="margin-bottom:16px">
-          <div class="watchlist-row">
-            <div class="watchlist-chips" id="chips-screener" style="display: none"></div>
+          <div class="watchlist-row" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+            <span id="watchlist-count" style="font-size:12px; color:var(--text-muted);"></span>
             <div class="add-stock-form">
-              <input type="text" class="add-stock-input" id="add-input-screener" placeholder="e.g. AAPL" maxlength="10" autocomplete="off" spellcheck="false" />
+              <input type="text" class="add-stock-input" id="add-input-screener" placeholder="Add ticker, e.g. AAPL" maxlength="10" autocomplete="off" spellcheck="false" />
               <button class="add-stock-btn" id="add-btn-screener">+ Add</button>
             </div>
           </div>
           <span class="add-stock-error" id="add-error-screener"></span>
+          <span class="add-stock-success" id="add-success-screener" style="color:var(--green); font-size:12px;"></span>
         </div>
 
         <div class="screener-filters">

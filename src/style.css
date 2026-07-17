@@ -351,6 +351,25 @@ html, body {
 .refresh-btn.spinning svg { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Flash a table row to point out a just-added stock */
+@keyframes rowFlash {
+  0%   { background: rgba(6, 182, 212, 0.35); }
+  100% { background: transparent; }
+}
+.row-flash { animation: rowFlash 2s ease-out; }
+
+/* Small inline spinner for pending/loading rows */
+.mini-spinner {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border: 2px solid rgba(6, 182, 212, 0.25);
+  border-top-color: var(--cyan);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+}
+.pending-row { background: rgba(6, 182, 212, 0.04); }
+
 /* ─── Metric Cards ─── */
 .metric-cards {
   display: grid;

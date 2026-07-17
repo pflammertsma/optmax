@@ -13,6 +13,11 @@ let scoringConfig = {
 let currentModal = null;
 let priceChart   = null;
 
+// Symbols just added to the watchlist whose options data is still being
+// fetched — shown as placeholder rows in the screener so the ticker appears
+// immediately instead of after the full watchlist re-scan completes.
+const pendingSymbols = new Set();
+
 const tableSortState = {};
 
 let screenerFilters = {
@@ -386,34 +391,24 @@ function renderAll(data) {
 
 // ─── Unified watchlist ────────────────────────────────────────────────────────
 function renderWatchlistChips() {
-  const container = el('chips-screener');
-  if (!container) return;
-
-  if (!watchlist.length) {
-    container.innerHTML = '<span class="chips-empty">No stocks added yet.</span>';
-    return;
-  }
-
-  container.innerHTML = watchlist.map(sym => `
-    <span class="watchlist-chip">
-      ${sym}
-      <button class="chip-remove" data-symbol="${sym}" title="Remove">×</button>
-    </span>
-  `).join('');
-
-  container.querySelectorAll('.chip-remove').forEach(btn => {
-    btn.addEventListener('click', () => removeFromWatchlist(btn.dataset.symbol));
-  });
+  // The watchlist here is the scanner's full stock universe (hundreds of
+  // symbols), so rendering every one as a chip is unusable. The count +
+  // the screener table below are the feedback instead; individual removal
+  // happens from a stock's detail modal.
+  const countEl = el('watchlist-count');
+  if (countEl) countEl.textContent = watchlist.length ? `${watchlist.length} stocks in your watchlist` : '';
 }
 
 async function addToWatchlist(symbol) {
   const errEl = el('add-error-screener');
+  const okEl  = el('add-success-screener');
   const btn   = el('add-btn-screener');
   const input = el('add-input-screener');
   if (!symbol || !symbol.trim()) return;
 
   btn.disabled = true; btn.textContent = '…';
   if (errEl) errEl.textContent = '';
+  if (okEl) okEl.textContent = '';
 
   try {
     const result = await window.electronAPI.addToWatchlist({ symbol });
@@ -422,14 +417,23 @@ async function addToWatchlist(symbol) {
       if (input) input.value = '';
       renderWatchlistChips();
 
-      // Run the 3 sync tasks to make sure the added stock gets fully updated
-      setStatus('loading', `Fetching ${symbol} historical prices…`);
-      await window.electronAPI.fetchHistory(symbol);
-
-      await refreshData();
-      await updatePrices();
-
+      // Show the ticker right away as a placeholder row, before the (slow,
+      // full-watchlist) scan runs — so the add feels instant.
+      pendingSymbols.add(symbol);
       renderScreener();
+      flashScreenerRow(symbol, okEl);
+
+      // Then fetch its data in the background; the placeholder is replaced by
+      // the real row once the scan results land.
+      setStatus('loading', `Fetching ${symbol} data…`);
+      try {
+        await window.electronAPI.fetchHistory(symbol);
+        await refreshData();
+        await updatePrices();
+      } finally {
+        pendingSymbols.delete(symbol);
+        renderScreener();
+      }
     } else {
       if (errEl) errEl.textContent = result.error || 'Invalid symbol';
     }
@@ -441,13 +445,33 @@ async function addToWatchlist(symbol) {
   }
 }
 
+// Point the user at where the added stock landed: scroll its row into view and
+// flash it, or explain if the current filters are hiding it.
+function flashScreenerRow(symbol, okEl) {
+  const cell = [...document.querySelectorAll('#tbody-screener .td-symbol')]
+    .find(td => td.textContent.trim().toUpperCase() === symbol.toUpperCase());
+  if (cell) {
+    const row = cell.closest('tr');
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    row.classList.add('row-flash');
+    setTimeout(() => row.classList.remove('row-flash'), 2000);
+    if (okEl) okEl.textContent = `✓ Added ${symbol} — highlighted in the table below.`;
+  } else if (okEl) {
+    okEl.textContent = `✓ Added ${symbol} to your watchlist. It's hidden by your current screener filters — clear them to see it.`;
+  }
+  if (okEl) setTimeout(() => { okEl.textContent = ''; }, 6000);
+}
+
 async function removeFromWatchlist(symbol) {
   try {
     const result = await window.electronAPI.removeFromWatchlist({ symbol });
     if (result.success) {
       watchlist = result.watchlist;
+      // Drop it from the in-memory scan too so the screener/dashboard reflect
+      // the removal now, without waiting for the next options fetch.
+      allData = allData.filter(d => d.symbol !== symbol);
       renderWatchlistChips();
-      renderScreener();
+      renderAll(allData);
     }
   } catch (e) {
     console.warn('Remove failed:', e);
@@ -480,7 +504,10 @@ async function loadScreenerData() {
 }
 
 function getScreenerData() {
-  let items = screenerData.filter(d => d._score);
+  // The screener shows your watchlist-scanned opportunities (allData) — the
+  // same source as the Dashboard. Discover-scan results live in their own
+  // Option Scanner → Discover table, not here.
+  let items = allData.filter(d => d._score);
   if (screenerFilters.cleanOnly) items = items.filter(d => d._score.killSwitches.length === 0);
   if (screenerFilters.grade !== 'all') items = items.filter(d => d._score.grade === screenerFilters.grade);
   items = items.filter(d => d._score.totalScore >= screenerFilters.minScore);
@@ -538,14 +565,26 @@ function renderScreener() {
 
   const items = getScreenerData();
 
-  if (!items.length) {
+  // Placeholder rows for just-added symbols not yet in the scan results.
+  const renderedSyms = new Set(items.map(d => d.symbol));
+  const pendingHtml = [...pendingSymbols]
+    .filter(s => !renderedSyms.has(s))
+    .map(s => `
+      <tr class="pending-row">
+        <td class="td-rank"><span class="mini-spinner"></span></td>
+        <td></td>
+        <td class="td-symbol">${s}</td>
+        <td colspan="9" style="color:var(--text-muted); font-size:12px;">Fetching data…</td>
+      </tr>`).join('');
+
+  if (!items.length && !pendingHtml) {
     tbody.innerHTML = `<tr><td colspan="12" class="empty-row">${
-      screenerData.length > 0 ? 'No stocks match the current filters.' : 'Run a Discover scan to populate the screener.'
+      allData.length > 0 ? 'No stocks match the current filters.' : 'Add a stock above to build your watchlist and populate the screener.'
     }</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = items.map((d, i) => {
+  tbody.innerHTML = pendingHtml + items.map((d, i) => {
     const sc      = d._score;
     const ivrStr  = d.ivr != null ? d.ivr.toFixed(0) : '—';
     const ivhvStr = d.ivHvRatio > 0 ? d.ivHvRatio.toFixed(2) + 'x' : '—';
@@ -553,7 +592,7 @@ function renderScreener() {
     const starIcon = isStarred ? '★' : '☆';
     const starClass = isStarred ? 'star-btn starred' : 'star-btn';
     return `
-      <tr class="screener-row" data-idx="${screenerData.indexOf(d)}" style="cursor:pointer">
+      <tr class="screener-row" data-idx="${allData.indexOf(d)}" style="cursor:pointer">
         <td class="td-rank">${i + 1}</td>
         <td><button class="${starClass}" data-symbol="${d.symbol}">${starIcon}</button></td>
         <td class="td-symbol">${d.symbol}</td>
@@ -565,20 +604,20 @@ function renderScreener() {
         <td class="td-ivhv options-metric">${ivhvStr}</td>
         <td class="td-yield-mo options-metric">${fmt.pct(d.monthlyYield)}</td>
         <td class="options-metric">${renderScoreBar(sc.totalScore, sc.grade)}</td>
-        <td><button class="analyze-btn" data-idx="${screenerData.indexOf(d)}">Detail</button></td>
+        <td><button class="analyze-btn" data-idx="${allData.indexOf(d)}">Detail</button></td>
       </tr>`;
   }).join('');
 
   tbody.querySelectorAll('.screener-row').forEach(row => {
     row.addEventListener('click', e => {
       if (e.target.classList.contains('analyze-btn') || e.target.classList.contains('star-btn')) return;
-      openModal(screenerData[+row.dataset.idx]);
+      openModal(allData[+row.dataset.idx]);
     });
   });
   tbody.querySelectorAll('.analyze-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      openModal(screenerData[+btn.dataset.idx]);
+      openModal(allData[+btn.dataset.idx]);
     });
   });
   tbody.querySelectorAll('.star-btn').forEach(btn => {
