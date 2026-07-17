@@ -7,7 +7,7 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
-    "test": "node test/strategies.test.js && node test/portfolio.test.js && node test/guidance.test.js && node test/health.test.js && node test/ibkr.test.js"
+    "test": "node test/strategies.test.js && node test/portfolio.test.js && node test/guidance.test.js && node test/health.test.js && node test/ibkr.test.js && node test/recommendations.test.js && node test/funds.test.js"
   },
   "keywords": [],
   "author": "",

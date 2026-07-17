@@ -414,14 +414,16 @@ html, body {
 
 /* ─── Preview Grid ─── */
 .preview-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  display: flex;
   gap: 20px;
-  flex: 1;
-  min-height: 0;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  flex-shrink: 0;
 }
 
 .preview-section {
+  flex: 1;
+  min-width: 290px;
   background: var(--bg-glass);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -462,6 +464,7 @@ html, body {
   flex-direction: column;
   gap: 10px;
   flex: 1;
+  overflow-y: auto;
 }
 
 .preview-item {

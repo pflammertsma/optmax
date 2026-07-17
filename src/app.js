@@ -67,6 +67,9 @@ function renderRecommendationBadge(rec) {
   if (rec === 'Write Call') {
     return `<span style="color: var(--cyan); background: rgba(6, 182, 212, 0.12); border: 1px solid rgba(6, 182, 212, 0.25); border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; white-space: nowrap;">Write Call</span>`;
   }
+  if (rec === 'Replace') {
+    return `<span style="color: #f43f5e; background: rgba(244, 63, 94, 0.12); border: 1px solid rgba(244, 63, 94, 0.25); border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: 600; text-transform: uppercase;">Replace</span>`;
+  }
   return `<span style="color: var(--text-muted); font-size: 11px;">—</span>`;
 }
 
@@ -352,7 +355,7 @@ function renderAll(data) {
 
   const isEmpty = data.length === 0;
   el('empty-state').style.display  = isEmpty ? 'flex' : 'none';
-  el('preview-grid').style.display = isEmpty ? 'none' : 'grid';
+  el('preview-grid').style.display = isEmpty ? 'none' : 'flex';
 
   const total = data.length;
   const above0 = data.filter(d => d._score && d._score.totalScore > 0).length;
@@ -1312,6 +1315,7 @@ async function initSettingsUI() {
     setIfEl('settings-birth-year', settings.birthYear ?? 1984);
     setIfEl('settings-glidepath-base', settings.glidepathBase ?? 110);
     setIfEl('settings-cash-drag-threshold', settings.cashDragThreshold ?? 5000);
+    setIfEl('settings-dividend-tax-rate', settings.dividendTaxRatePct ?? 30);
     setIfEl('settings-employer-symbols', settings.employerSymbols ?? '');
     setIfEl('settings-ibkr-gateway-url', settings.ibkrGatewayUrl ?? 'https://localhost:5000');
     setIfEl('settings-ibkr-username', settings.ibkrUsername ?? '');
@@ -1375,13 +1379,14 @@ async function initSettingsUI() {
   // (IBKR username + password are saved together via the dedicated Save
   // button below, not here — the password must never pass through the
   // generic plaintext saveSettings path.)
-  ['settings-birth-year', 'settings-glidepath-base', 'settings-cash-drag-threshold', 'settings-employer-symbols', 'settings-ibkr-gateway-url'].forEach(id => {
+  ['settings-birth-year', 'settings-glidepath-base', 'settings-cash-drag-threshold', 'settings-dividend-tax-rate', 'settings-employer-symbols', 'settings-ibkr-gateway-url'].forEach(id => {
     const e = el(id); if (!e) return;
     e.addEventListener('change', async () => {
       const key = {
         'settings-birth-year': 'birthYear',
         'settings-glidepath-base': 'glidepathBase',
         'settings-cash-drag-threshold': 'cashDragThreshold',
+        'settings-dividend-tax-rate': 'dividendTaxRatePct',
         'settings-employer-symbols': 'employerSymbols',
         'settings-ibkr-gateway-url': 'ibkrGatewayUrl',
       }[id];
@@ -1709,6 +1714,232 @@ function pfBucketOptions(selected) {
     .join('');
 }
 
+// ── Symbol Insights dialog ──────────────────────────────────────────────────
+// Portfolio/guidance context for any symbol: fund look-through with overlap
+// against current holdings (incl. hidden employer exposure), tax notes, and
+// compliance status. Distinct from the CSP opportunity modal, which is about
+// a specific options trade — but deep-links to it when scanner data exists.
+async function openSymbolInsight(symbol) {
+  const overlay = el('symbol-insight-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('hidden');
+  el('si-loading').style.display = '';
+  el('si-content').style.display = 'none';
+  el('si-name').textContent = symbol;
+  el('si-symbol').textContent = symbol;
+  el('si-subline').textContent = '';
+  el('si-price').textContent = '—';
+  el('si-change').textContent = '';
+
+  let d;
+  try {
+    d = await window.electronAPI.getSymbolInsights(symbol);
+  } catch {
+    el('si-loading').textContent = 'Failed to load insights.';
+    return;
+  }
+  if (!d || d.error) { el('si-loading').textContent = 'No data available for this symbol.'; return; }
+
+  el('si-name').textContent = d.name;
+  el('si-symbol').textContent = d.symbol;
+  const sublineBits = [d.exchange, d.analysis?.type ? d.analysis.type.toUpperCase() : null, d.analysis?.domicile ? `domiciled: ${d.analysis.domicile}` : null].filter(Boolean);
+  el('si-subline').textContent = sublineBits.join(' · ');
+  el('si-price').textContent = d.price != null ? `$${d.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
+  const chEl = el('si-change');
+  if (d.changePct != null) {
+    chEl.textContent = `${d.changePct >= 0 ? '+' : ''}${d.changePct.toFixed(2)}% today`;
+    chEl.style.color = d.changePct >= 0 ? 'var(--green)' : 'var(--red)';
+  } else chEl.textContent = '';
+
+  // Compliance banner (PFIC danger / caution / excellent)
+  const a = d.analysis;
+  const compEl = el('si-compliance');
+  if (a) {
+    const palette = {
+      danger:    { color: '#f43f5e', bg: 'rgba(244,63,94,0.08)',  border: 'rgba(244,63,94,0.25)' },
+      caution:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)' },
+      excellent: { color: 'var(--green)', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.25)' },
+    }[a.suitability] || { color: 'var(--text-secondary)', bg: 'transparent', border: 'var(--border)' };
+    compEl.innerHTML = `
+      <div style="padding:10px 12px; border-radius:8px; background:${palette.bg}; border:1px solid ${palette.border};">
+        <div style="font-size:12px; font-weight:600; color:${palette.color}; margin-bottom:3px;">${a.reason}</div>
+        <div style="font-size:12px; color:var(--text-secondary); line-height:1.5;">${a.details}</div>
+      </div>`;
+  } else compEl.innerHTML = '';
+
+  // Key stats
+  const range52 = (d.fiftyTwoWeekLow != null && d.fiftyTwoWeekHigh != null && d.price != null && d.fiftyTwoWeekHigh > d.fiftyTwoWeekLow)
+    ? `${(((d.price - d.fiftyTwoWeekLow) / (d.fiftyTwoWeekHigh - d.fiftyTwoWeekLow)) * 100).toFixed(0)}% of 52w range`
+    : null;
+  const stats = [
+    d.yieldPct != null ? { label: 'Dividend Yield', value: `${d.yieldPct.toFixed(2)}%` } : null,
+    d.taxDragPct != null ? { label: `Tax Drag (@${d.dividendTaxRatePct}%)`, value: `${d.taxDragPct.toFixed(2)}%/yr`, color: d.taxDragPct >= 1.5 ? 'var(--red)' : d.taxDragPct >= 0.5 ? '#f59e0b' : 'var(--green)' } : null,
+    d.expenseRatioPct != null ? { label: 'Expense Ratio', value: `${d.expenseRatioPct.toFixed(2)}%` } : null,
+    range52 ? { label: '52-Week Position', value: range52 } : null,
+    d.marketCap != null ? { label: d.overlap ? 'Fund Assets' : 'Market Cap', value: fmt.mktcap(d.marketCap), html: true } : null,
+    d.sector ? { label: 'Sector', value: d.industry ? `${d.sector} · ${d.industry}` : d.sector } : null,
+    d.held ? { label: 'Your Position', value: `$${Math.round(d.held.marketValue).toLocaleString('en-US')} · ${d.held.weightPct.toFixed(1)}% (${d.held.bucket})`, html: false, privacy: true } : null,
+  ].filter(Boolean);
+  el('si-stats').innerHTML = stats.map(s => `
+    <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; padding:8px 10px;">
+      <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">${s.label}</div>
+      <div style="font-size:13px; font-weight:600; margin-top:2px; ${s.color ? `color:${s.color};` : ''}" ${s.privacy ? 'class="privacy-amount"' : ''}>${s.value}</div>
+    </div>`).join('');
+
+  // Overlap callout + top holdings (funds only)
+  const calloutEl = el('si-overlap-callout');
+  const holdingsSection = el('si-holdings-section');
+  if (d.overlap && d.overlap.rows.length) {
+    const o = d.overlap;
+    const parts = [];
+    if (o.employerFundPct > 0) {
+      parts.push(`<strong style="color:#f43f5e;">${o.employerFundPct.toFixed(1)}% of this fund is your employer's stock</strong> — every $10k you invest adds ~$${o.employerUsdPer10k.toLocaleString('en-US')} of hidden exposure on top of your direct position.`);
+    }
+    if (o.overlapCount > 0) {
+      parts.push(`${o.overlapCount} of its top holdings (${o.overlapFundPct.toFixed(1)}% of the fund) are names you already own directly — buying it partly duplicates what you have rather than diversifying.`);
+    }
+    calloutEl.innerHTML = parts.length ? `
+      <div style="padding:10px 12px; border-radius:8px; background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.2); font-size:12px; color:var(--text-secondary); line-height:1.6;">
+        ${parts.join('<br>')}
+      </div>` : '';
+
+    holdingsSection.style.display = '';
+    const maxPct = Math.max(...o.rows.map(r => r.fundPct), 1);
+    el('si-holdings-list').innerHTML = o.rows.slice(0, 10).map(r => `
+      <div style="display:flex; align-items:center; gap:8px; font-size:12px;">
+        <span style="font-family:'JetBrains Mono',monospace; font-weight:600; width:56px; ${r.isEmployer ? 'color:#f43f5e;' : r.alreadyHeld ? 'color:#f59e0b;' : ''}">${r.symbol}</span>
+        <div style="flex:1; height:8px; background:rgba(255,255,255,0.04); border-radius:4px; overflow:hidden;">
+          <div style="height:100%; width:${(r.fundPct / maxPct) * 100}%; background:${r.isEmployer ? '#f43f5e' : r.alreadyHeld ? '#f59e0b' : 'var(--cyan)'}; opacity:0.75;"></div>
+        </div>
+        <span style="width:44px; text-align:right; font-family:'JetBrains Mono',monospace;">${r.fundPct.toFixed(1)}%</span>
+        <span style="width:150px; font-size:11px; color:var(--text-muted); text-align:right;">${r.isEmployer ? 'EMPLOYER STOCK' : r.alreadyHeld ? `you hold ${r.directWeightPct.toFixed(1)}% directly` : ''}</span>
+      </div>`).join('');
+  } else {
+    calloutEl.innerHTML = '';
+    holdingsSection.style.display = 'none';
+  }
+
+  // Sector weights (funds)
+  const sectorsSection = el('si-sectors-section');
+  if (d.sectorWeights && d.sectorWeights.length) {
+    sectorsSection.style.display = '';
+    el('si-sectors-list').innerHTML = d.sectorWeights.slice(0, 8).map(s => `
+      <span style="font-size:11px; padding:3px 8px; border-radius:5px; background:rgba(255,255,255,0.04); border:1px solid var(--border); color:var(--text-secondary);">
+        ${s.sector.replace(/_/g, ' ')} <strong style="color:var(--text-primary);">${s.pct.toFixed(1)}%</strong>
+      </span>`).join('');
+  } else sectorsSection.style.display = 'none';
+
+  // Deep link to the CSP opportunity modal when scanner data exists
+  const cspEl = el('si-csp-link');
+  const scannerHit = (window.allData || allData || []).find(x => x.symbol === d.symbol);
+  if (scannerHit) {
+    cspEl.style.display = '';
+    cspEl.innerHTML = `<button class="settings-action-btn" id="si-open-csp" style="width:auto;">View cash-secured put opportunity →</button>`;
+    el('si-open-csp').onclick = () => { closeSymbolInsight(); openModal(scannerHit); };
+  } else {
+    cspEl.style.display = 'none';
+    cspEl.innerHTML = '';
+  }
+
+  el('si-loading').style.display = 'none';
+  el('si-content').style.display = '';
+}
+
+function closeSymbolInsight() {
+  el('symbol-insight-overlay')?.classList.add('hidden');
+}
+
+el('symbol-insight-close')?.addEventListener('click', closeSymbolInsight);
+el('symbol-insight-overlay')?.addEventListener('click', (e) => {
+  if (e.target === el('symbol-insight-overlay')) closeSymbolInsight();
+});
+
+// Tax-Smart Buy Ideas: renders the output of the rules-based engine that maps
+// the user's own targets + tax profile onto specific tickers. The heavy
+// lifting (PFIC exclusion, dividend tax drag, glidepath) lives in
+// lib/recommendations.js; this only draws what comes back.
+function renderBuyIdeas(watchlistData) {
+  const card = el('pf-buy-ideas-card');
+  if (!card) return;
+  window.electronAPI.getBuyRecommendations(watchlistData)
+    .then(result => {
+      const { recommendations, swaps, glidepathNote, deployableCash } = result;
+      if (!recommendations.length && !swaps.length) { card.style.display = 'none'; return; }
+      card.style.display = '';
+
+      const glideEl = el('pf-buy-ideas-glidepath');
+      if (glideEl) {
+        glideEl.style.display = glidepathNote ? '' : 'none';
+        glideEl.textContent = glidepathNote || '';
+      }
+
+      const kindBadge = k => k === 'bond'
+        ? `<span style="color:#a78bfa; background:rgba(167,139,250,0.12); border:1px solid rgba(167,139,250,0.25); border-radius:4px; padding:1px 6px; font-size:10px; font-weight:600; text-transform:uppercase;">Bond</span>`
+        : `<span style="color:var(--cyan); background:rgba(6,182,212,0.1); border:1px solid rgba(6,182,212,0.2); border-radius:4px; padding:1px 6px; font-size:10px; font-weight:600; text-transform:uppercase;">Equity</span>`;
+
+      const dragColor = d => d >= 1.5 ? 'var(--red)' : d >= 0.5 ? '#f59e0b' : 'var(--green)';
+
+      el('pf-buy-ideas-list').innerHTML = recommendations.map(r => `
+        <div style="display:flex; gap:12px; align-items:flex-start; padding:10px 12px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px;">
+          <div style="min-width:64px;">
+            <div class="si-symbol-link" data-symbol="${r.symbol}" style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; cursor:pointer; color:var(--cyan);" title="View insights for ${r.symbol}">${r.symbol}</div>
+            <div style="margin-top:3px;">${kindBadge(r.kind)}</div>
+          </div>
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:12px; color:var(--text-primary);">${r.name}</div>
+            <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">${r.strategyReason}</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:4px; line-height:1.5;">${r.taxNotes.join(' ')}</div>
+          </div>
+          <div style="text-align:right; flex-shrink:0;">
+            ${r.suggestedUsd > 0 ? `<div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--green);" class="privacy-amount">~$${r.suggestedUsd.toLocaleString('en-US')}</div>` : ''}
+            <div style="font-size:11px; color:${dragColor(r.taxDragPct)}; margin-top:2px;" title="Estimated annual tax cost of this fund's distributions at your dividend tax rate">tax drag ${r.taxDragPct.toFixed(2)}%/yr</div>
+          </div>
+        </div>`).join('');
+
+      const swapsWrap = el('pf-buy-ideas-swaps');
+      if (swapsWrap) {
+        swapsWrap.style.display = swaps.length ? '' : 'none';
+        if (swaps.length) {
+          el('pf-buy-ideas-swaps-list').innerHTML = swaps.map(s => `
+            <div style="display:flex; gap:10px; align-items:center; padding:8px 12px; background:rgba(244,63,94,0.05); border:1px solid rgba(244,63,94,0.15); border-radius:8px; font-size:12px;">
+              <span class="si-symbol-link" data-symbol="${s.sell}" style="font-family:'JetBrains Mono',monospace; font-weight:700; cursor:pointer;" title="View insights for ${s.sell}">${s.sell}</span>
+              <span style="color:var(--text-muted);">→</span>
+              ${s.buy
+                ? `<span class="si-symbol-link" data-symbol="${s.buy}" style="font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--green); cursor:pointer;" title="View insights for ${s.buy}">${s.buy}</span>`
+                : `<span style="font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--green);">US equivalent</span>`}
+              <span style="color:var(--text-secondary); flex:1;">${s.reason}</span>
+            </div>`).join('');
+        }
+      }
+
+      // One delegated handler covers every symbol link in the card
+      card.onclick = (e) => {
+        const link = e.target.closest('.si-symbol-link');
+        if (link?.dataset.symbol) openSymbolInsight(link.dataset.symbol);
+      };
+    })
+    .catch(err => console.error('Failed to load buy recommendations:', err));
+}
+
+// Upgrade the Employer Stock metric asynchronously with the look-through
+// figure: direct position + employer stock hiding inside held index funds.
+// Fund compositions come from a 7-day cache, so this is cheap after first run.
+async function enrichEmployerExposure(directPct) {
+  try {
+    const exp = await window.electronAPI.getEmployerExposure();
+    if (!exp || exp.impliedUsd <= 0) return;
+    const elPct = el('pf-employer-pct');
+    if (!elPct) return;
+    elPct.innerHTML = `${exp.totalPct.toFixed(2)}%<span style="display:block; font-size:11px; font-weight:400; color:var(--text-muted); margin-top:2px;">${exp.directPct.toFixed(1)}% direct + ${exp.impliedPct.toFixed(1)}% via funds</span>`;
+    elPct.style.color = exp.totalPct > 15 ? 'var(--red)' : exp.totalPct > 10 ? '#f59e0b' : '';
+    const card = elPct.closest('.metric-card');
+    if (card) {
+      const perFund = exp.perFund.map(f => `${f.symbol}: ${f.employerFundPct.toFixed(1)}% of fund ≈ $${f.impliedUsd.toLocaleString('en-US')}`).join('\n');
+      card.title = `True employer exposure (floor — only each fund's top holdings are visible):\n$${exp.impliedUsd.toLocaleString('en-US')} held indirectly via ${exp.perFund.length} fund(s)\n\n${perFund}`;
+    }
+  } catch {}
+}
+
 function renderPortfolio(p) {
   portfolio = p;
   const has = p.holdings.length > 0;
@@ -1742,6 +1973,7 @@ function renderPortfolio(p) {
   const conc = d.concentration;
   el('pf-employer-pct').textContent = has ? fmt.pct(conc.pct) : '—';
   el('pf-employer-pct').style.color = conc.pct > 15 ? 'var(--red)' : conc.pct > 10 ? '#f59e0b' : '';
+  if (has) enrichEmployerExposure(conc.pct);
   const top = d.topPositions[0];
   el('pf-largest').textContent = top ? `${top.symbol} · ${top.weightPct.toFixed(1)}%` : '—';
 
@@ -1798,7 +2030,13 @@ function renderPortfolio(p) {
           updateDashboardActionableSteps(guidanceItems, p.holdings);
         })
         .catch(err => console.error('Failed to load portfolio guidance:', err));
+
+      renderBuyIdeas(watchlistData);
     }
+  }
+  if (!has) {
+    const ideasCard = el('pf-buy-ideas-card');
+    if (ideasCard) ideasCard.style.display = 'none';
   }
 
   if (!has) return;
@@ -2134,6 +2372,7 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
 
   // ── Embedded IBKR login (webview) ───────────────────────────────────────
   let ibkrLoginPoll = null;
+  let ibkrLoginDomPoll = null;
 
   async function openIbkrLogin() {
     const overlay = el('ibkr-login-overlay');
@@ -2155,14 +2394,30 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
 
     // The gateway's terminal page after auth is a bare "Client login succeeds"
     // body. Capture it the moment it renders: close the modal and sync
-    // immediately instead of leaving raw text on screen (the status poll below
-    // stays as fallback in case the page text ever changes).
-    wv.addEventListener('did-stop-loading', () => {
+    // immediately instead of leaving raw text on screen. IBKR's 2FA screen
+    // updates itself in place after you approve the phone push (no full page
+    // navigation), so `did-stop-loading` alone never fires again — poll the
+    // body text on a short interval too, for as long as the modal is open.
+    const checkForSuccess = () => {
       wv.executeJavaScript(`(document.body?.innerText || '').slice(0, 200)`)
         .then(text => {
           if (/client login succeeds/i.test(text || '')) onIbkrLoginSuccess();
         })
         .catch(() => {});
+    };
+    wv.addEventListener('did-stop-loading', checkForSuccess);
+    clearInterval(ibkrLoginDomPoll);
+    ibkrLoginDomPoll = setInterval(checkForSuccess, 1500);
+
+    // Diagnostics: surface webview-side load/console failures in devtools so a
+    // stuck login screen can be root-caused (e.g. a poll request inside the
+    // IBKR page itself failing) instead of just looking idle.
+    wv.addEventListener('did-fail-load', (e) => {
+      if (e.errorCode === -3) return; // ERR_ABORTED — normal on redirects, not a real failure
+      console.warn('[ibkr-login] webview did-fail-load', e.errorCode, e.errorDescription, e.validatedURL);
+    });
+    wv.addEventListener('console-message', (e) => {
+      if (e.level >= 2) console.warn('[ibkr-login:page]', e.message);
     });
 
     // Prefill username + (if stored) password and auto-submit, landing the
@@ -2233,9 +2488,17 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     ibkrLoginHandled = true;
     closeIbkrLogin();
     setStatus('live', 'IBKR login successful — syncing your portfolio…');
-    await refreshIbkrStatus();
+    // We already know we're authenticated (this fires off the "Client login
+    // succeeds" page or a connected status poll) — set state directly instead
+    // of re-checking via refreshIbkrStatus() first. Right after 2FA the real
+    // gateway's /iserver/auth/status can briefly still answer needs-login
+    // before the session propagates, and the sync button's click handler
+    // reads ibkrState synchronously, so a stale refresh here would reopen
+    // this same login modal instead of syncing.
+    ibkrState = 'connected';
     const syncBtn = el('pf-ibkr-sync-btn');
     if (syncBtn && !syncBtn.disabled) syncBtn.click();
+    refreshIbkrStatus(); // update the pill/button styling to match, in the background
   }
 
   function closeIbkrLogin() {
@@ -2243,6 +2506,8 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     const host = el('ibkr-webview-host');
     clearInterval(ibkrLoginPoll);
     ibkrLoginPoll = null;
+    clearInterval(ibkrLoginDomPoll);
+    ibkrLoginDomPoll = null;
     if (overlay) overlay.classList.add('hidden');
     if (host) host.innerHTML = ''; // tear down the webview
   }

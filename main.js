@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, safeStorage, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -65,14 +65,60 @@ function saveQuoteCache() {
   }
 }
 
+// ── quoteSummary cache (fund holdings / profile — changes slowly) ────────────
+const FUND_INSIGHTS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const fundInsightsCache = new Map();
+
+function loadFundInsightsCache() {
+  try {
+    if (fs.existsSync(FUND_INSIGHTS_CACHE_FILE)) {
+      const data = JSON.parse(fs.readFileSync(FUND_INSIGHTS_CACHE_FILE, 'utf8'));
+      for (const k in data) fundInsightsCache.set(k, data[k]);
+    }
+  } catch {}
+}
+
+function saveFundInsightsCache() {
+  try {
+    const data = {};
+    for (const [k, v] of fundInsightsCache.entries()) data[k] = v;
+    fs.writeFileSync(FUND_INSIGHTS_CACHE_FILE, JSON.stringify(data), 'utf8');
+  } catch {}
+}
+
+async function fetchCachedQuoteSummary(symbol) {
+  const key = symbol.toUpperCase().trim();
+  const cached = fundInsightsCache.get(key);
+  if (cached && Date.now() - cached.timestamp < FUND_INSIGHTS_TTL_MS) return cached.summary;
+  let summary = null;
+  try {
+    summary = await yahooFinance.quoteSummary(symbol, {
+      modules: ['topHoldings', 'fundProfile', 'summaryDetail', 'assetProfile'],
+    });
+  } catch {
+    // Stocks miss the fund modules entirely on some Yahoo backends; retry
+    // with the stock-relevant subset before giving up.
+    try {
+      summary = await yahooFinance.quoteSummary(symbol, { modules: ['summaryDetail', 'assetProfile'] });
+    } catch {}
+  }
+  if (summary) {
+    fundInsightsCache.set(key, { summary, timestamp: Date.now() });
+    saveFundInsightsCache();
+  }
+  return summary;
+}
+
 const { findClosestDate, computeHV, computeIVR, detectMeanReversion } = require('./lib/strategies');
 const {
   parsePositionsCsv, totalValue, allocationByHolding, allocationByBucket,
   computeDrift, employerConcentration, topConcentrations,
 } = require('./lib/portfolio');
 const { analyzeTicker, generatePortfolioGuidance, calculateHoldingRecommendation } = require('./lib/guidance');
+const { generateBuyRecommendations, CURATED_CANDIDATES } = require('./lib/recommendations');
 const { computePortfolioHealth, projectAnnualDividends } = require('./lib/health');
 const { createIbkrClient, isLoopbackGatewayUrl, gatewayLaunchSpec, treeKillSpec } = require('./lib/ibkr');
+const { computeFundOverlap, computeIndexImpliedEmployer } = require('./lib/funds');
 const { spawn } = require('child_process');
 
 const CACHE_FILE      = path.join(app.getPath('userData'), 'data.json');
@@ -82,6 +128,7 @@ const SETTINGS_FILE   = path.join(app.getPath('userData'), 'settings.json');
 const DISC_CACHE_FILE = path.join(app.getPath('userData'), 'discovery-cache.json');
 const SEED_CACHE_FILE = path.join(__dirname, 'lib', 'discovery-seed.json');
 const QUOTE_CACHE_FILE = path.join(app.getPath('userData'), 'quote-cache.json');
+const FUND_INSIGHTS_CACHE_FILE = path.join(app.getPath('userData'), 'fund-insights-cache.json');
 
 const DEFAULT_SETTINGS = {
   refreshIntervalDays: 1,
@@ -104,6 +151,7 @@ const DEFAULT_SETTINGS = {
   glidepathBase: 110,
   cashDragThreshold: 5000,
   employerSymbols: '',
+  dividendTaxRatePct: 30, // effective rate on dividends (CH income tax × US qualified-rate/FTC interplay)
   ibkrGatewayUrl: 'https://localhost:5000',
   ibkrGatewayDir: '',
   ibkrAutoStart: false,
@@ -705,6 +753,7 @@ function stopGateway() {
 // ── IPC ───────────────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
   loadQuoteCache();
+  loadFundInsightsCache();
   ipcMain.handle('load-initial-data', () => {
     const cache    = loadCache();
     const settings = loadSettings();
@@ -1320,6 +1369,146 @@ app.whenReady().then(() => {
     return generatePortfolioGuidance(holdings, cash, targets, settings, quotes, watchlistData);
   });
 
+  // Tax-aware buy ideas: rules-based output of the user's own targets + tax
+  // profile (US citizen / NL citizen / CH resident) — never generic stock tips.
+  ipcMain.handle('get-buy-recommendations', async (_event, watchlistData) => {
+    const p = loadPortfolio();
+    const settings = loadSettings();
+    const quotes = {};
+
+    // Holdings: currency-validated quotes (guards against wrong-exchange listings)
+    await Promise.all(p.holdings.map(async h => {
+      try {
+        const q = await fetchQuoteForHolding(h);
+        if (q) quotes[h.symbol.toUpperCase()] = q;
+      } catch {}
+    }));
+
+    // Curated candidates are all US-listed; accept only USD quotes for them
+    await Promise.all(CURATED_CANDIDATES.map(async c => {
+      if (quotes[c.symbol]) return;
+      try {
+        const q = await fetchCachedQuote(c.symbol);
+        if (q && (q.currency || 'USD').toUpperCase() === 'USD') quotes[c.symbol] = q;
+      } catch {}
+    }));
+
+    return generateBuyRecommendations({
+      holdings: p.holdings,
+      cash: p.cash,
+      targets: p.targets,
+      settings,
+      quotes,
+      watchlistData: watchlistData || [],
+    });
+  });
+
+  // True employer exposure: direct position + the slices hiding inside every
+  // held index fund (topHoldings look-through). Reported as a floor — only a
+  // fund's top ~10 holdings are visible to us.
+  ipcMain.handle('get-employer-exposure', async () => {
+    const p = loadPortfolio();
+    const settings = loadSettings();
+    const employerSyms = new Set((settings.employerSymbols || '').toUpperCase().split(',').map(s => s.trim()).filter(Boolean));
+    if (employerSyms.size === 0) return null;
+
+    const total = p.holdings.reduce((s, h) => s + (h.marketValue || 0), 0) + (p.cash || 0);
+    const directValue = p.holdings
+      .filter(h => employerSyms.has((h.symbol || '').toUpperCase()))
+      .reduce((s, h) => s + (h.marketValue || 0), 0);
+
+    // Look through only what quotes say is a fund — no point hammering
+    // quoteSummary for single stocks.
+    const lookthroughs = [];
+    await Promise.all(p.holdings.map(async h => {
+      const sym = (h.symbol || '').toUpperCase();
+      if (!sym || h.assetCategory === 'OPT' || sym.length > 8 || employerSyms.has(sym)) return;
+      try {
+        const q = await fetchQuoteForHolding(h);
+        const qType = (q?.quoteType || '').toUpperCase();
+        if (qType !== 'ETF' && qType !== 'MUTUALFUND') return;
+        const summary = await fetchCachedQuoteSummary(sym);
+        const topHoldings = summary?.topHoldings?.holdings;
+        if (topHoldings?.length) lookthroughs.push({ symbol: sym, marketValue: h.marketValue || 0, topHoldings });
+      } catch {}
+    }));
+
+    return computeIndexImpliedEmployer(lookthroughs, directValue, settings.employerSymbols, total);
+  });
+
+  // Everything the Symbol Insights dialog needs for one symbol: identity,
+  // yield/tax drag, compliance classification, and — for funds — a
+  // look-through of top holdings overlapped against the user's portfolio
+  // (surfaces hidden employer exposure inside "diversified" index funds).
+  ipcMain.handle('get-symbol-insights', async (_event, symbol) => {
+    const sym = (symbol || '').toUpperCase().trim();
+    if (!sym) return { error: 'no symbol' };
+    const p = loadPortfolio();
+    const settings = loadSettings();
+    const total = p.holdings.reduce((s, h) => s + (h.marketValue || 0), 0) + (p.cash || 0);
+
+    let quote = null;
+    try { quote = await fetchCachedQuote(sym); } catch {}
+    const summary = await fetchCachedQuoteSummary(sym);
+
+    const analysis = analyzeTicker(sym, p.holdings, p.cash, quote);
+
+    const topHoldings = summary?.topHoldings?.holdings || [];
+    const overlap = topHoldings.length
+      ? computeFundOverlap(topHoldings, p.holdings, settings.employerSymbols || '', total)
+      : null;
+
+    // Sector weights: Yahoo returns [{ technology: 0.31 }, { realestate: 0.02 }, ...]
+    const sectorWeights = (summary?.topHoldings?.sectorWeightings || [])
+      .map(o => {
+        const k = Object.keys(o)[0];
+        return k ? { sector: k, pct: Math.round(o[k] * 10000) / 100 } : null;
+      })
+      .filter(s => s && s.pct > 0)
+      .sort((a, b) => b.pct - a.pct);
+
+    const expenseRatioPct = summary?.fundProfile?.feesExpensesInvestment?.annualReportExpenseRatio != null
+      ? Math.round(summary.fundProfile.feesExpensesInvestment.annualReportExpenseRatio * 10000) / 100
+      : null;
+
+    // Yahoo zeroes trailingAnnualDividendYield for many ETFs but still fills
+    // dividendYield (already in percent) — same quirk handled in lib/recommendations.
+    const yieldPct = quote?.trailingAnnualDividendYield > 0
+      ? Math.round(quote.trailingAnnualDividendYield * 10000) / 100
+      : (quote?.trailingAnnualDividendRate > 0 && quote?.regularMarketPrice > 0
+        ? Math.round((quote.trailingAnnualDividendRate / quote.regularMarketPrice) * 10000) / 100
+        : (quote?.dividendYield > 0 ? Math.round(quote.dividendYield * 100) / 100 : null));
+    const dividendTaxRatePct = settings.dividendTaxRatePct ?? 30;
+
+    const held = p.holdings.find(h => (h.symbol || '').toUpperCase() === sym);
+
+    return {
+      symbol: sym,
+      name: quote?.longName || quote?.shortName || summary?.price?.longName || sym,
+      exchange: quote?.fullExchangeName || quote?.exchange || null,
+      currency: quote?.currency || null,
+      price: quote?.regularMarketPrice ?? null,
+      changePct: quote?.regularMarketChangePercent ?? null,
+      fiftyTwoWeekLow: quote?.fiftyTwoWeekLow ?? null,
+      fiftyTwoWeekHigh: quote?.fiftyTwoWeekHigh ?? null,
+      marketCap: quote?.marketCap ?? summary?.summaryDetail?.totalAssets ?? null,
+      yieldPct,
+      taxDragPct: yieldPct != null ? Math.round(yieldPct * dividendTaxRatePct) / 100 : null,
+      dividendTaxRatePct,
+      expenseRatioPct,
+      sector: summary?.assetProfile?.sector || null,
+      industry: summary?.assetProfile?.industry || null,
+      analysis,       // PFIC/domicile/suitability from the compliance engine
+      overlap,        // null for non-funds
+      sectorWeights,  // [] for non-funds
+      held: held ? {
+        marketValue: held.marketValue,
+        weightPct: total > 0 ? Math.round(((held.marketValue || 0) / total) * 10000) / 100 : 0,
+        bucket: held.bucket || 'unassigned',
+      } : null,
+    };
+  });
+
   // Trust ONLY the loopback gateway's self-signed cert — so the embedded login
   // webview (and our REST calls) load without a browser security interstitial.
   // Every other certificate error is still rejected normally.
@@ -1329,6 +1518,25 @@ app.whenReady().then(() => {
       callback(true);
     } else {
       callback(false);
+    }
+  });
+
+  // The 'certificate-error' event above only reliably covers the webview's
+  // top-level navigation. IBKR's login page keeps polling itself in the
+  // background (checking for phone-push approval / challenge-code result)
+  // via XHR/fetch on the same self-signed origin — and those subresource
+  // requests need to be trusted too, or the page never learns you approved.
+  // setCertificateVerifyProc, scoped to just the login webview's own
+  // partition, covers every request type uniformly. This partition is used
+  // for nothing else, and setCertificateVerifyProc gets no port info, so we
+  // just check the hostname is loopback rather than matching the exact
+  // configured gateway host:port.
+  const IBKR_WEBVIEW_LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+  session.fromPartition('persist:ibkr').setCertificateVerifyProc((request, callback) => {
+    if (IBKR_WEBVIEW_LOOPBACK_HOSTS.has(request.hostname)) {
+      callback(0); // 0 = trust
+    } else {
+      callback(-3); // -3 = fall back to Chromium's normal verification
     }
   });
 

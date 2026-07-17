@@ -56,6 +56,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Guidance (compliance engine)
   analyzeTicker:        (symbol, holdings, cash) => ipcRenderer.invoke('analyze-ticker', symbol, holdings, cash),
   getPortfolioGuidance: (holdings, cash, targets, watchlistData) => ipcRenderer.invoke('get-portfolio-guidance', holdings, cash, targets, watchlistData),
+  getBuyRecommendations: (watchlistData) => ipcRenderer.invoke('get-buy-recommendations', watchlistData),
+  getSymbolInsights:     (symbol)        => ipcRenderer.invoke('get-symbol-insights', symbol),
+  getEmployerExposure:   ()              => ipcRenderer.invoke('get-employer-exposure'),
 
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window-minimize'),
