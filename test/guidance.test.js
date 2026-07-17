@@ -276,7 +276,13 @@ console.log('Running test/guidance.test.js...');
   holding = { symbol: 'AAPL', bucket: 'satellite', marketValue: 2000 };
   res = calculateHoldingRecommendation(holding, null, null, [], 5, 10000);
   assert.strictEqual(res.type, 'Trim');
-  assert.ok(res.reason.includes('Exceeds 10%'));
+  assert.ok(res.reason.includes('concentration'));
+
+  // Individual stock in Core bucket should get "Trim" reclassification warning
+  holding = { symbol: 'AAPL', bucket: 'core', marketValue: 500 };
+  res = calculateHoldingRecommendation(holding, null, null, [], 5, 10000);
+  assert.strictEqual(res.type, 'Trim');
+  assert.ok(res.reason.includes('Core bucket'));
 
   // Satellite stock with poor screener grade should get "Trim"
   holding = { symbol: 'AAPL', bucket: 'satellite', marketValue: 500 };
