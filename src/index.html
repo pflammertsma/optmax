@@ -53,25 +53,10 @@
 
         <div class="nav-sep"></div>
 
-        <a class="nav-link" data-view="top25">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-          Top 25 Overall
-        </a>
-        <a class="nav-link" data-view="under10k">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-          Top 25 Under $10k
-        </a>
-        <a class="nav-link" data-view="megacaps">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-          Top 25 Mega Caps
-        </a>
         <a class="nav-link" data-view="favorites">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.5 8.26 12 6"/></svg>
           Starred Stocks
         </a>
-
-        <div class="nav-sep"></div>
-
         <a class="nav-link" data-view="screener">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
           Screener
@@ -79,9 +64,9 @@
 
         <div class="nav-sep"></div>
 
-        <a class="nav-link" data-view="discover">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          Discover
+        <a class="nav-link" data-view="options-scanner">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Option Scanner
         </a>
 
         <div class="nav-sep"></div>
@@ -111,6 +96,18 @@
         <div class="metric-cards" id="metric-cards">
           <div class="metric-card skeleton"><div class="metric-label">Watchlist Stocks</div><div class="metric-value">—</div></div>
           <div class="metric-card skeleton"><div class="metric-label">Graded Opportunities</div><div class="metric-value">—</div></div>
+        </div>
+
+        <!-- Actionable Next Steps Card -->
+        <div class="settings-card hidden" id="dashboard-actionable-steps-wrap" style="max-width: 100%; margin-bottom: 24px; border: 1px solid rgba(0, 240, 255, 0.15); background: rgba(0, 240, 255, 0.02); padding: 16px; border-radius: var(--radius);">
+          <div class="settings-card-title" style="color: var(--cyan); margin-bottom: 8px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            Actionable Next Steps
+          </div>
+          <p class="settings-card-desc" style="margin-bottom: 12px; font-size: 12.5px; color: var(--text-muted);">Based on your current portfolio allocation and holdings, we recommend the following adjustments:</p>
+          <ul id="dashboard-actionable-steps-list" style="margin: 0; padding-left: 20px; color: var(--text-primary); font-size: 13px; line-height: 1.7; display: flex; flex-direction: column; gap: 8px;">
+            <!-- Actions will be injected here -->
+          </ul>
         </div>
 
         <div class="empty-state" id="empty-state" style="display:none">
@@ -153,9 +150,18 @@
 
       <!-- Screener View -->
       <section class="view" id="view-screener">
-        <div class="view-header">
-          <h1 class="view-title">Screener</h1>
-          <span class="view-subtitle">All watchlist stocks ranked by composite score</span>
+        <div class="view-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h1 class="view-title">Screener</h1>
+            <span class="view-subtitle">All watchlist stocks ranked by composite score</span>
+          </div>
+          <div class="toggle-container" title="Reveal option-writing metrics like IVR and Yield">
+            <span class="toggle-label">Options Writing Mode</span>
+            <label class="switch">
+              <input type="checkbox" id="screener-show-options">
+              <span class="slider round"></span>
+            </label>
+          </div>
         </div>
 
         <div class="watchlist-section" style="margin-bottom:16px">
@@ -214,7 +220,7 @@
         </div>
 
         <div class="table-wrapper">
-          <table class="data-table" id="table-screener">
+          <table class="data-table hide-options-metrics" id="table-screener">
             <thead>
               <tr>
                 <th>#</th>
@@ -224,10 +230,10 @@
                 <th data-col="marketCap">Mkt Cap</th>
                 <th data-col="score" data-sort="desc">Score</th>
                 <th data-col="grade">Grade</th>
-                <th data-col="ivr">IVR</th>
-                <th data-col="ivHvRatio">IV/HV</th>
-                <th data-col="monthlyYield">Mo. Yield</th>
-                <th style="min-width:100px">Score Bar</th>
+                <th data-col="ivr" class="options-metric">IVR</th>
+                <th data-col="ivHvRatio" class="options-metric">IV/HV</th>
+                <th data-col="monthlyYield" class="options-metric">Mo. Yield</th>
+                <th style="min-width:100px" class="options-metric">Score Bar</th>
                 <th></th>
               </tr>
             </thead>
@@ -236,111 +242,178 @@
         </div>
       </section>
 
-      <!-- Top 25 Overall View -->
-      <section class="view" id="view-top25">
-        <div class="view-header">
+      <!-- Option Scanner View (Consolidated) -->
+      <section class="view" id="view-options-scanner">
+        <div class="view-header" style="flex-direction: column; align-items: flex-start; gap: 12px; margin-bottom: 20px;">
           <div>
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
-              <h1 class="view-title" style="margin-bottom: 0;">Top 25 Overall</h1>
-              <span class="preview-badge" style="margin: 0;">by yield · score > 0</span>
-            </div>
-            <span class="view-subtitle">Best cash-secured put opportunities by annualized yield (score > 0)</span>
+            <h1 class="view-title" style="margin-bottom: 4px;">Option Scanner</h1>
+            <span class="view-subtitle">Select a strategy or run a market scan to find cash-secured put opportunities</span>
+          </div>
+          <div style="display: flex; gap: 8px; background: rgba(255,255,255,0.03); padding: 4px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">
+            <button class="settings-action-btn subview-btn active" data-subview="top25" style="width:auto; margin:0">Top 25 Overall</button>
+            <button class="settings-action-btn subview-btn" data-subview="under10k" style="width:auto; margin:0">Top 25 Under $10k</button>
+            <button class="settings-action-btn subview-btn" data-subview="megacaps" style="width:auto; margin:0">Top 25 Mega Caps</button>
+            <button class="settings-action-btn subview-btn" data-subview="discover" style="width:auto; margin:0">Discover Scanner</button>
           </div>
         </div>
-        <div class="table-wrapper">
-          <table class="data-table" id="table-top25">
-            <thead>
-              <tr>
-                <th data-col="rank">#</th>
-                <th data-col="symbol">Symbol</th>
-                <th data-col="score">Score</th>
-                <th data-col="currentPrice">Stock Price</th>
-                <th data-col="strike">Strike</th>
-                <th data-col="dte">DTE</th>
-                <th data-col="premium">Premium</th>
-                <th data-col="capitalRequired">Capital Req.</th>
-                <th data-col="monthlyYield">Mo. Yield</th>
-                <th data-col="annualizedYield">Ann. Yield</th>
-                <th data-col="monthlyIncome">Mo. Income</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="tbody-top25"><tr><td colspan="12" class="empty-row">No data yet — click Refresh.</td></tr></tbody>
-          </table>
-        </div>
-      </section>
 
-      <!-- Under $10k View -->
-      <section class="view" id="view-under10k">
-        <div class="view-header">
-          <div>
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
-              <h1 class="view-title" style="margin-bottom: 0;">Top 25 Under $10k Capital</h1>
-              <span class="preview-badge" style="margin: 0;">capital ≤ $10K · score > 0</span>
-            </div>
-            <span class="view-subtitle">Stocks priced ≤ $100 — capital requirement ≤ $10,000 (score > 0)</span>
+        <!-- Subview 1: Top 25 Overall -->
+        <div class="scanner-subview" id="subview-top25">
+          <div class="table-wrapper">
+            <table class="data-table" id="table-top25">
+              <thead>
+                <tr>
+                  <th data-col="rank">#</th>
+                  <th data-col="symbol">Symbol</th>
+                  <th data-col="score">Score</th>
+                  <th data-col="currentPrice">Stock Price</th>
+                  <th data-col="strike">Strike</th>
+                  <th data-col="dte">DTE</th>
+                  <th data-col="premium">Premium</th>
+                  <th data-col="capitalRequired">Capital Req.</th>
+                  <th data-col="monthlyYield">Mo. Yield</th>
+                  <th data-col="annualizedYield">Ann. Yield</th>
+                  <th data-col="monthlyIncome">Mo. Income</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="tbody-top25"><tr><td colspan="12" class="empty-row">No data yet — click Refresh.</td></tr></tbody>
+            </table>
           </div>
         </div>
-        <div class="table-wrapper">
-          <table class="data-table" id="table-under10k">
-            <thead>
-              <tr>
-                <th data-col="rank">#</th>
-                <th data-col="symbol">Symbol</th>
-                <th data-col="score">Score</th>
-                <th data-col="currentPrice">Stock Price</th>
-                <th data-col="strike">Strike</th>
-                <th data-col="dte">DTE</th>
-                <th data-col="premium">Premium</th>
-                <th data-col="capitalRequired">Capital Req.</th>
-                <th data-col="monthlyYield">Mo. Yield</th>
-                <th data-col="annualizedYield">Ann. Yield</th>
-                <th data-col="monthlyIncome">Mo. Income</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="tbody-under10k"><tr><td colspan="12" class="empty-row">No data yet — click Refresh.</td></tr></tbody>
-          </table>
-        </div>
-      </section>
 
-      <!-- Top 25 Mega Caps View -->
-      <section class="view" id="view-megacaps">
-        <div class="view-header">
-          <div>
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
-              <h1 class="view-title" style="margin-bottom: 0;">Top 25 Mega Caps</h1>
-              <span class="preview-badge" style="background:rgba(112,0,255,0.1); border-color:rgba(112,0,255,0.2); color:#a855f7; margin: 0;">mkt cap ≥ $200B</span>
-            </div>
-            <span class="view-subtitle">Market cap ≥ $200B (includes blocked opportunities)</span>
+        <!-- Subview 2: Under $10k -->
+        <div class="scanner-subview hidden" id="subview-under10k">
+          <div class="table-wrapper">
+            <table class="data-table" id="table-under10k">
+              <thead>
+                <tr>
+                  <th data-col="rank">#</th>
+                  <th data-col="symbol">Symbol</th>
+                  <th data-col="score">Score</th>
+                  <th data-col="currentPrice">Stock Price</th>
+                  <th data-col="strike">Strike</th>
+                  <th data-col="dte">DTE</th>
+                  <th data-col="premium">Premium</th>
+                  <th data-col="capitalRequired">Capital Req.</th>
+                  <th data-col="monthlyYield">Mo. Yield</th>
+                  <th data-col="annualizedYield">Ann. Yield</th>
+                  <th data-col="monthlyIncome">Mo. Income</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="tbody-under10k"><tr><td colspan="12" class="empty-row">No data yet — click Refresh.</td></tr></tbody>
+            </table>
           </div>
         </div>
-        <div class="table-wrapper">
-          <table class="data-table" id="table-megacaps">
-            <thead>
-              <tr>
-                <th data-col="rank">#</th>
-                <th data-col="symbol">Symbol</th>
-                <th data-col="score">Score</th>
-                <th data-col="currentPrice">Stock Price</th>
-                <th data-col="strike">Strike</th>
-                <th data-col="dte">DTE</th>
-                <th data-col="premium">Premium</th>
-                <th data-col="capitalRequired">Capital Req.</th>
-                <th data-col="monthlyYield">Mo. Yield</th>
-                <th data-col="annualizedYield">Ann. Yield</th>
-                <th data-col="monthlyIncome">Mo. Income</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="tbody-megacaps"><tr><td colspan="12" class="empty-row">No data yet — click Refresh.</td></tr></tbody>
-          </table>
+
+        <!-- Subview 3: Mega Caps -->
+        <div class="scanner-subview hidden" id="subview-megacaps">
+          <div class="table-wrapper">
+            <table class="data-table" id="table-megacaps">
+              <thead>
+                <tr>
+                  <th data-col="rank">#</th>
+                  <th data-col="symbol">Symbol</th>
+                  <th data-col="score">Score</th>
+                  <th data-col="currentPrice">Stock Price</th>
+                  <th data-col="strike">Strike</th>
+                  <th data-col="dte">DTE</th>
+                  <th data-col="premium">Premium</th>
+                  <th data-col="capitalRequired">Capital Req.</th>
+                  <th data-col="monthlyYield">Mo. Yield</th>
+                  <th data-col="annualizedYield">Ann. Yield</th>
+                  <th data-col="monthlyIncome">Mo. Income</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="tbody-megacaps"><tr><td colspan="12" class="empty-row">No data yet — click Refresh.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Subview 4: Discover -->
+        <div class="scanner-subview hidden" id="subview-discover">
+          <div class="discover-intro" id="discover-intro">
+            <p class="discover-intro-text">
+              Scans the 200–300 most active and volatile stocks on Yahoo Finance and evaluates them using our unified <strong>100-Point Scoring Engine</strong>. 
+              Stocks are analyzed across five core risk-return dimensions: <strong>Volatility (35 pts)</strong>, <strong>Yield (25 pts)</strong>, <strong>Strike Quality (20 pts)</strong>, <strong>Liquidity (12 pts)</strong>, and <strong>Trend (8 pts)</strong>. 
+              All valid opportunities are ranked by composite score, automatically added to your Watchlist, and merged directly into your Dashboard cache. 
+              Scan takes <strong>5–10 minutes</strong>.
+            </p>
+            <div class="discover-sources">
+              <span class="discover-source-chip">Most Active</span>
+              <span class="discover-source-chip">Day Losers</span>
+              <span class="discover-source-chip">Growth Tech</span>
+            </div>
+            <div class="discover-actions">
+              <button class="discover-run-btn" id="discover-run-btn">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                Scan Market
+              </button>
+              <button class="discover-run-btn discover-force-btn" id="discover-force-btn">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><polyline points="16 8 21 8 21 3"/></svg>
+                Force Full Scan
+              </button>
+            </div>
+          </div>
+
+          <div class="discover-progress hidden" id="discover-progress">
+            <div class="discover-progress-header">
+              <span class="discover-progress-title" id="discover-progress-title">Fetching stock universe…</span>
+              <span class="discover-progress-count" id="discover-progress-count"></span>
+            </div>
+            <div class="discover-progress-track">
+              <div class="discover-progress-fill" id="discover-progress-fill" style="width:0%"></div>
+            </div>
+            <div class="discover-progress-symbol" id="discover-progress-symbol"></div>
+          </div>
+
+          <div class="discover-results hidden" id="discover-results">
+            <div class="discover-group">
+              <div class="discover-group-header">
+                <div>
+                  <h3 class="discover-group-title">Top Candidates by Score</h3>
+                  <span class="discover-group-sub">Ranked by composite 100-point score — all found opportunities shown</span>
+                </div>
+              </div>
+              <div class="table-wrapper">
+                <table class="data-table">
+                  <thead><tr>
+                    <th>#</th><th>Symbol</th><th>Score</th><th>Grade</th>
+                    <th>IV%</th><th>IVR</th><th>IV/HV</th>
+                    <th>Mo. Yield</th><th>Ann. Yield</th>
+                  </tr></thead>
+                  <tbody id="discover-tbody-unified"><tr><td colspan="9" class="empty-row">Run a scan to see candidates.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="discover-footer">
+              <span class="discover-summary" id="discover-summary"></span>
+              <button class="discover-run-btn discover-run-again" id="discover-run-again-btn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                Scan Again
+              </button>
+            </div>
+
+            <div class="discover-post-scan hidden" id="discover-post-scan">
+              <div class="post-scan-item" id="post-scan-opdata">
+                <span class="post-scan-dot"></span>
+                <span class="post-scan-label" id="post-scan-opdata-label">Refreshing opportunity data…</span>
+              </div>
+              <div class="post-scan-item" id="post-scan-prices">
+                <span class="post-scan-dot"></span>
+                <span class="post-scan-label" id="post-scan-prices-label">Updating prices…</span>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
       <!-- Starred Favorites View -->
       <section class="view" id="view-favorites">
-        <div class="view-header">
+        <div class="view-header" style="display: flex; justify-content: space-between; align-items: center;">
           <div>
             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
               <h1 class="view-title" style="margin-bottom: 0;">Starred Stocks</h1>
@@ -348,110 +421,37 @@
             </div>
             <span class="view-subtitle">Your favorite watchlisted opportunities</span>
           </div>
+          <div class="toggle-container" title="Reveal option-writing metrics like IVR and Yield">
+            <span class="toggle-label">Options Writing Mode</span>
+            <label class="switch">
+              <input type="checkbox" id="favorites-show-options">
+              <span class="slider round"></span>
+            </label>
+          </div>
         </div>
+
         <div class="table-wrapper">
-          <table class="data-table" id="table-favorites">
+          <table class="data-table hide-options-metrics" id="table-favorites">
             <thead>
               <tr>
                 <th data-col="rank">#</th>
                 <th data-col="symbol">Symbol</th>
-                <th data-col="score">Score</th>
                 <th data-col="currentPrice">Stock Price</th>
-                <th data-col="strike">Strike</th>
-                <th data-col="dte">DTE</th>
-                <th data-col="premium">Premium</th>
-                <th data-col="capitalRequired">Capital Req.</th>
-                <th data-col="monthlyYield">Mo. Yield</th>
-                <th data-col="annualizedYield">Ann. Yield</th>
-                <th data-col="monthlyIncome">Mo. Income</th>
+                <th data-col="marketCap">Mkt Cap</th>
+                <th data-col="grade">Grade</th>
+                <th data-col="score">Score</th>
+                <th data-col="strike" class="options-metric">Strike</th>
+                <th data-col="dte" class="options-metric">DTE</th>
+                <th data-col="premium" class="options-metric">Premium</th>
+                <th data-col="capitalRequired" class="options-metric">Capital Req.</th>
+                <th data-col="monthlyYield" class="options-metric">Mo. Yield</th>
+                <th data-col="annualizedYield" class="options-metric">Ann. Yield</th>
+                <th data-col="monthlyIncome" class="options-metric">Mo. Income</th>
                 <th></th>
               </tr>
             </thead>
-            <tbody id="tbody-favorites"><tr><td colspan="12" class="empty-row">No starred stocks yet.</td></tr></tbody>
+            <tbody id="tbody-favorites"><tr><td colspan="14" class="empty-row">No starred stocks yet.</td></tr></tbody>
           </table>
-        </div>
-      </section>
-
-      <!-- Discover View -->
-      <section class="view" id="view-discover">
-        <div class="view-header">
-          <h1 class="view-title">Discover</h1>
-          <span class="view-subtitle">Find top put-selling candidates across the market</span>
-        </div>
-
-        <div class="discover-intro" id="discover-intro">
-          <p class="discover-intro-text">
-            Scans the 200–300 most active and volatile stocks on Yahoo Finance and evaluates them using our unified <strong>100-Point Scoring Engine</strong>. 
-            Stocks are analyzed across five core risk-return dimensions: <strong>Volatility (35 pts)</strong>, <strong>Yield (25 pts)</strong>, <strong>Strike Quality (20 pts)</strong>, <strong>Liquidity (12 pts)</strong>, and <strong>Trend (8 pts)</strong>. 
-            All valid opportunities are ranked by composite score, automatically added to your Watchlist, and merged directly into your Dashboard cache. 
-            Scan takes <strong>5–10 minutes</strong>.
-          </p>
-          <div class="discover-sources">
-            <span class="discover-source-chip">Most Active</span>
-            <span class="discover-source-chip">Day Losers</span>
-            <span class="discover-source-chip">Growth Tech</span>
-          </div>
-          <div class="discover-actions">
-            <button class="discover-run-btn" id="discover-run-btn">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-              Scan Market
-            </button>
-            <button class="discover-run-btn discover-force-btn" id="discover-force-btn">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><polyline points="16 8 21 8 21 3"/></svg>
-              Force Full Scan
-            </button>
-          </div>
-        </div>
-
-        <div class="discover-progress hidden" id="discover-progress">
-          <div class="discover-progress-header">
-            <span class="discover-progress-title" id="discover-progress-title">Fetching stock universe…</span>
-            <span class="discover-progress-count" id="discover-progress-count"></span>
-          </div>
-          <div class="discover-progress-track">
-            <div class="discover-progress-fill" id="discover-progress-fill" style="width:0%"></div>
-          </div>
-          <div class="discover-progress-symbol" id="discover-progress-symbol"></div>
-        </div>
-
-        <div class="discover-results hidden" id="discover-results">
-          <div class="discover-group">
-            <div class="discover-group-header">
-              <div>
-                <h3 class="discover-group-title">Top Candidates by Score</h3>
-                <span class="discover-group-sub">Ranked by composite 100-point score — all found opportunities shown</span>
-              </div>
-            </div>
-            <div class="table-wrapper">
-              <table class="data-table">
-                <thead><tr>
-                  <th>#</th><th>Symbol</th><th>Score</th><th>Grade</th>
-                  <th>IV%</th><th>IVR</th><th>IV/HV</th>
-                  <th>Mo. Yield</th><th>Ann. Yield</th>
-                </tr></thead>
-                <tbody id="discover-tbody-unified"><tr><td colspan="9" class="empty-row">Run a scan to see candidates.</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="discover-footer">
-            <span class="discover-summary" id="discover-summary"></span>
-            <button class="discover-run-btn discover-run-again" id="discover-run-again-btn">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-              Scan Again
-            </button>
-          </div>
-
-          <div class="discover-post-scan hidden" id="discover-post-scan">
-            <div class="post-scan-item" id="post-scan-opdata">
-              <span class="post-scan-dot"></span>
-              <span class="post-scan-label" id="post-scan-opdata-label">Refreshing opportunity data…</span>
-            </div>
-            <div class="post-scan-item" id="post-scan-prices">
-              <span class="post-scan-dot"></span>
-              <span class="post-scan-label" id="post-scan-prices-label">Updating prices…</span>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -484,12 +484,12 @@
         </div>
 
         <div class="metric-cards" id="pf-metric-cards">
-          <div class="metric-card"><div class="metric-label">Health Grade</div><div class="metric-value" id="pf-health-grade">—</div></div>
-          <div class="metric-card"><div class="metric-label">Total Value</div><div class="metric-value" id="pf-total-value">—</div></div>
-          <div class="metric-card"><div class="metric-label" id="pf-cash-label">Cash</div><div class="metric-value" id="pf-cash">—</div></div>
-          <div class="metric-card"><div class="metric-label">Est. Dividends / yr</div><div class="metric-value" id="pf-dividends">—</div></div>
-          <div class="metric-card"><div class="metric-label">Employer Stock</div><div class="metric-value" id="pf-employer-pct">—</div></div>
-          <div class="metric-card"><div class="metric-label">Largest Position</div><div class="metric-value" id="pf-largest">—</div></div>
+          <div class="metric-card" title="Overall score based on diversification, tax compliance, and allocation drift"><div class="metric-label">Health Grade</div><div class="metric-value" id="pf-health-grade">—</div></div>
+          <div class="metric-card" title="Total value of all positions, cash, and option contracts"><div class="metric-label">Total Value</div><div class="metric-value" id="pf-total-value">—</div></div>
+          <div class="metric-card" title="Settled cash waiting to be deployed or held as cushion"><div class="metric-label" id="pf-cash-label">Cash</div><div class="metric-value" id="pf-cash">—</div></div>
+          <div class="metric-card" title="Estimated annual dividend payments based on current holdings"><div class="metric-label">Est. Dividends / yr</div><div class="metric-value" id="pf-dividends">—</div></div>
+          <div class="metric-card" title="Percentage of portfolio held in employer stock (keep under 10% for safety)"><div class="metric-label">Employer Stock</div><div class="metric-value" id="pf-employer-pct">—</div></div>
+          <div class="metric-card" title="Your largest single position (aim for broad ETFs as largest)"><div class="metric-label">Largest Position</div><div class="metric-value" id="pf-largest">—</div></div>
         </div>
 
         <div class="empty-state" id="pf-empty-state" style="display:none">
@@ -503,15 +503,15 @@
             <table class="data-table" id="pf-holdings-table">
               <thead>
                 <tr>
-                  <th data-col="symbol">Symbol</th>
-                  <th data-col="marketValue">Market Value</th>
-                  <th data-col="weightPct">Weight</th>
-                  <th data-col="costBasis">Cost Basis</th>
-                  <th data-col="pnl">Unrl. P&amp;L</th>
-                  <th data-col="pnlPct">P&amp;L %</th>
-                  <th data-col="currency">Ccy</th>
-                  <th data-col="recommendation">Rec</th>
-                  <th data-col="bucket">Bucket</th>
+                  <th data-col="symbol" title="Stock ticker or option contract symbol">Symbol</th>
+                  <th data-col="marketValue" title="Current market value of your position">Market Value</th>
+                  <th data-col="weightPct" title="Percentage of this position relative to your entire portfolio">Weight</th>
+                  <th data-col="costBasis" title="Total price paid to acquire these shares">Cost Basis</th>
+                  <th data-col="pnl" title="Unrealized profit or loss since purchase">Unrl. P&amp;L</th>
+                  <th data-col="pnlPct" title="Percentage gain or loss on your original investment">P&amp;L %</th>
+                  <th data-col="currency" title="Base trading currency of the asset">Ccy</th>
+                  <th data-col="recommendation" title="Actionable suggestion (Buy/Trim/Hold) driven by allocation target and ticker metrics">Rec</th>
+                  <th data-col="bucket" title="Core (broad market index ETFs) or Satellite (individual stocks and options)">Bucket</th>
                 </tr>
               </thead>
               <tbody id="pf-holdings-tbody"></tbody>

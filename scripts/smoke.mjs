@@ -70,8 +70,8 @@ const state = await page.evaluate(() => ({
   statusText: document.getElementById('status-text')?.textContent,
   activeView: document.querySelector('.view.active')?.id,
   navLinks:   [...document.querySelectorAll('.nav-link')].map(l => l.textContent.trim()),
-  views: ['view-dashboard','view-portfolio','view-targets','view-guidance','view-screener','view-top25','view-under10k',
-          'view-megacaps','view-favorites','view-discover','view-settings']
+  views: ['view-dashboard','view-portfolio','view-targets','view-guidance','view-screener','view-options-scanner',
+          'view-favorites','view-settings']
     .map(id => ({ id, exists: !!document.getElementById(id) })),
   helpBtn: !!document.getElementById('help-btn'),
 }));

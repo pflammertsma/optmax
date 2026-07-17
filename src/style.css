@@ -2054,3 +2054,98 @@ html, body {
   border-top: 1px solid rgba(255,255,255,0.05);
   padding-top: 8px;
 }
+
+/* Consolidated Option Scanner Tab Styles */
+.scanner-subview.hidden {
+  display: none !important;
+}
+
+.subview-btn.active {
+  background: var(--cyan-gradient) !important;
+  color: var(--background) !important;
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+}
+
+.subview-btn:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Hide options metrics utility */
+.hide-options-metrics .options-metric {
+  display: none !important;
+}
+
+table.hide-options-metrics {
+  max-width: 800px !important;
+}
+
+/* Premium Sliding Toggle Switch Styles */
+.toggle-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.08);
+  transition: .2s;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 2px;
+  bottom: 2px;
+  background-color: var(--text-secondary);
+  transition: .2s;
+}
+
+input:checked + .slider {
+  background-color: rgba(0, 240, 255, 0.15);
+  border-color: rgba(0, 240, 255, 0.4);
+}
+
+input:checked + .slider:before {
+  background-color: var(--cyan);
+  transform: translateX(14px);
+}
+
+.slider.round {
+  border-radius: 34px;
+}
+
+.slider.round:before {
+  border-radius: 50%;
+}

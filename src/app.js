@@ -83,13 +83,25 @@ function applyScore(d) {
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
 function navigate(viewId) {
+  let finalViewId = viewId;
+  let subviewId = null;
+  if (['top25', 'under10k', 'megacaps', 'discover'].includes(viewId)) {
+    finalViewId = 'options-scanner';
+    subviewId = viewId;
+  }
+
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-  const view = el('view-' + viewId);
+  const view = el('view-' + finalViewId);
   if (view) view.classList.add('active');
-  const link = document.querySelector(`.nav-link[data-view="${viewId}"]`);
+  const link = document.querySelector(`.nav-link[data-view="${finalViewId}"]`);
   if (link) link.classList.add('active');
-  localStorage.setItem('activeView', viewId);
+  localStorage.setItem('activeView', finalViewId);
+
+  if (subviewId) {
+    const btn = document.querySelector(`.subview-btn[data-subview="${subviewId}"]`);
+    if (btn) btn.click();
+  }
 }
 
 document.querySelectorAll('.nav-link').forEach(link => {
@@ -258,19 +270,39 @@ function buildTableRows(items, tbodyId, sortState) {
   tbody.innerHTML = sorted.map((d, i) => {
     const sc = d._score;
     const scoreTd = sc ? `${sc.totalScore} ${renderGradeBadge(sc.grade)}` : '—';
+    if (tbodyId === 'tbody-favorites') {
+      return `
+        <tr>
+          <td class="td-rank">${i + 1}</td>
+          <td class="td-symbol">${d.symbol}</td>
+          <td class="td-price">${fmt.currency(d.currentPrice)}</td>
+          <td class="td-mktcap" style="font-family:'JetBrains Mono',monospace;font-size:11.5px">${fmt.mktcap(d.marketCap)}</td>
+          <td>${sc ? renderGradeBadge(sc.grade) : '—'}</td>
+          <td class="td-score">${sc ? sc.totalScore : '—'}</td>
+          <td class="td-strike options-metric">${fmt.currency(d.strike)}</td>
+          <td class="td-dte options-metric">${d.dte}d</td>
+          <td class="td-premium options-metric">${fmt.currency(d.premium)}</td>
+          <td class="td-capital options-metric">${fmt.currency(d.capitalRequired)}</td>
+          <td class="td-yield-mo options-metric">${fmt.pct(d.monthlyYield)}</td>
+          <td class="td-yield-ann options-metric">${fmt.pct(d.annualizedYield)}</td>
+          <td class="td-income options-metric">${fmt.currency(d.monthlyIncome)}</td>
+          <td><button class="analyze-btn" data-idx="${allData.indexOf(d)}">Analyze</button></td>
+        </tr>
+      `;
+    }
     return `
       <tr>
         <td class="td-rank">${i + 1}</td>
         <td class="td-symbol">${d.symbol}</td>
         <td class="td-score">${scoreTd}</td>
         <td class="td-price">${fmt.currency(d.currentPrice)}</td>
-        <td class="td-strike">${fmt.currency(d.strike)}</td>
-        <td class="td-dte">${d.dte}d</td>
-        <td class="td-premium">${fmt.currency(d.premium)}</td>
-        <td class="td-capital">${fmt.currency(d.capitalRequired)}</td>
-        <td class="td-yield-mo">${fmt.pct(d.monthlyYield)}</td>
-        <td class="td-yield-ann">${fmt.pct(d.annualizedYield)}</td>
-        <td class="td-income">${fmt.currency(d.monthlyIncome)}</td>
+        <td class="td-strike options-metric">${fmt.currency(d.strike)}</td>
+        <td class="td-dte options-metric">${d.dte}d</td>
+        <td class="td-premium options-metric">${fmt.currency(d.premium)}</td>
+        <td class="td-capital options-metric">${fmt.currency(d.capitalRequired)}</td>
+        <td class="td-yield-mo options-metric">${fmt.pct(d.monthlyYield)}</td>
+        <td class="td-yield-ann options-metric">${fmt.pct(d.annualizedYield)}</td>
+        <td class="td-income options-metric">${fmt.currency(d.monthlyIncome)}</td>
         <td><button class="analyze-btn" data-idx="${allData.indexOf(d)}">Analyze</button></td>
       </tr>
     `;
@@ -526,10 +558,10 @@ function renderScreener() {
         <td class="td-mktcap" style="font-family:'JetBrains Mono',monospace;font-size:11.5px">${fmt.mktcap(d.marketCap)}</td>
         <td class="td-score" style="font-family:'JetBrains Mono',monospace;font-weight:600">${sc.totalScore}</td>
         <td>${renderGradeBadge(sc.grade)}</td>
-        <td class="td-ivr">${ivrStr}</td>
-        <td class="td-ivhv">${ivhvStr}</td>
-        <td class="td-yield-mo">${fmt.pct(d.monthlyYield)}</td>
-        <td>${renderScoreBar(sc.totalScore, sc.grade)}</td>
+        <td class="td-ivr options-metric">${ivrStr}</td>
+        <td class="td-ivhv options-metric">${ivhvStr}</td>
+        <td class="td-yield-mo options-metric">${fmt.pct(d.monthlyYield)}</td>
+        <td class="options-metric">${renderScoreBar(sc.totalScore, sc.grade)}</td>
         <td><button class="analyze-btn" data-idx="${screenerData.indexOf(d)}">Detail</button></td>
       </tr>`;
   }).join('');
@@ -641,6 +673,34 @@ function initScreenerFilters() {
     cleanToggle.addEventListener('change', () => {
       screenerFilters.cleanOnly = cleanToggle.checked;
       renderScreener();
+    });
+  }
+
+  const screenerShowOptions = el('screener-show-options');
+  if (screenerShowOptions) {
+    screenerShowOptions.addEventListener('change', () => {
+      const table = el('table-screener');
+      if (table) {
+        if (screenerShowOptions.checked) {
+          table.classList.remove('hide-options-metrics');
+        } else {
+          table.classList.add('hide-options-metrics');
+        }
+      }
+    });
+  }
+
+  const favoritesShowOptions = el('favorites-show-options');
+  if (favoritesShowOptions) {
+    favoritesShowOptions.addEventListener('change', () => {
+      const table = el('table-favorites');
+      if (table) {
+        if (favoritesShowOptions.checked) {
+          table.classList.remove('hide-options-metrics');
+        } else {
+          table.classList.add('hide-options-metrics');
+        }
+      }
     });
   }
 }
@@ -833,6 +893,32 @@ function initDiscoverView() {
   if (runAgainBtn) runAgainBtn.addEventListener('click', () => runScan());
 
   window.electronAPI.onDiscoveryProgress(setDiscoverProgress);
+}
+
+function initOptionsScannerView() {
+  const container = el('view-options-scanner');
+  if (!container) return;
+
+  const buttons = container.querySelectorAll('.subview-btn');
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      buttons.forEach(b => b.classList.remove('active'));
+      container.querySelectorAll('.scanner-subview').forEach(v => v.classList.add('hidden'));
+
+      btn.classList.add('active');
+      const subviewId = btn.dataset.subview;
+      const target = el('subview-' + subviewId);
+      if (target) target.classList.remove('hidden');
+
+      localStorage.setItem('activeScannerSubview', subviewId);
+    });
+  });
+
+  const lastSubview = localStorage.getItem('activeScannerSubview');
+  if (lastSubview) {
+    const btn = container.querySelector(`.subview-btn[data-subview="${lastSubview}"]`);
+    if (btn) btn.click();
+  }
 }
 
 // ─── Analysis Modal ───────────────────────────────────────────────────────────
@@ -1671,6 +1757,8 @@ function renderPortfolio(p) {
             <span class="guidance-message">Import your IBKR Activity Statement in the Portfolio screen to generate compliance alerts.</span>
           </div>
         </div>`;
+      const wrap = el('dashboard-actionable-steps-wrap');
+      if (wrap) wrap.classList.add('hidden');
     } else {
       const watchlistData = (window.allData || allData || [])
         .filter(d => (window.starredList || starredList || []).includes(d.symbol) || (window.watchlist || watchlist || []).includes(d.symbol))
@@ -1693,20 +1781,21 @@ function renderPortfolio(p) {
                   <span class="guidance-message">No PFIC assets, elevated employer concentrations, or cash drag detected. Your current holdings are structured appropriately.</span>
                 </div>
               </div>`;
-            return;
+          } else {
+            listEl.innerHTML = guidanceItems.map(item => {
+              const icon = item.severity === 'error' ? '✕' : item.severity === 'warning' ? '⚠' : 'ℹ';
+              return `
+                <div class="guidance-item severity-${item.severity}">
+                  <span class="guidance-icon">${icon}</span>
+                  <div class="guidance-content">
+                    <span class="guidance-title">${item.title}</span>
+                    <span class="guidance-message">${item.message}</span>
+                  </div>
+                </div>`;
+            }).join('');
           }
-          
-          listEl.innerHTML = guidanceItems.map(item => {
-            const icon = item.severity === 'error' ? '✕' : item.severity === 'warning' ? '⚠' : 'ℹ';
-            return `
-              <div class="guidance-item severity-${item.severity}">
-                <span class="guidance-icon">${icon}</span>
-                <div class="guidance-content">
-                  <span class="guidance-title">${item.title}</span>
-                  <span class="guidance-message">${item.message}</span>
-                </div>
-              </div>`;
-          }).join('');
+
+          updateDashboardActionableSteps(guidanceItems, p.holdings);
         })
         .catch(err => console.error('Failed to load portfolio guidance:', err));
     }
@@ -1856,6 +1945,55 @@ function renderPortfolio(p) {
   }).join('');
 
   loadPortfolioHealth(has);
+}
+
+function updateDashboardActionableSteps(guidanceItems, holdings) {
+  const wrap = el('dashboard-actionable-steps-wrap');
+  const list = el('dashboard-actionable-steps-list');
+  if (!wrap || !list) return;
+
+  if (!holdings || holdings.length === 0) {
+    wrap.classList.add('hidden');
+    return;
+  }
+
+  const steps = [];
+
+  // 1. Position recommendations
+  holdings.forEach(h => {
+    const rec = h.recommendation;
+    if (rec && rec.type && rec.type !== 'Hold' && rec.type !== '—') {
+      const actionStyle = rec.type === 'Buy' ? 'color: var(--green)' : 'color: var(--orange)';
+      steps.push(`
+        <li style="margin-bottom: 4px;">
+          <strong style="${actionStyle}">${rec.type} ${h.symbol}</strong>: 
+          ${rec.reason || 'Asset needs adjustment.'}
+        </li>
+      `);
+    }
+  });
+
+  // 2. Compliance and health alerts
+  if (guidanceItems) {
+    guidanceItems.forEach(item => {
+      if (item.severity === 'error' || item.severity === 'warning') {
+        const itemStyle = item.severity === 'error' ? 'color: var(--red)' : 'color: var(--orange)';
+        steps.push(`
+          <li style="margin-bottom: 4px;">
+            <strong style="${itemStyle}">${item.title}</strong>: ${item.message}
+          </li>
+        `);
+      }
+    });
+  }
+
+  if (steps.length > 0) {
+    list.innerHTML = steps.join('');
+    wrap.classList.remove('hidden');
+  } else {
+    list.innerHTML = `<li style="list-style: none; margin-left: -20px; color: var(--text-muted);">✓ Your portfolio is perfectly balanced. No immediate action required!</li>`;
+    wrap.classList.remove('hidden');
+  }
 }
 
 // ─── Portfolio health + dividends (async, quote-backed) ─────────────────────
@@ -2286,6 +2424,7 @@ initScreenerFilters();
 initScreenerSorting();
 initDiscoverView();
 initPortfolioView();
+initOptionsScannerView();
 initSortableTable('table-top25',    () => allData.filter(d => d._score && d._score.totalScore > 0));
 initSortableTable('table-under10k', () => allData.filter(d => d._score && d._score.totalScore > 0 && d.currentPrice <= 100));
 initSortableTable('table-megacaps', () => allData.filter(d => d.marketCap != null && d.marketCap >= 200e9));
