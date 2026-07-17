@@ -35,8 +35,34 @@ async function fetchCachedQuote(symbol) {
   const quote = await yahooFinance.quote(symbol);
   if (quote) {
     quoteCache.set(key, { quote, timestamp: now });
+    saveQuoteCache();
   }
   return quote;
+}
+
+function loadQuoteCache() {
+  try {
+    if (fs.existsSync(QUOTE_CACHE_FILE)) {
+      const data = JSON.parse(fs.readFileSync(QUOTE_CACHE_FILE, 'utf8'));
+      for (const k in data) {
+        quoteCache.set(k, data[k]);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load quote cache:', err);
+  }
+}
+
+function saveQuoteCache() {
+  try {
+    const data = {};
+    for (const [k, v] of quoteCache.entries()) {
+      data[k] = v;
+    }
+    fs.writeFileSync(QUOTE_CACHE_FILE, JSON.stringify(data), 'utf8');
+  } catch (err) {
+    console.error('Failed to save quote cache:', err);
+  }
 }
 
 const { findClosestDate, computeHV, computeIVR, detectMeanReversion } = require('./lib/strategies');
@@ -55,6 +81,7 @@ const HEALTH_CACHE_FILE = path.join(app.getPath('userData'), 'health-cache.json'
 const SETTINGS_FILE   = path.join(app.getPath('userData'), 'settings.json');
 const DISC_CACHE_FILE = path.join(app.getPath('userData'), 'discovery-cache.json');
 const SEED_CACHE_FILE = path.join(__dirname, 'lib', 'discovery-seed.json');
+const QUOTE_CACHE_FILE = path.join(app.getPath('userData'), 'quote-cache.json');
 
 const DEFAULT_SETTINGS = {
   refreshIntervalDays: 1,
@@ -677,6 +704,7 @@ function stopGateway() {
 
 // ── IPC ───────────────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
+  loadQuoteCache();
   ipcMain.handle('load-initial-data', () => {
     const cache    = loadCache();
     const settings = loadSettings();

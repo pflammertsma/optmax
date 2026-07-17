@@ -344,6 +344,9 @@ function renderAll(data) {
 
   renderDashboardStarred();
   renderScreener();
+  if (portfolio) {
+    renderPortfolio(portfolio);
+  }
 }
 
 // ─── Unified watchlist ────────────────────────────────────────────────────────
