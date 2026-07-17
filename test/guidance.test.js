@@ -316,6 +316,13 @@ console.log('Running test/guidance.test.js...');
   assert.strictEqual(res.type, 'Trim');
   assert.ok(res.reason.includes('exceeds'));
 
+  // Volatility harvesting: Covered Call option (>= 100 shares, high IV) should get "Write Call"
+  let holdingCc = { symbol: 'QCOM', quantity: 150, bucket: 'satellite', marketValue: 5000 };
+  let quoteCc = { impliedVolatility: 0.69 };
+  res = calculateHoldingRecommendation(holdingCc, quoteCc, null, [], 5, 100000);
+  assert.strictEqual(res.type, 'Write Call');
+  assert.ok(res.reason.includes('write covered calls'));
+
   console.log('  ✓ calculateHoldingRecommendation tests passed');
 })();
 

@@ -64,6 +64,9 @@ function renderRecommendationBadge(rec) {
   if (rec === 'Hold') {
     return `<span style="color: var(--text-secondary); background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: 600; text-transform: uppercase;">Hold</span>`;
   }
+  if (rec === 'Write Call') {
+    return `<span style="color: var(--cyan); background: rgba(6, 182, 212, 0.12); border: 1px solid rgba(6, 182, 212, 0.25); border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; white-space: nowrap;">Write Call</span>`;
+  }
   return `<span style="color: var(--text-muted); font-size: 11px;">—</span>`;
 }
 
