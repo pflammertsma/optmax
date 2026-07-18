@@ -60,6 +60,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSymbolInsights:     (symbol)        => ipcRenderer.invoke('get-symbol-insights', symbol),
   getEmployerExposure:   ()              => ipcRenderer.invoke('get-employer-exposure'),
 
+  // Employer-stock sell-down plan (Phase 4)
+  getSellDownStatus:     ()              => ipcRenderer.invoke('selldown-status'),
+  saveSellDownPlan:      (plan)          => ipcRenderer.invoke('selldown-save-plan', plan),
+  clearSellDownPlan:     ()              => ipcRenderer.invoke('selldown-clear-plan'),
+
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window-minimize'),
   maximizeWindow: () => ipcRenderer.send('window-maximize'),

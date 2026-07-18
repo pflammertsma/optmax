@@ -1,7 +1,7 @@
 # Roadmap & Status
 
 Living document — the single place to check what's built, in flight, and next.
-Update when a phase lands or priorities change. (Last updated: 2026-07-16.)
+Update when a phase lands or priorities change. (Last updated: 2026-07-18.)
 
 ## Done
 
@@ -22,7 +22,7 @@ Update when a phase lands or priorities change. (Last updated: 2026-07-16.)
 
 - [x] **Screener showed the wrong data** — the "+ Add" field saves to the watchlist, but the Screener table was fed by the Discover market-scan cache (`screenerData`), so added symbols silently landed on the Dashboard instead, with no chip feedback (chip container was `display:none`). Fixed: the Screener table now reads the watchlist scan (`allData`, same source as the Dashboard), matching its "All watchlist stocks ranked by composite score" subtitle; Discover results still have their own dedicated table under Option Scanner. Watchlist is ~289 symbols (scanner universe), so instead of a chip wall: a "N stocks in your watchlist" count + on add, the new row scrolls into view and flashes with a success message (or a "hidden by filters" note). `removeFromWatchlist` now prunes `allData` in-memory so the table updates without a re-fetch.
 
-- [ ] **Health page self-sufficiency** — Health currently populates only after the Portfolio view has run once per session; it should call `get-portfolio-health` on its own init so landing on it cold works
+- [x] **Health page self-sufficiency** — largely resolved in passing when `initPortfolioView()` gained a boot-time `renderPortfolio(getPortfolio())` (health loads at startup regardless of view); remaining gap closed 2026-07-18: clicking the Health nav now retries `get-portfolio-health` itself if the breakdown is empty (boot fetch failed or hasn't landed), so landing on it cold always works
 - [ ] **Index-implied employer exposure** — count the employer's weight inside held index funds (QQQ/VOX) toward the concentration figure (needs fund-holdings data; Yahoo doesn't provide it directly)
 - [ ] **Cost-drag health dimension** — weighted expense ratios via `quoteSummary`/`fundProfile`; deferred from the health scorer v1
 - [x] **Metric-card overflow** — long values (e.g. `$1,854,155.22`) clip in the Total Value card
@@ -75,7 +75,7 @@ Plan in [`architecture.md`](architecture.md) §1–2, §6; signal catalog in [`s
 - [ ] Notify on health **grade change** specifically
 
 ### Phase 4 — Plan-tracking features (turn advice into schedules)
-- [ ] **Systematic employer-stock sell-down plan** — user sets a quarterly sell % and target weight; app tracks progress against the schedule and reminds. The single highest-impact feature given a >40% employer concentration
+- [x] **Systematic employer-stock sell-down plan — IMPLEMENTED (2026-07-18).** `lib/selldown.js` (pure math, 16 unit tests in npm test): `buildPlan()` snapshots the position and spreads the excess shares evenly over N quarters; `computePlanStatus()` judges ahead/on-track/behind against shares actually sold (exact across price swings) while recomputing the live goalposts (current weight, shares still to sell) from today's price — so a rally raises the tranche, a crash can complete the plan without selling, and new RSU vests are detected (`positionGrew`) and folded into the catch-up amount without flagging "behind" mid-quarter. Plan persists as `sellDownPlan` in portfolio.json; IPC `selldown-status` / `selldown-save-plan` / `selldown-clear-plan` (main.js). The status handler prices the position live (currency-validated quote, stored-value fallback) and re-bases the portfolio total on that same live value so the weight math is self-consistent. UI: full-width card atop Guidance — setup state explains concentration risk in plain English with a live "≈ N shares (~$X) per quarter" preview (target % + 4/6/8/12-quarter pace); active state shows a status chip, "This quarter's step: sell ~N shares before {date}", start→now→goal progress bar, sold/remaining stats, vest warning, and a lot-selection tax note (prefer >1yr, highest-cost lots; CH doesn't tax the gains); complete state congratulates and offers dismiss. Progress updates automatically on every IBKR sync. Verified end-to-end via Playwright against mock userData (`--smoke-test`): setup → save → active card → persistence → delete.
 - [ ] **RSU vest log + reminders** — log vest dates/share counts (stock-plan broker has no public API; manual entry), remind at vest to sell/transfer, re-check concentration after
 - [ ] **PFIC remediation checklist** — track replacement of flagged foreign-domiciled funds with US-domiciled equivalents
 

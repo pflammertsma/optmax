@@ -119,6 +119,7 @@ const { generateBuyRecommendations, CURATED_CANDIDATES } = require('./lib/recomm
 const { computePortfolioHealth, projectAnnualDividends } = require('./lib/health');
 const { createIbkrClient, isLoopbackGatewayUrl, gatewayLaunchSpec, treeKillSpec } = require('./lib/ibkr');
 const { computeFundOverlap, computeIndexImpliedEmployer } = require('./lib/funds');
+const { buildPlan, computePlanStatus } = require('./lib/selldown');
 const { spawn } = require('child_process');
 
 const CACHE_FILE      = path.join(app.getPath('userData'), 'data.json');
@@ -1434,6 +1435,83 @@ app.whenReady().then(() => {
     }));
 
     return computeIndexImpliedEmployer(lookthroughs, directValue, settings.employerSymbols, total);
+  });
+
+  // ── Employer-stock sell-down plan (Phase 4) ────────────────────────────────
+  // Turns the standing "Trim" advice into a tracked quarterly schedule. Still
+  // read-only: the plan records intent and progress; trades happen at the broker.
+  async function selldownCurrentPosition(p, symbol) {
+    const h = p.holdings.find(x => (x.symbol || '').toUpperCase() === symbol);
+    if (!h || !(h.quantity > 0)) return null;
+    let price = null;
+    try {
+      const q = await fetchQuoteForHolding(h);
+      price = q?.regularMarketPrice || null;
+    } catch {}
+    if (!price && h.marketValue > 0) price = h.marketValue / h.quantity;
+    if (!price) return null;
+    // Keep the weight math consistent: if we price this position live, the
+    // portfolio total must count it at the same live value, not the stored one.
+    const total = totalValue(p.holdings, p.cash) - (h.marketValue || 0) + h.quantity * price;
+    return { shares: h.quantity, price, totalValue: total };
+  }
+
+  ipcMain.handle('selldown-status', async () => {
+    const p = loadPortfolio();
+    const settings = loadSettings();
+    const plan = p.sellDownPlan || null;
+
+    if (plan) {
+      const current = await selldownCurrentPosition(p, plan.symbol);
+      // Position gone entirely (sold out or symbol changed) — treat as done.
+      if (!current) return { plan, current: null, status: null, positionGone: true };
+      return { plan, current, status: computePlanStatus(plan, current) };
+    }
+
+    // No plan yet: propose one for the largest employer position.
+    const employerSyms = new Set([
+      ...(settings.employerSymbols || '').toUpperCase().split(',').map(s => s.trim()).filter(Boolean),
+      ...p.holdings.filter(h => h.isEmployerStock).map(h => (h.symbol || '').toUpperCase()),
+    ]);
+    const employerHoldings = p.holdings.filter(h =>
+      employerSyms.has((h.symbol || '').toUpperCase()) && h.quantity > 0);
+    if (!employerHoldings.length) return { plan: null, candidate: null };
+
+    const biggest = employerHoldings.reduce((a, b) => ((b.marketValue || 0) > (a.marketValue || 0) ? b : a));
+    const sym = biggest.symbol.toUpperCase();
+    const current = await selldownCurrentPosition(p, sym);
+    if (!current) return { plan: null, candidate: null };
+    const weightPct = current.totalValue > 0
+      ? ((current.shares * current.price) / current.totalValue) * 100 : 0;
+    return { plan: null, candidate: { symbol: sym, ...current, weightPct } };
+  });
+
+  ipcMain.handle('selldown-save-plan', async (_event, { symbol, targetWeightPct, quartersToTarget }) => {
+    try {
+      const p = loadPortfolio();
+      const sym = (symbol || '').toUpperCase();
+      const current = await selldownCurrentPosition(p, sym);
+      if (!current) return { success: false, error: `No position found for ${sym}` };
+      const plan = buildPlan({
+        symbol: sym,
+        shares: current.shares,
+        price: current.price,
+        totalValue: current.totalValue,
+        targetWeightPct: Number(targetWeightPct),
+        quartersToTarget: Number(quartersToTarget),
+      });
+      savePortfolio({ ...p, sellDownPlan: plan, updatedAt: new Date().toISOString() });
+      return { success: true, plan, current, status: computePlanStatus(plan, current) };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('selldown-clear-plan', () => {
+    const p = loadPortfolio();
+    delete p.sellDownPlan;
+    savePortfolio({ ...p, updatedAt: new Date().toISOString() });
+    return { success: true };
   });
 
   // Everything the Symbol Insights dialog needs for one symbol: identity,

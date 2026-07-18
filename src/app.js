@@ -120,6 +120,13 @@ document.querySelectorAll('.nav-link').forEach(link => {
     // Re-probe the gateway each time the Portfolio view is opened, so a gateway
     // started (or logged into) after boot is reflected without a manual click.
     if (link.dataset.view === 'portfolio') refreshIbkrStatus();
+    // Health self-sufficiency: if the boot-time load failed (or hasn't landed
+    // yet), landing on Health cold retries it instead of showing an empty page.
+    if (link.dataset.view === 'health' && !el('pf-health-breakdown').innerHTML) {
+      window.electronAPI.getPortfolio()
+        .then(p => loadPortfolioHealth(p.holdings.length > 0))
+        .catch(err => console.error('Health cold-load failed:', err));
+    }
   });
 });
 
@@ -2061,6 +2068,187 @@ function renderBuyIdeas(watchlistData) {
     .catch(err => console.error('Failed to load buy recommendations:', err));
 }
 
+// ─── Employer-stock sell-down plan (Phase 4) ─────────────────────────────────
+const SELLDOWN_TAX_NOTE =
+  `As a US citizen you owe US <span class="help-tooltip" style="border-bottom:1px dotted var(--text-secondary); cursor:help;" title="Tax on the profit when you sell shares. Shares held over one year qualify for the lower long-term rate (0/15/20%). Switzerland doesn't tax private capital gains at all.">capital-gains tax</span> on sales — prefer lots held over a year, and among those the ones you paid the most for (smallest taxable gain). Reinvest the proceeds using the Tax-Smart Buy Ideas below.`;
+
+const selldownDate = iso => new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+
+async function renderSellDownCard() {
+  const card = el('pf-selldown-card');
+  const body = el('pf-selldown-body');
+  if (!card || !body) return;
+  try {
+    const res = await window.electronAPI.getSellDownStatus();
+    if (!res || (!res.plan && !res.candidate)) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    if (!res.plan) renderSellDownSetup(body, res.candidate);
+    else if (res.positionGone) renderSellDownComplete(body, res.plan, null);
+    else if (res.status.status === 'complete') renderSellDownComplete(body, res.plan, res.status);
+    else renderSellDownActive(body, res.plan, res.status);
+  } catch (err) {
+    console.error('Failed to load sell-down status:', err);
+    card.style.display = 'none';
+  }
+}
+
+function renderSellDownSetup(body, candidate, existingPlan = null) {
+  const pct = candidate.weightPct;
+  const sym = candidate.symbol;
+  body.innerHTML = `
+    <div style="font-size:13px; color:var(--text-primary); line-height:1.6;">
+      <strong style="color:#f59e0b;">${pct.toFixed(1)}% of your money is riding on one company — ${sym}, your employer.</strong>
+      A common rule of thumb is to keep any single stock under 10% of your portfolio, and employer stock is
+      doubly risky: if the company hits a rough patch, your paycheck and your savings take the hit together.
+    </div>
+    <div style="font-size:12px; color:var(--text-secondary); margin-top:8px; line-height:1.6;">
+      A sell-down plan breaks the fix into small, scheduled quarterly sales — no market timing, no big
+      one-day decision. The app tracks your progress every time you sync IBKR and tells you each quarter
+      exactly how many shares are due.
+    </div>
+    <div style="display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; margin-top:14px;">
+      <div class="settings-field" style="margin:0;">
+        <label class="settings-field-label" for="sd-target-input">Reduce to (% of portfolio)</label>
+        <input type="number" class="schedule-select" id="sd-target-input" min="0" max="${Math.max(0, Math.floor(pct - 1))}" step="1" value="${existingPlan ? existingPlan.targetWeightPct : 10}" style="width:110px;">
+      </div>
+      <div class="settings-field" style="margin:0;">
+        <label class="settings-field-label" for="sd-quarters-input">Spread over</label>
+        <select class="schedule-select" id="sd-quarters-input" style="width:150px;">
+          <option value="4">4 quarters (1 yr)</option>
+          <option value="6">6 quarters</option>
+          <option value="8" selected>8 quarters (2 yrs)</option>
+          <option value="12">12 quarters (3 yrs)</option>
+        </select>
+      </div>
+      <button class="settings-action-btn" id="sd-start-btn" style="width:auto; padding:8px 16px; margin:0;">
+        ${existingPlan ? 'Save new plan' : 'Start my plan'}
+      </button>
+      ${existingPlan ? '<button class="settings-action-btn" id="sd-cancel-btn" style="width:auto; padding:8px 16px; margin:0; opacity:0.7;">Cancel</button>' : ''}
+    </div>
+    <div id="sd-setup-preview" style="font-size:12px; color:var(--text-secondary); margin-top:10px;"></div>
+    <div style="font-size:11px; color:var(--text-muted); margin-top:10px; line-height:1.6;">${SELLDOWN_TAX_NOTE}</div>`;
+
+  if (existingPlan) {
+    const q = body.querySelector('#sd-quarters-input');
+    if ([...q.options].some(o => +o.value === existingPlan.quartersToTarget)) q.value = String(existingPlan.quartersToTarget);
+  }
+
+  // Live preview: "that's about N shares (~$X) per quarter"
+  const preview = () => {
+    const target = parseFloat(body.querySelector('#sd-target-input').value);
+    const quarters = parseInt(body.querySelector('#sd-quarters-input').value, 10);
+    const box = body.querySelector('#sd-setup-preview');
+    if (!Number.isFinite(target) || target >= pct) { box.textContent = ''; return; }
+    const targetShares = candidate.shares * (target / pct);
+    const perQ = Math.round((candidate.shares - targetShares) / quarters);
+    box.innerHTML = `That works out to selling about <strong>${perQ.toLocaleString('en-US')} shares</strong> (≈ ${fmt.currency(perQ * candidate.price)}) per quarter.`;
+  };
+  body.querySelector('#sd-target-input').addEventListener('input', preview);
+  body.querySelector('#sd-quarters-input').addEventListener('change', preview);
+  preview();
+
+  body.querySelector('#sd-start-btn').addEventListener('click', async () => {
+    const target = parseFloat(body.querySelector('#sd-target-input').value);
+    const quarters = parseInt(body.querySelector('#sd-quarters-input').value, 10);
+    if (!Number.isFinite(target) || target < 0 || target >= pct) {
+      alert(`The goal needs to be below your current ${pct.toFixed(1)}% weight.`);
+      return;
+    }
+    const res = await window.electronAPI.saveSellDownPlan({ symbol: sym, targetWeightPct: target, quartersToTarget: quarters });
+    if (!res.success) { alert(`Couldn't start the plan: ${res.error}`); return; }
+    renderSellDownCard();
+  });
+  body.querySelector('#sd-cancel-btn')?.addEventListener('click', () => renderSellDownCard());
+}
+
+function renderSellDownActive(body, plan, s) {
+  const chips = {
+    'on-track': ['On track', 'var(--green)', 'rgba(34,197,94,0.12)'],
+    'ahead':    ['Ahead of schedule', 'var(--cyan)', 'rgba(6,182,212,0.12)'],
+    'behind':   ['Behind schedule', '#f59e0b', 'rgba(245,158,11,0.12)'],
+  };
+  const [chipLabel, chipColor, chipBg] = chips[s.status] || chips['on-track'];
+
+  // Next-step sentence — the one thing a newbie needs from this card.
+  let nextStep;
+  if (s.sellThisQuarter > 0) {
+    const verb = s.status === 'behind' ? 'To catch up, sell' : 'Sell';
+    nextStep = `${verb} <strong>~${s.sellThisQuarter.toLocaleString('en-US')} shares of ${plan.symbol}</strong>
+      (≈ ${fmt.currency(s.estProceeds)}) before <strong>${selldownDate(s.quarterEndsOn)}</strong>.`;
+  } else {
+    nextStep = `Nothing to sell right now — your next tranche is due in the quarter starting <strong>${selldownDate(s.quarterEndsOn)}</strong>.`;
+  }
+
+  body.innerHTML = `
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <span style="color:${chipColor}; background:${chipBg}; border:1px solid ${chipColor}; border-radius:12px; padding:2px 10px; font-size:11px; font-weight:600;">${chipLabel}</span>
+      <span style="font-size:12px; color:var(--text-secondary);">Quarter ${s.currentQuarter} of ${plan.quartersToTarget}${s.pastEnd ? ' (plan period has ended)' : ''} · plan ends ${selldownDate(s.planEndsOn)}</span>
+    </div>
+
+    <div style="margin-top:12px; font-size:14px; line-height:1.6; color:var(--text-primary); padding:10px 14px; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:8px;">
+      <span style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:${chipColor}; display:block; margin-bottom:4px;">This quarter's step</span>
+      ${nextStep}
+      <div style="font-size:11px; color:var(--text-muted); margin-top:6px;">Place the order yourself at IBKR — when you next sync, progress updates automatically.</div>
+    </div>
+
+    ${s.positionGrew ? `
+    <div style="margin-top:10px; font-size:12px; color:#f59e0b; padding:8px 12px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2); border-radius:8px;">
+      Your ${plan.symbol} position has <strong>grown</strong> since the plan started (new RSU vests?). The new shares are folded into what's left to sell.
+    </div>` : ''}
+
+    <div style="margin-top:14px;">
+      <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-secondary); margin-bottom:4px;">
+        <span>Started at ${plan.startWeightPct.toFixed(1)}%</span>
+        <span style="color:var(--text-primary); font-weight:600;">Now ${s.currentWeightPct.toFixed(1)}%</span>
+        <span>Goal ${plan.targetWeightPct.toFixed(0)}%</span>
+      </div>
+      <div class="score-bar-track"><div class="score-bar-fill" style="width:${s.progressPct}%; background:${chipColor}"></div></div>
+      <div style="display:flex; gap:18px; flex-wrap:wrap; font-size:12px; color:var(--text-secondary); margin-top:8px;">
+        <span>Sold so far: <strong style="color:var(--text-primary);">${Math.max(0, Math.round(s.actualSold)).toLocaleString('en-US')} shares</strong></span>
+        <span>Still to sell: <strong style="color:var(--text-primary);">~${Math.round(s.sharesRemainingToTarget).toLocaleString('en-US')} shares</strong> (${fmt.currency(s.sharesRemainingToTarget * (s.currentValue / s.currentShares))})</span>
+        <span>Position today: ${fmt.currency(s.currentValue)}</span>
+      </div>
+    </div>
+
+    <div style="font-size:11px; color:var(--text-muted); margin-top:12px; line-height:1.6;">${SELLDOWN_TAX_NOTE}</div>
+
+    <div style="display:flex; gap:10px; margin-top:12px;">
+      <button class="settings-action-btn" id="sd-adjust-btn" style="width:auto; padding:6px 12px; font-size:11px; margin:0;">Adjust plan</button>
+      <button class="settings-action-btn" id="sd-delete-btn" style="width:auto; padding:6px 12px; font-size:11px; margin:0; color:var(--red);">Delete plan</button>
+    </div>`;
+
+  body.querySelector('#sd-adjust-btn').addEventListener('click', () => {
+    // Re-open setup prefilled; saving re-snapshots today's position as the new baseline.
+    renderSellDownSetup(body, {
+      symbol: plan.symbol,
+      shares: s.currentShares,
+      price: s.currentValue / s.currentShares,
+      weightPct: s.currentWeightPct,
+    }, plan);
+  });
+  body.querySelector('#sd-delete-btn').addEventListener('click', async () => {
+    if (!confirm('Delete this sell-down plan? Your progress tracking will be lost (holdings are untouched).')) return;
+    await window.electronAPI.clearSellDownPlan();
+    renderSellDownCard();
+  });
+}
+
+function renderSellDownComplete(body, plan, s) {
+  body.innerHTML = `
+    <div style="font-size:13px; color:var(--green); line-height:1.6;">
+      <strong>🎉 Goal reached.</strong> ${plan.symbol} is ${s ? `down to ${s.currentWeightPct.toFixed(1)}%` : 'no longer'} of your portfolio
+      (goal: ${plan.targetWeightPct.toFixed(0)}%, started at ${plan.startWeightPct.toFixed(1)}%).
+      Keep an eye on new RSU vests — if the weight creeps back up, start a new plan.
+    </div>
+    <div style="display:flex; gap:10px; margin-top:12px;">
+      <button class="settings-action-btn" id="sd-delete-btn" style="width:auto; padding:6px 12px; font-size:11px; margin:0;">Dismiss</button>
+    </div>`;
+  body.querySelector('#sd-delete-btn').addEventListener('click', async () => {
+    await window.electronAPI.clearSellDownPlan();
+    renderSellDownCard();
+  });
+}
+
 // Upgrade the Employer Stock metric asynchronously with the look-through
 // figure: direct position + employer stock hiding inside held index funds.
 // Fund compositions come from a 7-day cache, so this is cheap after first run.
@@ -2234,11 +2422,14 @@ function renderPortfolio(p) {
         .catch(err => console.error('Failed to load portfolio guidance:', err));
 
       renderBuyIdeas(watchlistData);
+      renderSellDownCard();
     }
   }
   if (!has) {
     const ideasCard = el('pf-buy-ideas-card');
     if (ideasCard) ideasCard.style.display = 'none';
+    const sdCard = el('pf-selldown-card');
+    if (sdCard) sdCard.style.display = 'none';
   }
 
   if (!has) return;
