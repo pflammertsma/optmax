@@ -123,12 +123,36 @@ document.querySelectorAll('.nav-link').forEach(link => {
   });
 });
 
-// ─── Status indicator ─────────────────────────────────────────────────────────
 function setStatus(state, text) {
   const dot   = el('status-dot');
   const label = el('status-text');
-  dot.className     = 'status-dot ' + state;
-  label.textContent = text;
+  if (!dot || !label) return;
+
+  if (state === 'live' && text === 'Live') {
+    if (ibkrState === 'connected') {
+      dot.className = 'status-dot live';
+      label.textContent = 'Live';
+    } else if (ibkrState === 'needs-login') {
+      dot.className = 'status-dot warning';
+      label.textContent = 'IBKR disconnected';
+    } else {
+      dot.className = 'status-dot offline';
+      label.textContent = 'IBKR Offline';
+    }
+  } else {
+    let dotClass = state;
+    if (state === 'live') {
+      if (ibkrState === 'connected') {
+        dotClass = 'live';
+      } else if (ibkrState === 'needs-login') {
+        dotClass = 'warning';
+      } else {
+        dotClass = 'offline';
+      }
+    }
+    dot.className = 'status-dot ' + dotClass;
+    label.textContent = text;
+  }
 }
 
 // ─── Metric cards ─────────────────────────────────────────────────────────────
@@ -1771,12 +1795,12 @@ async function loadInitialData() {
     const result = await window.electronAPI.loadInitialData();
     if (result?.data?.length) {
       renderAll(result.data);
-      setStatus('live', 'Live');
+      await refreshIbkrStatus();
       setListLabels(result.fetchedAt, result.minMarginPct, result.nextRefresh);
       setPriceLabels(result.pricedAt, result.nextPriceUpdate);
     } else {
       renderAll([]);
-      setStatus('', 'No data — add stocks and refresh');
+      await refreshIbkrStatus();
     }
   } catch {
     setStatus('error', 'Cache error');
@@ -2505,27 +2529,13 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
 
   // ── IBKR gateway status + live sync ─────────────────────────────────────
   refreshIbkrStatus = async function () {
-    const pill = el('pf-ibkr-status');
     const btn = el('pf-ibkr-sync-btn');
-    if (!pill || !btn) return;
-    pill.textContent = 'IBKR: checking…';
+    if (!btn) return;
     const s = await window.electronAPI.ibkrStatus();
     ibkrState = s.state;
-    const styles = {
-      'connected':   { text: 'IBKR: connected',       color: 'var(--green)', bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.25)' },
-      'needs-login': { text: 'IBKR: login required',  color: '#f59e0b',      bg: 'rgba(251,191,36,0.1)',  border: 'rgba(251,191,36,0.25)' },
-      'unreachable': { text: 'IBKR: gateway offline', color: 'var(--text-muted)', bg: 'transparent',      border: 'rgba(255,255,255,0.1)' },
-    };
-    const st = styles[s.state] || styles.unreachable;
-    pill.textContent = st.text;
-    pill.style.color = st.color;
-    pill.style.background = st.bg;
-    pill.style.borderColor = st.border;
-    pill.title = s.state === 'needs-login'
-      ? 'IBKR Client Portal Gateway status'
-      : s.state === 'unreachable'
-        ? `Gateway not running at ${s.gatewayUrl}`
-        : 'Connected to the Client Portal Gateway';
+
+    // Update consolidated sidebar status and dot
+    setStatus('live', 'Live');
 
     if (s.state === 'connected') {
       btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>Sync IBKR`;
@@ -2535,10 +2545,6 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
       btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><polygon points="5 3 19 12 5 21 5 3"/></svg>Start Gateway`;
     }
   };
-
-  el('pf-ibkr-status').addEventListener('click', () => {
-    refreshIbkrStatus();
-  });
 
   // After launching the gateway, poll until it answers (slow Java startup) —
   // and bail out immediately if the process dies instead of booting.
