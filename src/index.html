@@ -233,9 +233,9 @@
                 <th data-col="marketCap">Mkt Cap</th>
                 <th data-col="score" data-sort="desc">Score</th>
                 <th data-col="grade">Grade</th>
-                <th data-col="ivr" class="options-metric">IVR</th>
-                <th data-col="ivHvRatio" class="options-metric">IV/HV</th>
-                <th data-col="monthlyYield" class="options-metric">Mo. Yield</th>
+                <th data-col="ivr" class="options-metric" title="Implied Volatility Rank: compares the stock's current option volatility to its 52-week range (0 to 100). Higher values favor options sellers.">IVR</th>
+                <th data-col="ivHvRatio" class="options-metric" title="Implied Volatility vs Historical Volatility. A ratio above 1.3x indicates option prices are relatively expensive, favoring options sellers.">IV/HV</th>
+                <th data-col="monthlyYield" class="options-metric" title="Monthly Yield: estimated monthly return from selling options contracts relative to capital required.">Mo. Yield</th>
                 <th style="min-width:100px" class="options-metric">Score Bar</th>
                 <th></th>
               </tr>
@@ -443,13 +443,13 @@
                 <th data-col="marketCap">Mkt Cap</th>
                 <th data-col="grade">Grade</th>
                 <th data-col="score">Score</th>
-                <th data-col="strike" class="options-metric">Strike</th>
-                <th data-col="dte" class="options-metric">DTE</th>
-                <th data-col="premium" class="options-metric">Premium</th>
-                <th data-col="capitalRequired" class="options-metric">Capital Req.</th>
-                <th data-col="monthlyYield" class="options-metric">Mo. Yield</th>
-                <th data-col="annualizedYield" class="options-metric">Ann. Yield</th>
-                <th data-col="monthlyIncome" class="options-metric">Mo. Income</th>
+                <th data-col="strike" class="options-metric" title="Strike Price: the target price at which you agree to buy the stock.">Strike</th>
+                <th data-col="dte" class="options-metric" title="Days to Expiration: the number of calendar days remaining until the options contract expires.">DTE</th>
+                <th data-col="premium" class="options-metric" title="Premium: the cash income paid to you by the option buyer for taking on the contract.">Premium</th>
+                <th data-col="capitalRequired" class="options-metric" title="Capital Required: the cash buffer you must hold in your account to collateralize the options contract (usually Strike × 100).">Capital Req.</th>
+                <th data-col="monthlyYield" class="options-metric" title="Monthly Yield: estimated monthly return on your required capital.">Mo. Yield</th>
+                <th data-col="annualizedYield" class="options-metric" title="Annualized Yield: the monthly return compounded/projected over a full 12-month period.">Ann. Yield</th>
+                <th data-col="monthlyIncome" class="options-metric" title="Monthly Income: estimated cash cashflow per month based on premium and contract size.">Mo. Income</th>
                 <th></th>
               </tr>
             </thead>
@@ -901,19 +901,19 @@
             <div class="settings-field">
               <label class="settings-field-label" for="settings-glidepath-base">Glidepath Equity Base</label>
               <input type="number" class="threshold-input" id="settings-glidepath-base" min="80" max="150" step="1" value="110" style="width: 80px" />
-              <p class="setting-desc" style="margin-top:4px">Formula: <code>target_equity % = Base - Age</code>. Standard is 110.</p>
+              <p class="setting-desc" style="margin-top:4px">Formula: <code>target_equity % = Base - Age</code>. A <span class="help-tooltip" style="border-bottom: 1px dotted var(--text-secondary); cursor: help;" title="A retirement glidepath target automatically shifts your mix from equities (aggressive/growth) to bonds (defensive/income) as you age to reduce investment risk.">glidepath</span> automatically adjusts your asset mix as you age. Standard is 110.</p>
             </div>
 
             <div class="settings-field">
               <label class="settings-field-label" for="settings-cash-drag-threshold">Cash Drag Buffer ($)</label>
               <input type="number" class="threshold-input" id="settings-cash-drag-threshold" min="0" max="100000" step="500" value="5000" style="width: 80px" />
-              <p class="setting-desc" style="margin-top:4px">Fires alert if uninvested cash exceeds this buffer and represents &gt;10% of portfolio.</p>
+              <p class="setting-desc" style="margin-top:4px">Fires alert if uninvested cash exceeds this buffer and represents &gt;10% of portfolio, indicating <span class="help-tooltip" style="border-bottom: 1px dotted var(--text-secondary); cursor: help;" title="Cash drag is when uninvested cash sits in your account earning little to no return, reducing ('dragging down') your long-term compound growth.">cash drag</span>.</p>
             </div>
 
             <div class="settings-field">
               <label class="settings-field-label" for="settings-dividend-tax-rate">Effective Dividend Tax Rate (%)</label>
               <input type="number" class="threshold-input" id="settings-dividend-tax-rate" min="0" max="60" step="1" value="30" style="width: 80px" />
-              <p class="setting-desc" style="margin-top:4px">Your combined effective rate on dividend income (Swiss income tax and US qualified rates with foreign tax credit interplay). Used to rank buy ideas by annual tax drag — in Switzerland capital gains are untaxed for private investors but dividends are ordinary income, so lower-yield funds are structurally more tax-efficient for you.</p>
+              <p class="setting-desc" style="margin-top:4px">Your combined effective rate on dividend income (Swiss income tax and US qualified rates with <span class="help-tooltip" style="border-bottom: 1px dotted var(--text-secondary); cursor: help;" title="As a US citizen living in Switzerland, you are taxed by both countries on your dividends. However, the US lets you claim a credit for Swiss taxes you already paid, so you don't pay tax twice on the same money. The 'interplay' is the complex way these Swiss tax credits offset your US tax bill to produce a final combined tax rate.">foreign tax credit interplay</span>). Used to rank buy ideas by annual tax drag — in Switzerland capital gains are untaxed for private investors but dividends are ordinary income, so lower-yield funds are structurally more tax-efficient for you.</p>
             </div>
 
             <div class="settings-field">

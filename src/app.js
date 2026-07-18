@@ -1909,7 +1909,7 @@ function renderBuyIdeas(watchlistData) {
       const glideEl = el('pf-buy-ideas-glidepath');
       if (glideEl) {
         glideEl.style.display = glidepathNote ? '' : 'none';
-        glideEl.textContent = glidepathNote || '';
+        glideEl.innerHTML = glidepathNote || '';
       }
 
       const kindBadge = k => k === 'bond'
@@ -1931,7 +1931,7 @@ function renderBuyIdeas(watchlistData) {
           </div>
           <div style="text-align:right; flex-shrink:0;">
             ${r.suggestedUsd > 0 ? `<div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--green);" class="privacy-amount">~$${r.suggestedUsd.toLocaleString('en-US')}</div>` : ''}
-            <div style="font-size:11px; color:${dragColor(r.taxDragPct)}; margin-top:2px;" title="Estimated annual tax cost of this fund's distributions at your dividend tax rate">tax drag ${r.taxDragPct.toFixed(2)}%/yr</div>
+            <div style="font-size:11px; color:${dragColor(r.taxDragPct)}; margin-top:2px; display:inline-block; border-bottom: 1px dotted var(--text-secondary); cursor: help;" title="Tax drag is the loss in returns from paying dividend taxes. Since Switzerland doesn't tax capital gains but taxes dividends, low-yield funds are more tax-efficient. This is the estimated annual tax cost of this fund's dividends at your rate.">tax drag ${r.taxDragPct.toFixed(2)}%/yr</div>
           </div>
         </div>`).join('');
 
