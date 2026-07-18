@@ -28,6 +28,12 @@
         <span class="logo-text">Port<span class="logo-accent">Max</span></span>
       </div>
 
+      <!-- Sidebar Search -->
+      <div class="sidebar-search">
+        <input type="text" id="sidebar-search-input" placeholder="Search Ticker..." autocomplete="off" spellcheck="false" />
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </div>
+
       <nav class="nav">
         <a class="nav-link active" data-view="dashboard">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
@@ -169,13 +175,7 @@
         <div class="watchlist-section" style="margin-bottom:16px">
           <div class="watchlist-row" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
             <span id="watchlist-count" style="font-size:12px; color:var(--text-muted);"></span>
-            <div class="add-stock-form">
-              <input type="text" class="add-stock-input" id="add-input-screener" placeholder="Add ticker, e.g. AAPL" maxlength="10" autocomplete="off" spellcheck="false" />
-              <button class="add-stock-btn" id="add-btn-screener">+ Add</button>
-            </div>
           </div>
-          <span class="add-stock-error" id="add-error-screener"></span>
-          <span class="add-stock-success" id="add-success-screener" style="color:var(--green); font-size:12px;"></span>
         </div>
 
         <div class="screener-filters">
@@ -645,31 +645,22 @@
             </div>
           </div>
 
-          <div class="settings-card">
+          <div class="settings-card" style="grid-column: 1 / -1;">
             <div class="settings-card-title">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              Compliance &amp; Strategic Guidance
+              Compliance Alerts &amp; Rebalancing Guidance
             </div>
             <p class="settings-card-desc">Systematic analysis of your portfolio context (tax risk, concentration, cash drag, and expat guardrails).</p>
+            
+            <div class="guidance-tabs">
+              <button class="tab-btn active" data-filter="all">All <span id="badge-count-all">0</span></button>
+              <button class="tab-btn" data-filter="tax">Tax &amp; Concentration <span id="badge-count-tax">0</span></button>
+              <button class="tab-btn" data-filter="rebalance">Rebalancing <span id="badge-count-rebalance">0</span></button>
+              <button class="tab-btn" data-filter="options">Options Yield <span id="badge-count-options">0</span></button>
+            </div>
+
             <div class="guidance-list" id="pf-guidance-list">
               <!-- Dynamic alerts injected here -->
-            </div>
-          </div>
-
-          <div class="settings-card">
-            <div class="settings-card-title">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              Ticker Compliance Lookup
-            </div>
-            <p class="settings-card-desc">Query a symbol to check for US Expat tax compliance (PFIC status), Swiss tax reclassification risks, and portfolio concentration impact.</p>
-            
-            <div style="display:flex; gap:8px; margin-bottom:16px;">
-              <input type="text" class="schedule-select" id="pf-lookup-input" placeholder="e.g. CSPX, VTI, GOOG" style="flex:1; margin:0; text-transform:uppercase;">
-              <button class="settings-action-btn" id="pf-lookup-btn" style="width:auto; margin:0;">Lookup</button>
-            </div>
-            
-            <div class="lookup-result-box hidden" id="pf-lookup-result" style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:var(--radius-sm); padding:16px; min-height:100px;">
-              <!-- Lookup results injected here -->
             </div>
           </div>
         </div>
@@ -986,72 +977,109 @@
 
   <!-- Analysis Modal -->
   <div class="modal-overlay hidden" id="modal-overlay">
-    <div class="modal">
-      <button class="modal-close" id="modal-close">✕</button>
-      <div class="modal-header">
-        <div>
-          <h2 class="modal-company" id="modal-company">—</h2>
-          <span class="modal-exchange" id="modal-exchange">—</span>
-          <div class="modal-strategy-badges" id="modal-strategy-badges"></div>
+    <div class="modal" style="width: 820px; height: 620px; max-height: 90vh; max-width: 95vw; display:flex; flex-direction:column; padding: 0;">
+      <button class="modal-close" id="modal-close" style="top: 14px; right: 18px; z-index: 10;">✕</button>
+      
+      <div class="modal-header" style="padding: 24px 28px 12px 28px; border-bottom: none; display: flex; justify-content: space-between; align-items: flex-start; flex-shrink: 0;">
+        <div style="min-width: 0; flex: 1; padding-right: 12px;">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap: wrap;">
+            <h2 class="modal-company" id="modal-company" style="margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;">—</h2>
+            <span class="modal-symbol-badge" id="modal-symbol-badge" style="margin:0;">—</span>
+          </div>
+          <span class="modal-exchange" id="modal-exchange" style="margin-top: 4px; display: block;">—</span>
+          <div class="modal-strategy-badges" id="modal-strategy-badges" style="margin-top: 6px; display: flex; gap: 6px;"></div>
         </div>
-        <div style="display: flex; align-items: center; gap: 12px">
-          <button class="star-btn" id="modal-star-btn" style="font-size: 24px">☆</button>
-          <div class="modal-symbol-badge" id="modal-symbol-badge" style="padding-right: 0">—</div>
+        <div style="display: flex; align-items: center; gap: 16px; flex-shrink: 0; padding-right: 32px;">
+          <div style="text-align:right;">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700;" id="modal-price" class="privacy-amount">—</div>
+            <div style="font-size:12px; margin-top:2px;" id="modal-change">—</div>
+          </div>
+          <button class="watchlist-header-btn" id="modal-watchlist-action-btn" style="padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(0, 240, 255, 0.3); background: rgba(0, 240, 255, 0.05); color: var(--cyan); font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none;">
+            + Watchlist
+          </button>
+          <button class="star-btn" id="modal-star-btn" style="font-size: 24px; padding: 0; background: none; border: none; cursor: pointer; color: var(--text-muted);">☆</button>
         </div>
       </div>
 
-      <div class="modal-body">
-        <div class="modal-left">
-          <!-- Score summary -->
-          <div class="modal-score-summary">
-            <div class="modal-score-header">
-              <div class="modal-score-number" id="modal-score-number">—</div>
-              <div class="modal-score-right">
-                <span class="grade-badge grade-badge-lg" id="modal-grade-badge">—</span>
-                <span class="modal-grade-label" id="modal-grade-label">—</span>
-                <div class="modal-ann-yield" id="modal-ann-yield">—</div>
+      <!-- Detail Tabs -->
+      <div class="symbol-tabs" style="display:flex; gap:16px; margin: 0 28px 12px 28px; border-bottom: 1px solid var(--border); padding-bottom:8px; flex-shrink: 0;">
+        <button class="tab-btn active" id="modal-tab-compliance" style="font-weight:600; font-size:13px; color:var(--cyan); border:none; background:none; cursor:pointer; padding:4px 8px; border-bottom:2px solid var(--cyan); outline: none;">Compliance &amp; Fund Analysis</button>
+        <button class="tab-btn" id="modal-tab-options" style="font-weight:600; font-size:13px; color:var(--text-secondary); border:none; background:none; cursor:pointer; padding:4px 8px; outline: none;">Options Opportunity</button>
+      </div>
+
+      <div class="modal-body" id="modal-details-body" style="flex: 1; display: grid; grid-template-columns: 1.25fr 1fr; gap: 28px; padding: 8px 28px 24px 28px; overflow: hidden; min-height: 0;">
+        <!-- Left Column: Tabbed Content (Scrollable internally) -->
+        <div class="modal-left-col" style="overflow-y: auto; padding-right: 8px; min-width: 0; height: 100%;">
+          
+          <!-- Tab 1: Compliance & Fund Analysis -->
+          <div id="modal-content-compliance" style="display: block;">
+            <div id="si-compliance" style="margin-bottom:16px;"></div>
+            <div class="stats-grid" id="si-stats" style="display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-bottom:16px;"></div>
+            <div id="si-overlap-callout" style="margin-bottom:16px;"></div>
+            <div id="si-holdings-section" style="display:none; margin-bottom:16px;">
+              <div style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Top Holdings — what you'd actually be buying</div>
+              <div id="si-holdings-list" style="display:flex; flex-direction:column; gap:5px;"></div>
+            </div>
+            <div id="si-sectors-section" style="display:none; margin-bottom:16px;">
+              <div style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Sector Weights</div>
+              <div id="si-sectors-list" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+            </div>
+          </div>
+
+          <!-- Tab 2: Options Opportunity -->
+          <div id="modal-content-options" style="display: none;">
+            <!-- Score summary -->
+            <div class="modal-score-summary" style="margin-bottom: 16px;">
+              <div class="modal-score-header">
+                <div class="modal-score-number" id="modal-score-number">—</div>
+                <div class="modal-score-right">
+                  <span class="grade-badge grade-badge-lg" id="modal-grade-badge">—</span>
+                  <span class="modal-grade-label" id="modal-grade-label">—</span>
+                  <div class="modal-ann-yield" id="modal-ann-yield">—</div>
+                </div>
               </div>
+              <div class="modal-score-bar-track">
+                <div class="modal-score-bar-fill" id="modal-score-bar"></div>
+              </div>
+              <div class="modal-kill-switches" id="modal-kill-switches" style="margin-top: 8px;"></div>
             </div>
-            <div class="modal-score-bar-track">
-              <div class="modal-score-bar-fill" id="modal-score-bar"></div>
+
+            <!-- Score breakdown -->
+            <div class="modal-breakdown" style="margin-bottom: 16px;">
+              <h3 class="stats-title">Score Breakdown</h3>
+              <div id="modal-breakdown-rows"></div>
             </div>
-            <div class="modal-kill-switches" id="modal-kill-switches"></div>
-          </div>
 
-          <!-- Score breakdown -->
-          <div class="modal-breakdown">
-            <h3 class="stats-title">Score Breakdown</h3>
-            <div id="modal-breakdown-rows"></div>
-          </div>
+            <!-- Trade mechanics -->
+            <div class="mechanics-box" style="margin-bottom: 16px;">
+              <h3 class="mechanics-title">Trade Mechanics</h3>
+              <p class="mechanics-text" id="mechanics-text">—</p>
+            </div>
 
-          <!-- Trade mechanics -->
-          <div class="mechanics-box">
-            <h3 class="mechanics-title">Trade Mechanics</h3>
-            <p class="mechanics-text" id="mechanics-text">—</p>
-          </div>
-
-          <!-- Block explanation -->
-          <div class="mechanics-box" id="modal-block-explanation-box" style="margin-top:14px; background:rgba(244,63,94,0.05); border-color:rgba(244,63,94,0.15); display:none">
-            <h3 class="mechanics-title" style="color:var(--red)">⚠ Block Explanation</h3>
-            <p class="mechanics-text" id="modal-block-explanation" style="color:var(--text-secondary); line-height:1.6"></p>
+            <!-- Block explanation -->
+            <div class="mechanics-box" id="modal-block-explanation-box" style="background:rgba(244,63,94,0.05); border-color:rgba(244,63,94,0.15); display:none">
+              <h3 class="mechanics-title" style="color:var(--red)">⚠ Block Explanation</h3>
+              <p class="mechanics-text" id="modal-block-explanation" style="color:var(--text-secondary); line-height:1.6"></p>
+            </div>
           </div>
         </div>
 
-        <div class="modal-right">
-          <!-- Price chart -->
-          <div class="chart-container" style="height:160px;margin-bottom:16px">
+        <!-- Right Column: Permanent Sidebar (Price Chart + Options Data) -->
+        <div class="modal-right-col" style="display: flex; flex-direction: column; gap: 16px; overflow-y: auto; min-width: 0; height: 100%;">
+          <!-- Price chart (always shown) -->
+          <div class="chart-container" style="height:150px; flex-shrink: 0; background: rgba(255,255,255,0.01); border: 1px solid var(--border); border-radius: 8px; padding: 10px;">
             <canvas id="price-chart"></canvas>
           </div>
 
-          <!-- Options data -->
-          <h3 class="stats-title">Options Data</h3>
-          <div class="stats-grid" id="stats-grid-options"></div>
-
-          <!-- Action -->
-          <button class="modal-watchlist-btn" id="modal-add-watchlist">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add to Watchlist
-          </button>
+          <!-- Options data grid (shown if options data is available) -->
+          <div id="modal-sidebar-options-section" style="display: block;">
+            <h3 class="stats-title" style="margin-bottom: 8px;">Options Data</h3>
+            <div class="stats-grid" id="stats-grid-options" style="display: grid; grid-template-columns: 1fr; gap: 6px;"></div>
+          </div>
+          
+          <div id="modal-sidebar-no-options" style="display: none; padding: 20px; text-align: center; color: var(--text-muted); border: 1px dashed var(--border); border-radius: 8px; font-size: 12px; line-height: 1.5;">
+            No options writing data available for this symbol.
+          </div>
         </div>
       </div>
     </div>
@@ -1135,43 +1163,7 @@
     </div>
   </div>
 
-  <!-- Symbol Insights modal: portfolio/guidance context for any symbol —
-       fund look-through, overlap vs. current holdings, tax & compliance -->
-  <div class="modal-overlay hidden" id="symbol-insight-overlay">
-    <div class="modal" style="width: 680px; max-width: 94vw; max-height: 88vh; display:flex; flex-direction:column;">
-      <button class="modal-close" id="symbol-insight-close">✕</button>
-      <div class="modal-header" style="padding-bottom: 14px;">
-        <div>
-          <div style="display:flex; align-items:center; gap:10px;">
-            <h2 class="modal-company" id="si-name" style="margin-bottom:2px;">—</h2>
-            <span class="preview-badge" id="si-symbol" style="margin:0;">—</span>
-          </div>
-          <span class="modal-exchange" id="si-subline">—</span>
-        </div>
-        <div style="text-align:right; margin-right:44px;">
-          <div style="font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700;" id="si-price" class="privacy-amount">—</div>
-          <div style="font-size:12px;" id="si-change">—</div>
-        </div>
-      </div>
-      <div class="modal-body" id="si-body" style="flex:1; overflow-y:auto; padding:20px 28px;">
-        <div id="si-loading" style="padding:24px; color:var(--text-muted); font-size:13px; text-align:center;">Loading insights…</div>
-        <div id="si-content" style="display:none;">
-          <div id="si-compliance" style="margin-bottom:16px;"></div>
-          <div class="stats-grid" id="si-stats" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px;"></div>
-          <div id="si-overlap-callout" style="margin-bottom:16px;"></div>
-          <div id="si-holdings-section" style="display:none; margin-bottom:16px;">
-            <div style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Top Holdings — what you'd actually be buying</div>
-            <div id="si-holdings-list" style="display:flex; flex-direction:column; gap:5px;"></div>
-          </div>
-          <div id="si-sectors-section" style="display:none; margin-bottom:16px;">
-            <div style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Sector Weights</div>
-            <div id="si-sectors-list" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
-          </div>
-          <div id="si-csp-link" style="display:none;"></div>
-        </div>
-      </div>
-    </div>
-  </div>
+
 
   <!-- IBKR embedded login modal -->
   <div class="modal-overlay hidden" id="ibkr-login-overlay">

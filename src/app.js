@@ -12,6 +12,8 @@ let scoringConfig = {
 };
 let currentModal = null;
 let priceChart   = null;
+let currentGuidanceFilter = 'all';
+let currentGuidanceItems = [];
 
 // Symbols just added to the watchlist whose options data is still being
 // fetched — shown as placeholder rows in the screener so the ticker appears
@@ -406,7 +408,7 @@ async function addToWatchlist(symbol) {
   const input = el('add-input-screener');
   if (!symbol || !symbol.trim()) return;
 
-  btn.disabled = true; btn.textContent = '…';
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
   if (errEl) errEl.textContent = '';
   if (okEl) okEl.textContent = '';
 
@@ -441,7 +443,7 @@ async function addToWatchlist(symbol) {
     if (errEl) errEl.textContent = 'Failed to add';
     console.error('Add failed:', e);
   } finally {
-    btn.disabled = false; btn.textContent = '+ Add';
+    if (btn) { btn.disabled = false; btn.textContent = '+ Add'; }
   }
 }
 
@@ -964,36 +966,253 @@ function initOptionsScannerView() {
 }
 
 // ─── Analysis Modal ───────────────────────────────────────────────────────────
-async function openModal(d) {
-  if (!d) return;
-  currentModal = d;
-  const sc = d._score;
+function switchSymbolTab(tabName) {
+  const compTab = el('modal-tab-compliance');
+  const optTab = el('modal-tab-options');
+  const compContent = el('modal-content-compliance');
+  const optContent = el('modal-content-options');
 
-  el('modal-company').textContent       = d.companyName || d.symbol;
-  el('modal-exchange').textContent      = d.exchange || '';
-  el('modal-symbol-badge').textContent  = d.symbol;
-  el('modal-strategy-badges').innerHTML = '';
+  if (!compTab || !optTab || !compContent || !optContent) return;
 
-  // Score summary
-  if (sc) {
+  if (tabName === 'compliance') {
+    compTab.classList.add('active');
+    compTab.style.color = 'var(--cyan)';
+    compTab.style.borderBottom = '2px solid var(--cyan)';
+    
+    optTab.classList.remove('active');
+    optTab.style.color = 'var(--text-secondary)';
+    optTab.style.borderBottom = 'none';
+
+    compContent.style.display = 'block';
+    optContent.style.display = 'none';
+  } else {
+    optTab.classList.add('active');
+    optTab.style.color = 'var(--cyan)';
+    optTab.style.borderBottom = '2px solid var(--cyan)';
+    
+    compTab.classList.remove('active');
+    compTab.style.color = 'var(--text-secondary)';
+    compTab.style.borderBottom = 'none';
+
+    compContent.style.display = 'none';
+    optContent.style.display = 'grid';
+  }
+}
+
+async function openSymbolDetails(symbolOrData, defaultTab = 'compliance') {
+  if (!symbolOrData) return;
+  const symbol = typeof symbolOrData === 'string' ? symbolOrData : symbolOrData.symbol;
+  
+  const modal = el('modal-overlay');
+  if (!modal) return;
+
+  modal.classList.remove('hidden');
+  el('modal-details-body').style.display = 'none';
+
+  let loadingEl = el('modal-loading-placeholder');
+  if (!loadingEl) {
+    loadingEl = document.createElement('div');
+    loadingEl.id = 'modal-loading-placeholder';
+    loadingEl.style.padding = '40px';
+    loadingEl.style.color = 'var(--text-muted)';
+    loadingEl.style.textAlign = 'center';
+    loadingEl.style.fontSize = '13px';
+    loadingEl.textContent = 'Loading symbol details...';
+    el('modal-details-body').parentNode.insertBefore(loadingEl, el('modal-details-body'));
+  }
+  loadingEl.style.display = 'block';
+
+  let d;
+  try {
+    d = await window.electronAPI.getSymbolInsights(symbol);
+  } catch (e) {
+    loadingEl.textContent = 'Failed to load details.';
+    console.error('getSymbolInsights failed:', e);
+    return;
+  }
+  if (!d || d.error) {
+    loadingEl.textContent = 'No data available for this symbol.';
+    return;
+  }
+
+  loadingEl.style.display = 'none';
+  el('modal-details-body').style.display = 'grid';
+
+  // 1. Header Population
+  el('modal-company').textContent = d.name || d.symbol;
+  el('modal-symbol-badge').textContent = d.symbol;
+  const sublineBits = [d.exchange, d.analysis?.type ? d.analysis.type.toUpperCase() : null, d.analysis?.domicile ? `domiciled: ${d.analysis.domicile}` : null].filter(Boolean);
+  el('modal-exchange').textContent = sublineBits.join(' · ');
+  el('modal-price').textContent = d.price != null ? `$${d.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
+  
+  const chEl = el('modal-change');
+  if (d.changePct != null) {
+    chEl.textContent = `${d.changePct >= 0 ? '+' : ''}${d.changePct.toFixed(2)}% today`;
+    chEl.style.color = d.changePct >= 0 ? 'var(--green)' : 'var(--red)';
+  } else {
+    chEl.textContent = '';
+  }
+
+  // Watchlist Header Action Button
+  const watchlistBtn = el('modal-watchlist-action-btn');
+  if (watchlistBtn) {
+    const isWatchlisted = watchlist.some(s => s.toUpperCase() === d.symbol.toUpperCase());
+    if (isWatchlisted) {
+      watchlistBtn.textContent = '✓ Watchlisted';
+      watchlistBtn.style.border = '1px solid var(--border)';
+      watchlistBtn.style.background = 'transparent';
+      watchlistBtn.style.color = 'var(--text-secondary)';
+    } else {
+      watchlistBtn.textContent = '+ Watchlist';
+      watchlistBtn.style.border = '1px solid rgba(0, 240, 255, 0.3)';
+      watchlistBtn.style.background = 'rgba(0, 240, 255, 0.05)';
+      watchlistBtn.style.color = 'var(--cyan)';
+    }
+    watchlistBtn.disabled = false;
+
+    watchlistBtn.onclick = async () => {
+      watchlistBtn.disabled = true;
+      watchlistBtn.textContent = '…';
+      if (isWatchlisted) {
+        await removeFromWatchlist(d.symbol);
+      } else {
+        await addToWatchlist(d.symbol);
+      }
+      openSymbolDetails(symbolOrData, defaultTab);
+    };
+  }
+
+  // Star Toggle Button
+  const starBtn = el('modal-star-btn');
+  if (starBtn) {
+    const updateStarUI = () => {
+      const isStarred = starredList.includes(d.symbol);
+      starBtn.textContent = isStarred ? '★' : '☆';
+      starBtn.className = isStarred ? 'star-btn starred' : 'star-btn';
+    };
+    updateStarUI();
+    starBtn.onclick = async () => {
+      const result = await window.electronAPI.toggleStarred({ symbol: d.symbol });
+      if (result.success) {
+        starredList = result.starred;
+        updateStarUI();
+        renderScreener();
+        renderDashboardStarred();
+        renderTables(allData);
+      }
+    };
+  }
+
+  // 2. Compliance Content
+  const a = d.analysis;
+  const compEl = el('si-compliance');
+  if (a) {
+    const palette = {
+      danger:    { color: '#f43f5e', bg: 'rgba(244,63,94,0.08)',  border: 'rgba(244,63,94,0.25)' },
+      caution:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)' },
+      excellent: { color: 'var(--green)', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.25)' },
+    }[a.suitability] || { color: 'var(--text-secondary)', bg: 'transparent', border: 'var(--border)' };
+    compEl.innerHTML = `
+      <div style="padding:10px 12px; border-radius:8px; background:${palette.bg}; border:1px solid ${palette.border}; font-size:12px;">
+        <div style="font-weight:600; color:${palette.color}; margin-bottom:3px;">${a.reason}</div>
+        <div style="color:var(--text-secondary); line-height:1.5;">${a.details}</div>
+      </div>`;
+  } else compEl.innerHTML = '';
+
+  const range52 = (d.fiftyTwoWeekLow != null && d.fiftyTwoWeekHigh != null && d.price != null && d.fiftyTwoWeekHigh > d.fiftyTwoWeekLow)
+    ? `${(((d.price - d.fiftyTwoWeekLow) / (d.fiftyTwoWeekHigh - d.fiftyTwoWeekLow)) * 100).toFixed(0)}% of 52w range`
+    : null;
+  const stats = [
+    d.yieldPct != null ? { label: 'Dividend Yield', value: `${d.yieldPct.toFixed(2)}%` } : null,
+    d.taxDragPct != null ? { label: `Tax Drag (@${d.dividendTaxRatePct}%)`, value: `${d.taxDragPct.toFixed(2)}%/yr`, color: d.taxDragPct >= 1.5 ? 'var(--red)' : d.taxDragPct >= 0.5 ? '#f59e0b' : 'var(--green)' } : null,
+    d.expenseRatioPct != null ? { label: 'Expense Ratio', value: `${d.expenseRatioPct.toFixed(2)}%` } : null,
+    range52 ? { label: '52-Week Position', value: range52 } : null,
+    d.marketCap != null ? { label: d.overlap ? 'Fund Assets' : 'Market Cap', value: fmt.mktcap(d.marketCap), html: true } : null,
+    d.held ? { label: 'Your Position', value: `$${Math.round(d.held.marketValue).toLocaleString('en-US')} · ${d.held.weightPct.toFixed(1)}% (${d.held.bucket})`, html: false, privacy: true } : null,
+  ].filter(Boolean);
+  el('si-stats').innerHTML = stats.map(s => `
+    <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; padding:8px 10px;">
+      <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">${s.label}</div>
+      <div style="font-size:13px; font-weight:600; margin-top:2px; ${s.color ? `color:${s.color};` : ''}" ${s.privacy ? 'class="privacy-amount"' : ''}>${s.value}</div>
+    </div>`).join('');
+
+  const calloutEl = el('si-overlap-callout');
+  const holdingsSection = el('si-holdings-section');
+  if (d.overlap && d.overlap.rows.length) {
+    const o = d.overlap;
+    const parts = [];
+    if (o.employerFundPct > 0) {
+      parts.push(`<strong style="color:#f43f5e;">${o.employerFundPct.toFixed(1)}% of this fund is your employer's stock</strong> — every $10k you invest adds ~$${o.employerUsdPer10k.toLocaleString('en-US')} of hidden exposure on top of your direct position.`);
+    }
+    if (o.overlapCount > 0) {
+      parts.push(`${o.overlapCount} of its top holdings (${o.overlapFundPct.toFixed(1)}% of the fund) are names you already own directly — buying it partly duplicates what you have rather than diversifying.`);
+    }
+    calloutEl.innerHTML = parts.length ? `
+      <div style="padding:10px 12px; border-radius:8px; background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.2); font-size:12px; color:var(--text-secondary); line-height:1.6;">
+        ${parts.join('<br>')}
+      </div>` : '';
+
+    holdingsSection.style.display = '';
+    const maxPct = Math.max(...o.rows.map(r => r.fundPct), 1);
+    el('si-holdings-list').innerHTML = o.rows.slice(0, 10).map(r => `
+      <div style="display:flex; align-items:center; gap:8px; font-size:12px;">
+        <span style="font-family:'JetBrains Mono',monospace; font-weight:600; width:56px; ${r.isEmployer ? 'color:#f43f5e;' : r.alreadyHeld ? 'color:#f59e0b;' : ''}">${r.symbol}</span>
+        <div style="flex:1; height:8px; background:rgba(255,255,255,0.04); border-radius:4px; overflow:hidden;">
+          <div style="height:100%; width:${(r.fundPct / maxPct) * 100}%; background:${r.isEmployer ? '#f43f5e' : r.alreadyHeld ? '#f59e0b' : 'var(--cyan)'}; opacity:0.75;"></div>
+        </div>
+        <span style="width:44px; text-align:right; font-family:'JetBrains Mono',monospace;">${r.fundPct.toFixed(1)}%</span>
+        <span style="width:150px; font-size:11px; color:var(--text-muted); text-align:right;">${r.isEmployer ? 'EMPLOYER STOCK' : r.alreadyHeld ? `you hold ${r.directWeightPct.toFixed(1)}% directly` : ''}</span>
+      </div>`).join('');
+  } else {
+    calloutEl.innerHTML = '';
+    holdingsSection.style.display = 'none';
+  }
+
+  const sectorsSection = el('si-sectors-section');
+  if (d.sectorWeights && d.sectorWeights.length) {
+    sectorsSection.style.display = '';
+    el('si-sectors-list').innerHTML = d.sectorWeights.slice(0, 8).map(s => `
+      <span style="font-size:11px; padding:3px 8px; border-radius:5px; background:rgba(255,255,255,0.04); border:1px solid var(--border); color:var(--text-secondary);">
+        ${s.sector.replace(/_/g, ' ')} <strong style="color:var(--text-primary);">${s.pct.toFixed(1)}%</strong>
+      </span>`).join('');
+  } else {
+    sectorsSection.style.display = 'none';
+  }
+
+  // 3. Options Content
+  const scannerHit = typeof symbolOrData === 'object' && symbolOrData._score ? symbolOrData : (window.allData || allData || []).find(x => x.symbol === d.symbol);
+  const optTabBtn = el('modal-tab-options');
+  const sidebarOptSec = el('modal-sidebar-options-section');
+  const sidebarNoOpt = el('modal-sidebar-no-options');
+
+  if (scannerHit) {
+    if (optTabBtn) {
+      optTabBtn.disabled = false;
+      optTabBtn.style.opacity = '1';
+      optTabBtn.style.cursor = 'pointer';
+      optTabBtn.title = '';
+    }
+    if (sidebarOptSec) sidebarOptSec.style.display = 'block';
+    if (sidebarNoOpt) sidebarNoOpt.style.display = 'none';
+
+    currentModal = scannerHit;
+    const sc = scannerHit._score;
+
     el('modal-score-number').textContent   = sc.totalScore;
     el('modal-grade-badge').textContent    = sc.grade;
     el('modal-grade-badge').className      = `grade-badge grade-badge-lg grade-badge-${sc.grade}`;
     el('modal-grade-label').textContent    = sc.gradeLabel;
-    el('modal-ann-yield').textContent      = `Ann. yield: ${fmt.pct(d.annualizedYield)}`;
+    el('modal-ann-yield').textContent      = `Ann. yield: ${fmt.pct(scannerHit.annualizedYield)}`;
     el('modal-score-bar').style.width      = sc.totalScore + '%';
     el('modal-score-bar').style.background = gradeColor(sc.grade);
 
     const ksEl = el('modal-kill-switches');
     if (sc.killSwitches.length) {
-      ksEl.innerHTML = sc.killSwitches.map(k =>
-        `<div class="kill-switch-alert">⚠ ${k}</div>`
-      ).join('');
+      ksEl.innerHTML = sc.killSwitches.map(k => `<div class="kill-switch-alert">⚠ ${k}</div>`).join('');
     } else {
       ksEl.innerHTML = '';
     }
 
-    // Score breakdown
     const BREAKDOWN_META = [
       { key: 'ivRank',        label: 'IV Rank',        max: 20 },
       { key: 'ivHvRatio',     label: 'IV/HV Ratio',    max: 15 },
@@ -1019,113 +1238,92 @@ async function openModal(d) {
           </div>
         </div>`;
     }).join('');
-  }
 
-  // Trade mechanics
-  el('mechanics-text').innerHTML =
-    `Sell 1 put contract with a <span class="privacy-amount">$${d.strike.toFixed(2)}</span> strike expiring in ${d.dte} days ` +
-    `for a premium of <span class="privacy-amount">$${(d.premium * 100).toFixed(2)}</span> (${fmt.pct(d.marginOfSafety)} below current price). ` +
-    `If assigned, you will be obligated to buy 100 shares at <span class="privacy-amount">$${d.strike.toFixed(2)}</span>, ` +
-    `requiring <span class="privacy-amount">$${d.capitalRequired.toLocaleString()}</span> in capital. ` +
-    `Your break-even price is <span class="privacy-amount">$${d.breakEven.toFixed(2)}</span>.`;
+    el('mechanics-text').innerHTML =
+      `Sell 1 put contract with a <span class="privacy-amount">$${scannerHit.strike.toFixed(2)}</span> strike expiring in ${scannerHit.dte} days ` +
+      `for a premium of <span class="privacy-amount">$${(scannerHit.premium * 100).toFixed(2)}</span> (${fmt.pct(scannerHit.marginOfSafety)} below current price). ` +
+      `If assigned, you will be obligated to buy 100 shares at <span class="privacy-amount">$${scannerHit.strike.toFixed(2)}</span>, ` +
+      `requiring <span class="privacy-amount">$${scannerHit.capitalRequired.toLocaleString()}</span> in capital. ` +
+      `Your break-even price is <span class="privacy-amount">$${scannerHit.breakEven.toFixed(2)}</span>.`;
 
-  // Block explanation
-  const expBox  = el('modal-block-explanation-box');
-  const expText = el('modal-block-explanation');
-  if (expBox && expText) {
-    if (sc && sc.killSwitches && sc.killSwitches.length > 0) {
-      expBox.style.display = 'block';
-      const explanations = sc.killSwitches.map(k => {
-        if (k.toLowerCase().includes('earnings')) {
-          return `<strong>Earnings Block:</strong> Earnings reports typically introduce extreme, unpredictable price swings and overnight gaps. Selling cash-secured puts right before earnings exposes you to high tail risk, where the stock can gap down far below your strike price. The system blocks this trade because the company's earnings date falls within your option's expiration window.`;
-        }
-        if (k.toLowerCase().includes('bid-ask') || k.toLowerCase().includes('spread')) {
-          return `<strong>Liquidity Block:</strong> Wide bid-ask spreads indicate low liquidity, high slippage, and poor execution quality. This makes it difficult and expensive to enter the trade, and even harder to roll or close the position early if needed. The system blocks this trade because the bid-ask spread exceeds the $0.50 risk threshold.`;
-        }
-        if (k.toLowerCase().includes('iv') || k.toLowerCase().includes('volatility')) {
-          return `<strong>Volatility Block:</strong> Extremely high implied volatility (above 80%) is a major warning signal of company distress, an impending binary event, or extreme speculative fever. While premiums are high, the risk of a severe price crash is heavily elevated, overriding the safety margin of put-selling.`;
-        }
-        return `<strong>System Block:</strong> This trade has been blocked by the active safety filter: ${k}.`;
-      });
-      expText.innerHTML = explanations.join('<br><br>');
-    } else {
-      expBox.style.display = 'none';
-      expText.innerHTML = '';
-    }
-  }
-
-  // Options data
-  const volStr    = d.impliedVolatility > 0 ? fmt.pct(d.impliedVolatility * 100) : 'N/A';
-  const hvStr     = d.hv > 0 ? fmt.pct(d.hv * 100) : 'N/A';
-  const ivhvStr   = d.ivHvRatio > 0 ? d.ivHvRatio.toFixed(2) + 'x' : 'N/A';
-  const ivrStr    = d.ivr != null ? d.ivr.toFixed(0) : 'Insufficient history';
-  const deltaStr  = d.delta != null ? Math.abs(d.delta).toFixed(2) : 'N/A';
-  const spreadStr = d.bidAskSpread != null ? fmt.currency(d.bidAskSpread) : 'N/A';
-
-  el('stats-grid-options').innerHTML = [
-    { label: 'Strike',               value: fmt.currency(d.strike)            },
-    { label: 'Expiration',           value: d.expirationDate                  },
-    { label: 'DTE',                  value: d.dte + ' days'                   },
-    { label: 'Premium (mid)',        value: fmt.currency(d.premium)           },
-    { label: 'Delta',                value: deltaStr                          },
-    { label: 'Implied Volatility',   value: volStr,         cls: 'cyan'       },
-    { label: 'Historical Vol (30d)', value: hvStr                             },
-    { label: 'IV / HV Ratio',        value: ivhvStr                           },
-    { label: 'IV Rank',              value: ivrStr                            },
-    { label: 'Open Interest',        value: fmt.num(d.openInterest)           },
-    { label: 'Bid-Ask Spread',       value: spreadStr                         },
-    { label: 'Break-Even',           value: fmt.currency(d.breakEven)         },
-    { label: 'Margin of Safety',     value: fmt.pct(d.marginOfSafety), cls: 'green' },
-    { label: 'Above MA50',           value: d.aboveMA50 ? 'Yes' : 'No'       },
-  ].map(s => `
-    <div class="stat-item">
-      <div class="stat-label">${s.label}</div>
-      <div class="stat-value ${s.cls || ''}">${s.value}</div>
-    </div>
-  `).join('');
-
-  // Add-to-watchlist button
-  const addBtn = el('modal-add-watchlist');
-  if (addBtn) {
-    const already = watchlist.includes(d.symbol);
-    addBtn.textContent = already ? '✓ In Watchlist' : '+ Add to Watchlist';
-    addBtn.disabled = already;
-    addBtn.onclick = async () => {
-      addBtn.disabled = true; addBtn.textContent = '…';
-      const result = await window.electronAPI.addToWatchlist({ symbol: d.symbol });
-      if (result.success) {
-        watchlist = result.watchlist;
-        renderWatchlistChips();
-        addBtn.textContent = '✓ In Watchlist';
+    const expBox  = el('modal-block-explanation-box');
+    const expText = el('modal-block-explanation');
+    if (expBox && expText) {
+      if (sc && sc.killSwitches && sc.killSwitches.length > 0) {
+        expBox.style.display = 'block';
+        const explanations = sc.killSwitches.map(k => {
+          if (k.toLowerCase().includes('earnings')) {
+            return `<strong>Earnings Block:</strong> Earnings reports typically introduce extreme, unpredictable price swings and overnight gaps. Selling cash-secured puts right before earnings exposes you to high tail risk, where the stock can gap down far below your strike price. The system blocks this trade because the company's earnings date falls within your option's expiration window.`;
+          }
+          if (k.toLowerCase().includes('bid-ask') || k.toLowerCase().includes('spread')) {
+            return `<strong>Liquidity Block:</strong> Wide bid-ask spreads indicate low liquidity, high slippage, and poor execution quality. This makes it difficult and expensive to enter the trade, and even harder to roll or close the position early if needed. The system blocks this trade because the bid-ask spread exceeds the $0.50 risk threshold.`;
+          }
+          if (k.toLowerCase().includes('iv') || k.toLowerCase().includes('volatility')) {
+            return `<strong>Volatility Block:</strong> Extremely high implied volatility (above 80%) is a major warning signal of company distress, an impending binary event, or extreme speculative fever. While premiums are high, the risk of a severe price crash is heavily elevated, overriding the safety margin of put-selling.`;
+          }
+          return `<strong>System Block:</strong> This trade has been blocked by the active safety filter: ${k}.`;
+        });
+        expText.innerHTML = explanations.join('<br><br>');
       } else {
-        addBtn.disabled = false; addBtn.textContent = '+ Add to Watchlist';
+        expBox.style.display = 'none';
+        expText.innerHTML = '';
       }
-    };
+    }
+
+    const volStr    = scannerHit.impliedVolatility > 0 ? fmt.pct(scannerHit.impliedVolatility * 100) : 'N/A';
+    const hvStr     = scannerHit.hv > 0 ? fmt.pct(scannerHit.hv * 100) : 'N/A';
+    const ivhvStr   = scannerHit.ivHvRatio > 0 ? scannerHit.ivHvRatio.toFixed(2) + 'x' : 'N/A';
+    const ivrStr    = scannerHit.ivr != null ? scannerHit.ivr.toFixed(0) : 'Insufficient history';
+    const deltaStr  = scannerHit.delta != null ? Math.abs(scannerHit.delta).toFixed(2) : 'N/A';
+    const spreadStr = scannerHit.bidAskSpread != null ? fmt.currency(scannerHit.bidAskSpread) : 'N/A';
+
+    el('stats-grid-options').innerHTML = [
+      { label: 'Strike',               value: fmt.currency(scannerHit.strike)            },
+      { label: 'Expiration',           value: scannerHit.expirationDate                  },
+      { label: 'DTE',                  value: scannerHit.dte + ' days'                   },
+      { label: 'Premium (mid)',        value: fmt.currency(scannerHit.premium)           },
+      { label: 'Delta',                value: deltaStr                          },
+      { label: 'Implied Volatility',   value: volStr,         cls: 'cyan'       },
+      { label: 'Historical Vol (30d)', value: hvStr                             },
+      { label: 'IV / HV Ratio',        value: ivhvStr                           },
+      { label: 'IV Rank',              value: ivrStr                            },
+      { label: 'Open Interest',        value: fmt.num(scannerHit.openInterest)           },
+      { label: 'Bid-Ask Spread',       value: spreadStr                         },
+      { label: 'Break-Even',           value: fmt.currency(scannerHit.breakEven)         },
+      { label: 'Margin of Safety',     value: fmt.pct(scannerHit.marginOfSafety), cls: 'green' },
+      { label: 'Above MA50',           value: scannerHit.aboveMA50 ? 'Yes' : 'No'       },
+    ].map(s => `
+      <div class="stat-item">
+        <div class="stat-label">${s.label}</div>
+        <div class="stat-value ${s.cls || ''}">${s.value}</div>
+      </div>
+    `).join('');
+  } else {
+    if (optTabBtn) {
+      optTabBtn.disabled = true;
+      optTabBtn.style.opacity = '0.4';
+      optTabBtn.style.cursor = 'not-allowed';
+      optTabBtn.title = 'No options scanner data found for this symbol';
+    }
+    if (sidebarOptSec) sidebarOptSec.style.display = 'none';
+    if (sidebarNoOpt) sidebarNoOpt.style.display = 'block';
+
+    el('modal-content-options').innerHTML = `
+      <div style="padding: 40px; text-align: center; color: var(--text-secondary);">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" style="margin-bottom:12px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div style="font-weight:600; font-size:14px; margin-bottom:4px;">No active option writing opportunities found</div>
+        <p style="font-size:12px; max-width:400px; margin: 0 auto; line-height: 1.5;">Options are only scanned for watchlisted stocks. Check back later or search another ticker.</p>
+      </div>`;
   }
 
-  // Modal star toggle button
-  const starBtn = el('modal-star-btn');
-  if (starBtn) {
-    const updateStarUI = () => {
-      const isStarred = starredList.includes(d.symbol);
-      starBtn.textContent = isStarred ? '★' : '☆';
-      starBtn.className = isStarred ? 'star-btn starred' : 'star-btn';
-    };
-    
-    updateStarUI();
-    starBtn.onclick = async () => {
-     const result = await window.electronAPI.toggleStarred({ symbol: d.symbol });
-     if (result.success) {
-       starredList = result.starred;
-       updateStarUI();
-       renderScreener();
-       renderDashboardStarred();
-       renderTables(allData);
-     }
-    };
+  // 5. Default tab activation
+  if (defaultTab === 'options' && scannerHit) {
+    switchSymbolTab('options');
+  } else {
+    switchSymbolTab('compliance');
   }
 
-  el('modal-overlay').classList.remove('hidden');
+  // 6. Draw Chart
   renderChart([], d.symbol);
   try {
     const history = await window.electronAPI.fetchHistory(d.symbol);
@@ -1133,6 +1331,10 @@ async function openModal(d) {
   } catch (e) {
     console.warn('History fetch failed:', e);
   }
+}
+
+async function openModal(d) {
+  await openSymbolDetails(d, 'options');
 }
 
 function closeModal() {
@@ -1203,6 +1405,8 @@ el('modal-close').addEventListener('click', closeModal);
 el('modal-overlay').addEventListener('click', e => {
   if (e.target === el('modal-overlay')) closeModal();
 });
+el('modal-tab-compliance').addEventListener('click', () => switchSymbolTab('compliance'));
+el('modal-tab-options').addEventListener('click', () => switchSymbolTab('options'));
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (!el('modal-overlay').classList.contains('hidden')) { closeModal(); return; }
@@ -1759,139 +1963,12 @@ function pfBucketOptions(selected) {
 // compliance status. Distinct from the CSP opportunity modal, which is about
 // a specific options trade — but deep-links to it when scanner data exists.
 async function openSymbolInsight(symbol) {
-  const overlay = el('symbol-insight-overlay');
-  if (!overlay) return;
-  overlay.classList.remove('hidden');
-  el('si-loading').style.display = '';
-  el('si-content').style.display = 'none';
-  el('si-name').textContent = symbol;
-  el('si-symbol').textContent = symbol;
-  el('si-subline').textContent = '';
-  el('si-price').textContent = '—';
-  el('si-change').textContent = '';
-
-  let d;
-  try {
-    d = await window.electronAPI.getSymbolInsights(symbol);
-  } catch {
-    el('si-loading').textContent = 'Failed to load insights.';
-    return;
-  }
-  if (!d || d.error) { el('si-loading').textContent = 'No data available for this symbol.'; return; }
-
-  el('si-name').textContent = d.name;
-  el('si-symbol').textContent = d.symbol;
-  const sublineBits = [d.exchange, d.analysis?.type ? d.analysis.type.toUpperCase() : null, d.analysis?.domicile ? `domiciled: ${d.analysis.domicile}` : null].filter(Boolean);
-  el('si-subline').textContent = sublineBits.join(' · ');
-  el('si-price').textContent = d.price != null ? `$${d.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
-  const chEl = el('si-change');
-  if (d.changePct != null) {
-    chEl.textContent = `${d.changePct >= 0 ? '+' : ''}${d.changePct.toFixed(2)}% today`;
-    chEl.style.color = d.changePct >= 0 ? 'var(--green)' : 'var(--red)';
-  } else chEl.textContent = '';
-
-  // Compliance banner (PFIC danger / caution / excellent)
-  const a = d.analysis;
-  const compEl = el('si-compliance');
-  if (a) {
-    const palette = {
-      danger:    { color: '#f43f5e', bg: 'rgba(244,63,94,0.08)',  border: 'rgba(244,63,94,0.25)' },
-      caution:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)' },
-      excellent: { color: 'var(--green)', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.25)' },
-    }[a.suitability] || { color: 'var(--text-secondary)', bg: 'transparent', border: 'var(--border)' };
-    compEl.innerHTML = `
-      <div style="padding:10px 12px; border-radius:8px; background:${palette.bg}; border:1px solid ${palette.border};">
-        <div style="font-size:12px; font-weight:600; color:${palette.color}; margin-bottom:3px;">${a.reason}</div>
-        <div style="font-size:12px; color:var(--text-secondary); line-height:1.5;">${a.details}</div>
-      </div>`;
-  } else compEl.innerHTML = '';
-
-  // Key stats
-  const range52 = (d.fiftyTwoWeekLow != null && d.fiftyTwoWeekHigh != null && d.price != null && d.fiftyTwoWeekHigh > d.fiftyTwoWeekLow)
-    ? `${(((d.price - d.fiftyTwoWeekLow) / (d.fiftyTwoWeekHigh - d.fiftyTwoWeekLow)) * 100).toFixed(0)}% of 52w range`
-    : null;
-  const stats = [
-    d.yieldPct != null ? { label: 'Dividend Yield', value: `${d.yieldPct.toFixed(2)}%` } : null,
-    d.taxDragPct != null ? { label: `Tax Drag (@${d.dividendTaxRatePct}%)`, value: `${d.taxDragPct.toFixed(2)}%/yr`, color: d.taxDragPct >= 1.5 ? 'var(--red)' : d.taxDragPct >= 0.5 ? '#f59e0b' : 'var(--green)' } : null,
-    d.expenseRatioPct != null ? { label: 'Expense Ratio', value: `${d.expenseRatioPct.toFixed(2)}%` } : null,
-    range52 ? { label: '52-Week Position', value: range52 } : null,
-    d.marketCap != null ? { label: d.overlap ? 'Fund Assets' : 'Market Cap', value: fmt.mktcap(d.marketCap), html: true } : null,
-    d.sector ? { label: 'Sector', value: d.industry ? `${d.sector} · ${d.industry}` : d.sector } : null,
-    d.held ? { label: 'Your Position', value: `$${Math.round(d.held.marketValue).toLocaleString('en-US')} · ${d.held.weightPct.toFixed(1)}% (${d.held.bucket})`, html: false, privacy: true } : null,
-  ].filter(Boolean);
-  el('si-stats').innerHTML = stats.map(s => `
-    <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; padding:8px 10px;">
-      <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">${s.label}</div>
-      <div style="font-size:13px; font-weight:600; margin-top:2px; ${s.color ? `color:${s.color};` : ''}" ${s.privacy ? 'class="privacy-amount"' : ''}>${s.value}</div>
-    </div>`).join('');
-
-  // Overlap callout + top holdings (funds only)
-  const calloutEl = el('si-overlap-callout');
-  const holdingsSection = el('si-holdings-section');
-  if (d.overlap && d.overlap.rows.length) {
-    const o = d.overlap;
-    const parts = [];
-    if (o.employerFundPct > 0) {
-      parts.push(`<strong style="color:#f43f5e;">${o.employerFundPct.toFixed(1)}% of this fund is your employer's stock</strong> — every $10k you invest adds ~$${o.employerUsdPer10k.toLocaleString('en-US')} of hidden exposure on top of your direct position.`);
-    }
-    if (o.overlapCount > 0) {
-      parts.push(`${o.overlapCount} of its top holdings (${o.overlapFundPct.toFixed(1)}% of the fund) are names you already own directly — buying it partly duplicates what you have rather than diversifying.`);
-    }
-    calloutEl.innerHTML = parts.length ? `
-      <div style="padding:10px 12px; border-radius:8px; background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.2); font-size:12px; color:var(--text-secondary); line-height:1.6;">
-        ${parts.join('<br>')}
-      </div>` : '';
-
-    holdingsSection.style.display = '';
-    const maxPct = Math.max(...o.rows.map(r => r.fundPct), 1);
-    el('si-holdings-list').innerHTML = o.rows.slice(0, 10).map(r => `
-      <div style="display:flex; align-items:center; gap:8px; font-size:12px;">
-        <span style="font-family:'JetBrains Mono',monospace; font-weight:600; width:56px; ${r.isEmployer ? 'color:#f43f5e;' : r.alreadyHeld ? 'color:#f59e0b;' : ''}">${r.symbol}</span>
-        <div style="flex:1; height:8px; background:rgba(255,255,255,0.04); border-radius:4px; overflow:hidden;">
-          <div style="height:100%; width:${(r.fundPct / maxPct) * 100}%; background:${r.isEmployer ? '#f43f5e' : r.alreadyHeld ? '#f59e0b' : 'var(--cyan)'}; opacity:0.75;"></div>
-        </div>
-        <span style="width:44px; text-align:right; font-family:'JetBrains Mono',monospace;">${r.fundPct.toFixed(1)}%</span>
-        <span style="width:150px; font-size:11px; color:var(--text-muted); text-align:right;">${r.isEmployer ? 'EMPLOYER STOCK' : r.alreadyHeld ? `you hold ${r.directWeightPct.toFixed(1)}% directly` : ''}</span>
-      </div>`).join('');
-  } else {
-    calloutEl.innerHTML = '';
-    holdingsSection.style.display = 'none';
-  }
-
-  // Sector weights (funds)
-  const sectorsSection = el('si-sectors-section');
-  if (d.sectorWeights && d.sectorWeights.length) {
-    sectorsSection.style.display = '';
-    el('si-sectors-list').innerHTML = d.sectorWeights.slice(0, 8).map(s => `
-      <span style="font-size:11px; padding:3px 8px; border-radius:5px; background:rgba(255,255,255,0.04); border:1px solid var(--border); color:var(--text-secondary);">
-        ${s.sector.replace(/_/g, ' ')} <strong style="color:var(--text-primary);">${s.pct.toFixed(1)}%</strong>
-      </span>`).join('');
-  } else sectorsSection.style.display = 'none';
-
-  // Deep link to the CSP opportunity modal when scanner data exists
-  const cspEl = el('si-csp-link');
-  const scannerHit = (window.allData || allData || []).find(x => x.symbol === d.symbol);
-  if (scannerHit) {
-    cspEl.style.display = '';
-    cspEl.innerHTML = `<button class="settings-action-btn" id="si-open-csp" style="width:auto;">View cash-secured put opportunity →</button>`;
-    el('si-open-csp').onclick = () => { closeSymbolInsight(); openModal(scannerHit); };
-  } else {
-    cspEl.style.display = 'none';
-    cspEl.innerHTML = '';
-  }
-
-  el('si-loading').style.display = 'none';
-  el('si-content').style.display = '';
+  await openSymbolDetails(symbol, 'compliance');
 }
 
 function closeSymbolInsight() {
-  el('symbol-insight-overlay')?.classList.add('hidden');
+  closeModal();
 }
-
-el('symbol-insight-close')?.addEventListener('click', closeSymbolInsight);
-el('symbol-insight-overlay')?.addEventListener('click', (e) => {
-  if (e.target === el('symbol-insight-overlay')) closeSymbolInsight();
-});
 
 // Tax-Smart Buy Ideas: renders the output of the rules-based engine that maps
 // the user's own targets + tax profile onto specific tickers. The heavy
@@ -1979,6 +2056,89 @@ async function enrichEmployerExposure(directPct) {
   } catch {}
 }
 
+function renderFilteredGuidance() {
+  const listEl = el('pf-guidance-list');
+  if (!listEl) return;
+
+  if (currentGuidanceItems.length === 0) {
+    listEl.innerHTML = `
+      <div class="guidance-item severity-info" style="border: 1px dashed rgba(6, 182, 212, 0.35); background: transparent;">
+        <span class="guidance-icon">✓</span>
+        <div class="guidance-content">
+          <span class="guidance-title">Portfolio is compliant</span>
+          <span class="guidance-message">No PFIC assets, elevated employer concentrations, or cash drag detected. Your current holdings are structured appropriately.</span>
+        </div>
+      </div>`;
+    const bAll = el('badge-count-all');
+    const bTax = el('badge-count-tax');
+    const bRebalance = el('badge-count-rebalance');
+    const bOptions = el('badge-count-options');
+    if (bAll) bAll.textContent = '0';
+    if (bTax) bTax.textContent = '0';
+    if (bRebalance) bRebalance.textContent = '0';
+    if (bOptions) bOptions.textContent = '0';
+    return;
+  }
+
+  let allCount = currentGuidanceItems.length;
+  let taxCount = 0;
+  let rebalanceCount = 0;
+  let optionsCount = 0;
+
+  for (const item of currentGuidanceItems) {
+    if (item.type === 'tax-pfic' || item.type === 'concentration' || item.type === 'swiss-tax') {
+      taxCount++;
+    } else if (item.type === 'glidepath' || item.type === 'tax-loss-harvesting' || item.type === 'tax-rebalance' || item.type === 'rebalance-watchlist') {
+      rebalanceCount++;
+    } else if (item.type === 'options-covered-call') {
+      optionsCount++;
+    }
+  }
+
+  const badgeAll = el('badge-count-all');
+  const badgeTax = el('badge-count-tax');
+  const badgeRebalance = el('badge-count-rebalance');
+  const badgeOptions = el('badge-count-options');
+  if (badgeAll) badgeAll.textContent = String(allCount);
+  if (badgeTax) badgeTax.textContent = String(taxCount);
+  if (badgeRebalance) badgeRebalance.textContent = String(rebalanceCount);
+  if (badgeOptions) badgeOptions.textContent = String(optionsCount);
+
+  const filtered = currentGuidanceItems.filter(item => {
+    if (currentGuidanceFilter === 'all') return true;
+    if (currentGuidanceFilter === 'tax') {
+      return item.type === 'tax-pfic' || item.type === 'concentration' || item.type === 'swiss-tax';
+    }
+    if (currentGuidanceFilter === 'rebalance') {
+      return item.type === 'glidepath' || item.type === 'tax-loss-harvesting' || item.type === 'tax-rebalance' || item.type === 'rebalance-watchlist';
+    }
+    if (currentGuidanceFilter === 'options') {
+      return item.type === 'options-covered-call';
+    }
+    return false;
+  });
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = `
+      <div style="padding: 32px; text-align: center; color: var(--text-muted); font-size: 13px;">
+        No alerts in this category.
+      </div>`;
+    return;
+  }
+
+  listEl.innerHTML = filtered.map(item => {
+    const icon = item.severity === 'error' ? '✕' : item.severity === 'warning' ? '⚠' : 'ℹ';
+    return `
+      <div class="guidance-item severity-${item.severity}">
+        <span class="guidance-icon">${icon}</span>
+        <div class="guidance-content">
+          <span class="guidance-title">${item.title}</span>
+          <span class="guidance-message">${item.message}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
 function renderPortfolio(p) {
   portfolio = p;
   const has = p.holdings.length > 0;
@@ -2043,30 +2203,9 @@ function renderPortfolio(p) {
         }));
       window.electronAPI.getPortfolioGuidance(p.holdings, p.cash, p.targets, watchlistData)
         .then(guidanceItems => {
-          if (guidanceItems.length === 0) {
-            listEl.innerHTML = `
-              <div class="guidance-item severity-info" style="border: 1px dashed rgba(6, 182, 212, 0.35); background: transparent;">
-                <span class="guidance-icon">✓</span>
-                <div class="guidance-content">
-                  <span class="guidance-title">Portfolio is compliant</span>
-                  <span class="guidance-message">No PFIC assets, elevated employer concentrations, or cash drag detected. Your current holdings are structured appropriately.</span>
-                </div>
-              </div>`;
-          } else {
-            listEl.innerHTML = guidanceItems.map(item => {
-              const icon = item.severity === 'error' ? '✕' : item.severity === 'warning' ? '⚠' : 'ℹ';
-              return `
-                <div class="guidance-item severity-${item.severity}">
-                  <span class="guidance-icon">${icon}</span>
-                  <div class="guidance-content">
-                    <span class="guidance-title">${item.title}</span>
-                    <span class="guidance-message">${item.message}</span>
-                  </div>
-                </div>`;
-            }).join('');
-          }
-
-          updateDashboardActionableSteps(guidanceItems, p.holdings);
+          currentGuidanceItems = guidanceItems || [];
+          renderFilteredGuidance();
+          updateDashboardActionableSteps(currentGuidanceItems, p.holdings);
         })
         .catch(err => console.error('Failed to load portfolio guidance:', err));
 
@@ -2116,7 +2255,7 @@ function renderPortfolio(p) {
 
   el('pf-holdings-tbody').innerHTML = rows.map(r => `
     <tr>
-      <td class="symbol-cell">${r.symbol}</td>
+      <td class="symbol-cell click-insight" data-symbol="${r.symbol}" style="cursor: pointer; color: var(--cyan); text-decoration: underline dotted;" title="Click for details &amp; compliance insights">${r.symbol}</td>
       <td>${fmt.currency(r.marketValue)}</td>
       <td>${pfPct(r.weightPct)}</td>
       <td>${r.costBasis != null ? fmt.currency(r.costBasis) : '—'}</td>
@@ -2129,6 +2268,12 @@ function renderPortfolio(p) {
       </td>
       <td><select class="schedule-select pf-bucket-select" data-idx="${r.idx}">${pfBucketOptions(r.bucket)}</select></td>
     </tr>`).join('');
+
+  el('pf-holdings-tbody').querySelectorAll('.click-insight').forEach(cell => {
+    cell.addEventListener('click', () => {
+      openSymbolInsight(cell.dataset.symbol);
+    });
+  });
 
   el('pf-holdings-tbody').querySelectorAll('.pf-bucket-select').forEach(sel => {
     sel.addEventListener('change', async () => {
@@ -2709,14 +2854,29 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     }
   }
 
-  const lookupBtn = el('pf-lookup-btn');
-  const lookupInput = el('pf-lookup-input');
-  if (lookupBtn) lookupBtn.addEventListener('click', runTickerLookup);
-  if (lookupInput) {
-    lookupInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter') runTickerLookup();
+  // Sidebar Ticker Search Wire-up
+  const sidebarSearch = el('sidebar-search-input');
+  if (sidebarSearch) {
+    sidebarSearch.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        const val = sidebarSearch.value.trim().toUpperCase();
+        if (val) {
+          openSymbolInsight(val);
+          sidebarSearch.value = '';
+        }
+      }
     });
   }
+
+  // Guidance Tabs Category Filters Wire-up
+  document.querySelectorAll('.guidance-tabs .tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.guidance-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentGuidanceFilter = btn.dataset.filter;
+      renderFilteredGuidance();
+    });
+  });
 
   renderPortfolio(await window.electronAPI.getPortfolio());
 }
