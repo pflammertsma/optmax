@@ -1536,6 +1536,53 @@ function saveScoringConfig(updates) {
   renderTables(allData);
 }
 
+// ─── Tax profile (Settings) ──────────────────────────────────────────────────
+// Codes are ISO-3166 alpha-2; 'US' is the one the logic actually keys on.
+const TAX_COUNTRIES = [
+  ['', '— select —'], ['US', 'United States'], ['CH', 'Switzerland'], ['NL', 'Netherlands'],
+  ['DE', 'Germany'], ['FR', 'France'], ['GB', 'United Kingdom'], ['IE', 'Ireland'],
+  ['BE', 'Belgium'], ['LU', 'Luxembourg'], ['AT', 'Austria'], ['IT', 'Italy'],
+  ['ES', 'Spain'], ['PT', 'Portugal'], ['DK', 'Denmark'], ['SE', 'Sweden'],
+  ['NO', 'Norway'], ['FI', 'Finland'], ['PL', 'Poland'], ['CZ', 'Czechia'],
+  ['CA', 'Canada'], ['MX', 'Mexico'], ['BR', 'Brazil'], ['AU', 'Australia'],
+  ['NZ', 'New Zealand'], ['JP', 'Japan'], ['KR', 'South Korea'], ['SG', 'Singapore'],
+  ['HK', 'Hong Kong'], ['TW', 'Taiwan'], ['IN', 'India'], ['IL', 'Israel'],
+  ['AE', 'United Arab Emirates'], ['ZA', 'South Africa'], ['OTHER', 'Other'],
+];
+
+function populateCountrySelects() {
+  const opts = TAX_COUNTRIES.map(([code, name]) => `<option value="${code}">${name}</option>`).join('');
+  for (const id of ['settings-residence-country', 'settings-employment-country', 'settings-citizenship-1', 'settings-citizenship-2']) {
+    const sel = el(id);
+    if (sel && !sel.options.length) sel.innerHTML = opts;
+  }
+}
+
+// Mirrors lib/pfic.js isUSPerson — renderer can't require lib modules.
+function taxProfileIsUSPerson(s) {
+  if (s.usGreenCard) return true;
+  const c1 = (s.citizenship1 || '').toUpperCase();
+  const c2 = (s.citizenship2 || '').toUpperCase();
+  const res = (s.residenceCountry || '').toUpperCase();
+  if (c1 === 'US' || c2 === 'US' || res === 'US') return true;
+  return !c1 && !c2 && !res; // never filled in ⇒ assume US person (fail-safe)
+}
+
+function updateTaxProfileStatus(settings) {
+  const box = el('tax-profile-pfic-status');
+  const estFields = el('pfic-estimator-fields');
+  if (!box) return;
+  const usPerson = taxProfileIsUSPerson(settings);
+  if (usPerson) {
+    box.style.cssText = 'font-size:12px; padding:8px 12px; border-radius:8px; margin:4px 0 12px 0; color:#f59e0b; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25);';
+    box.innerHTML = '<strong>US tax rules apply to you.</strong> Foreign-domiciled funds (PFICs) carry punitive US taxation — the app flags them and estimates your exit cost below.';
+  } else {
+    box.style.cssText = 'font-size:12px; padding:8px 12px; border-radius:8px; margin:4px 0 12px 0; color:var(--green); background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.25);';
+    box.innerHTML = '<strong>PFIC rules don’t apply to you</strong> (no US citizenship, green card, or US residence) — foreign-fund warnings and estimates are hidden.';
+  }
+  if (estFields) estFields.style.display = usPerson ? '' : 'none';
+}
+
 async function initSettingsUI() {
   try {
     const settings    = await window.electronAPI.getSettings();
@@ -1591,6 +1638,20 @@ async function initSettingsUI() {
     setIfEl('settings-cash-drag-threshold', settings.cashDragThreshold ?? 5000);
     setIfEl('settings-dividend-tax-rate', settings.dividendTaxRatePct ?? 30);
     setIfEl('settings-employer-symbols', settings.employerSymbols ?? '');
+
+    // Tax profile
+    populateCountrySelects();
+    setIfEl('settings-residence-country', settings.residenceCountry ?? 'CH');
+    setIfEl('settings-employment-country', settings.employmentCountry ?? 'CH');
+    setIfEl('settings-citizenship-1', settings.citizenship1 ?? 'US');
+    setIfEl('settings-citizenship-2', settings.citizenship2 ?? '');
+    const gcChk = el('settings-us-green-card');
+    if (gcChk) gcChk.checked = !!settings.usGreenCard;
+    setIfEl('settings-filing-status', settings.filingStatus ?? 'single');
+    setIfEl('settings-us-marginal-rate', settings.usMarginalRatePct ?? 32);
+    setIfEl('settings-pfic-interest-rate', settings.pficInterestRatePct ?? 8);
+    setIfEl('settings-pfic-years-held', settings.pficAssumedYears ?? 3);
+    updateTaxProfileStatus(settings);
     setIfEl('settings-ibkr-gateway-url', settings.ibkrGatewayUrl ?? 'https://localhost:5000');
     setIfEl('settings-ibkr-username', settings.ibkrUsername ?? '');
     const dirLabel = el('pf-gateway-dir-label');
@@ -1653,7 +1714,9 @@ async function initSettingsUI() {
   // (IBKR username + password are saved together via the dedicated Save
   // button below, not here — the password must never pass through the
   // generic plaintext saveSettings path.)
-  ['settings-birth-year', 'settings-glidepath-base', 'settings-cash-drag-threshold', 'settings-dividend-tax-rate', 'settings-employer-symbols', 'settings-ibkr-gateway-url'].forEach(id => {
+  ['settings-birth-year', 'settings-glidepath-base', 'settings-cash-drag-threshold', 'settings-dividend-tax-rate', 'settings-employer-symbols', 'settings-ibkr-gateway-url',
+   'settings-residence-country', 'settings-employment-country', 'settings-citizenship-1', 'settings-citizenship-2', 'settings-filing-status',
+   'settings-us-marginal-rate', 'settings-pfic-interest-rate', 'settings-pfic-years-held'].forEach(id => {
     const e = el(id); if (!e) return;
     e.addEventListener('change', async () => {
       const key = {
@@ -1663,19 +1726,40 @@ async function initSettingsUI() {
         'settings-dividend-tax-rate': 'dividendTaxRatePct',
         'settings-employer-symbols': 'employerSymbols',
         'settings-ibkr-gateway-url': 'ibkrGatewayUrl',
+        'settings-residence-country': 'residenceCountry',
+        'settings-employment-country': 'employmentCountry',
+        'settings-citizenship-1': 'citizenship1',
+        'settings-citizenship-2': 'citizenship2',
+        'settings-filing-status': 'filingStatus',
+        'settings-us-marginal-rate': 'usMarginalRatePct',
+        'settings-pfic-interest-rate': 'pficInterestRatePct',
+        'settings-pfic-years-held': 'pficAssumedYears',
       }[id];
-      const textFields = ['settings-employer-symbols', 'settings-ibkr-gateway-url'];
+      const textFields = ['settings-employer-symbols', 'settings-ibkr-gateway-url',
+        'settings-residence-country', 'settings-employment-country', 'settings-citizenship-1', 'settings-citizenship-2', 'settings-filing-status'];
+      const floatFields = ['settings-pfic-interest-rate'];
       let val = e.value;
       if (!textFields.includes(id)) {
-        val = parseInt(e.value, 10);
+        val = floatFields.includes(id) ? parseFloat(e.value) : parseInt(e.value, 10);
       }
-      await window.electronAPI.saveSettings({ [key]: val });
+      const merged = await window.electronAPI.saveSettings({ [key]: val });
+      updateTaxProfileStatus(merged);
 
       // Trigger portfolio render to update alerts immediately on settings changes
       const p = await window.electronAPI.getPortfolio();
       if (p) renderPortfolio(p);
     });
   });
+
+  const greenCardChk = el('settings-us-green-card');
+  if (greenCardChk) {
+    greenCardChk.addEventListener('change', async () => {
+      const merged = await window.electronAPI.saveSettings({ usGreenCard: greenCardChk.checked });
+      updateTaxProfileStatus(merged);
+      const p = await window.electronAPI.getPortfolio();
+      if (p) renderPortfolio(p);
+    });
+  }
 
   // IBKR credentials: save (encrypted) / clear
   async function refreshCredentialsStatus() {
@@ -2046,6 +2130,7 @@ function renderBuyIdeas(watchlistData) {
       const swapsWrap = el('pf-buy-ideas-swaps');
       if (swapsWrap) {
         swapsWrap.style.display = swaps.length ? '' : 'none';
+        if (swaps.length) renderPficCosts();
         if (swaps.length) {
           el('pf-buy-ideas-swaps-list').innerHTML = swaps.map(s => `
             <div style="display:flex; gap:10px; align-items:center; padding:8px 12px; background:rgba(244,63,94,0.05); border:1px solid rgba(244,63,94,0.15); border-radius:8px; font-size:12px;">
@@ -2066,6 +2151,64 @@ function renderBuyIdeas(watchlistData) {
       };
     })
     .catch(err => console.error('Failed to load buy recommendations:', err));
+}
+
+// ─── PFIC exit-cost estimates (§1291, planning only) ─────────────────────────
+// Rendered under the PFIC swaps list on Guidance: what selling each foreign
+// fund today is estimated to cost in US tax, and what waiting adds.
+async function renderPficCosts() {
+  const box = el('pf-pfic-costs');
+  if (!box) return;
+  try {
+    const res = await window.electronAPI.getPficEstimates();
+    if (!res?.relevant || !res.estimates?.length) { box.style.display = 'none'; return; }
+    const withGain = res.estimates.filter(e => e.gainUsd > 0 || e.lossUsd < 0);
+    if (!withGain.length) { box.style.display = 'none'; return; }
+    box.style.display = '';
+
+    const totalTax = withGain.reduce((s, e) => s + e.totalTax, 0);
+    const totalWait = withGain.reduce((s, e) => s + e.waitOneYearExtra, 0);
+    const anyAssumed = withGain.some(e => e.usedAssumedAge);
+
+    const rows = withGain.map(e => {
+      if (e.gainUsd <= 0) {
+        return `<tr>
+          <td style="font-family:'JetBrains Mono',monospace; font-weight:700;">${e.symbol}</td>
+          <td class="privacy-amount" style="color:var(--text-secondary);">${e.lossUsd < 0 ? `−$${Math.abs(e.lossUsd).toLocaleString('en-US')}` : '$0'}</td>
+          <td colspan="3" style="color:var(--text-secondary);">No gain — exiting now is tax-free (and PFIC losses aren't deductible, so there's nothing to wait for)</td>
+        </tr>`;
+      }
+      return `<tr>
+        <td style="font-family:'JetBrains Mono',monospace; font-weight:700;">${e.symbol}</td>
+        <td class="privacy-amount">$${e.gainUsd.toLocaleString('en-US')}</td>
+        <td class="privacy-amount" style="color:#f43f5e;">~$${e.totalTax.toLocaleString('en-US')} <span style="color:var(--text-muted);">(${e.effectiveRatePct.toFixed(0)}% of gain)</span></td>
+        <td class="privacy-amount" style="color:var(--green);">~$${e.ltcgComparisonTax.toLocaleString('en-US')}</td>
+        <td class="privacy-amount" style="color:#f59e0b;">+$${e.waitOneYearExtra.toLocaleString('en-US')}/yr${e.usedAssumedAge ? ' <span style="color:var(--text-muted);" title="No purchase dates in your import for this fund — using the assumed holding period from Settings.">*</span>' : ''}</td>
+      </tr>`;
+    }).join('');
+
+    box.innerHTML = `
+      <div style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">
+        What exiting is estimated to cost (US §1291 tax)
+      </div>
+      <div class="table-wrapper" style="overflow-x:auto;">
+        <table class="data-table" style="font-size:12px;">
+          <thead><tr>
+            <th>Fund</th><th>Unrealized gain</th><th>Est. tax if sold today</th><th>If it were a US fund</th><th>Cost of waiting</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div style="font-size:11px; color:var(--text-muted); margin-top:8px; line-height:1.6;">
+        Selling all ${withGain.length} today ≈ <strong class="privacy-amount" style="color:#f43f5e;">$${totalTax.toLocaleString('en-US')}</strong> in US tax;
+        every year you wait adds ≈ <strong class="privacy-amount" style="color:#f59e0b;">$${totalWait.toLocaleString('en-US')}</strong> in interest and top-rate throwback — the bill arrives whenever you sell, so waiting only grows it.
+        Assumes the default §1291 regime (no QEF/mark-to-market election), ${res.assumptions.marginalRatePct}% marginal rate, ${res.assumptions.interestRatePct}%/yr IRS interest${anyAssumed ? `, * = assumed ${res.assumptions.assumedYears}-year holding where lot dates are missing` : ''}; ignores NIIT and state tax.
+        <strong>A planning estimate, not tax advice — confirm with a US expat tax professional before selling.</strong> Adjust assumptions in Settings → Tax Profile.
+      </div>`;
+  } catch (err) {
+    console.error('Failed to load PFIC estimates:', err);
+    box.style.display = 'none';
+  }
 }
 
 // ─── Employer-stock sell-down plan (Phase 4) ─────────────────────────────────
@@ -2417,12 +2560,12 @@ function renderPortfolio(p) {
         .then(guidanceItems => {
           currentGuidanceItems = guidanceItems || [];
           renderFilteredGuidance();
-          updateDashboardActionableSteps(currentGuidanceItems, p.holdings);
         })
         .catch(err => console.error('Failed to load portfolio guidance:', err));
 
       renderBuyIdeas(watchlistData);
       renderSellDownCard();
+      renderDashboardActionPlan(watchlistData, true);
     }
   }
   if (!has) {
@@ -2584,52 +2727,62 @@ function renderPortfolio(p) {
   loadPortfolioHealth(has);
 }
 
-function updateDashboardActionableSteps(guidanceItems, holdings) {
+// One prioritized to-do list for the landing page — assembled in the main
+// process (lib/actions.js) from every advice engine, already deduplicated.
+const AP_KIND_STYLE = {
+  sell:    { label: 'Sell',    color: '#f59e0b' },
+  replace: { label: 'Replace', color: '#f43f5e' },
+  buy:     { label: 'Buy',     color: 'var(--green)' },
+  review:  { label: 'Review',  color: 'var(--cyan)' },
+};
+
+async function renderDashboardActionPlan(watchlistData, hasHoldings) {
   const wrap = el('dashboard-actionable-steps-wrap');
   const list = el('dashboard-actionable-steps-list');
   if (!wrap || !list) return;
 
-  if (!holdings || holdings.length === 0) {
+  if (!hasHoldings) {
     wrap.classList.add('hidden');
     return;
   }
 
-  const steps = [];
+  try {
+    const { actions, moreCount } = await window.electronAPI.getActionPlan(watchlistData);
+    wrap.classList.remove('hidden');
 
-  // 1. Position recommendations
-  holdings.forEach(h => {
-    const rec = h.recommendation;
-    if (rec && rec.type && rec.type !== 'Hold' && rec.type !== '—') {
-      const actionStyle = rec.type === 'Buy' ? 'color: var(--green)' : 'color: var(--orange)';
-      steps.push(`
-        <li style="margin-bottom: 4px;">
-          <strong style="${actionStyle}">${rec.type} ${h.symbol}</strong>: 
-          ${rec.reason || 'Asset needs adjustment.'}
-        </li>
-      `);
+    if (!actions.length) {
+      list.innerHTML = `
+        <div style="display:flex; align-items:center; gap:10px; padding:12px; color:var(--text-secondary); font-size:13px;">
+          <span style="color:var(--green); font-size:16px;">✓</span>
+          Nothing needs your attention right now — your portfolio matches your plan.
+          New steps appear here when a sell-down tranche comes due, cash builds up, or an alert fires.
+        </div>`;
+      return;
     }
-  });
 
-  // 2. Compliance and health alerts
-  if (guidanceItems) {
-    guidanceItems.forEach(item => {
-      if (item.severity === 'error' || item.severity === 'warning') {
-        const itemStyle = item.severity === 'error' ? 'color: var(--red)' : 'color: var(--orange)';
-        steps.push(`
-          <li style="margin-bottom: 4px;">
-            <strong style="${itemStyle}">${item.title}</strong>: ${item.message}
-          </li>
-        `);
-      }
-    });
-  }
+    list.innerHTML = actions.map((a, i) => {
+      const k = AP_KIND_STYLE[a.kind] || AP_KIND_STYLE.review;
+      return `
+        <div class="ap-row" data-nav="${a.nav || 'guidance'}" style="display:flex; gap:12px; align-items:flex-start; padding:10px 12px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-left:3px solid ${k.color}; border-radius:8px; cursor:pointer;"
+             title="Click for the full reasoning">
+          <span style="color:var(--text-muted); font-family:'JetBrains Mono',monospace; font-size:12px; padding-top:2px; min-width:16px;">${i + 1}.</span>
+          <span style="min-width:58px; text-align:center; color:${k.color}; background:color-mix(in srgb, ${k.color} 12%, transparent); border:1px solid color-mix(in srgb, ${k.color} 30%, transparent); border-radius:4px; padding:1px 7px; font-size:10px; font-weight:700; text-transform:uppercase; margin-top:1px;">${k.label}</span>
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:600; font-size:13px; color:var(--text-primary);">${a.title}${a.urgent ? ' <span style="color:var(--red); font-size:10px; font-weight:700; text-transform:uppercase;">· urgent</span>' : ''}</div>
+            <div style="font-size:12px; color:var(--text-secondary); margin-top:2px; line-height:1.5;">${a.detail || ''}</div>
+          </div>
+          ${a.amountUsd ? `<div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:${k.color}; flex-shrink:0;" class="privacy-amount">~$${a.amountUsd.toLocaleString('en-US')}</div>` : ''}
+        </div>`;
+    }).join('')
+      + (moreCount > 0 ? `<div style="font-size:12px; color:var(--text-muted); padding:4px 12px;">+ ${moreCount} more on the Guidance page</div>` : '');
 
-  if (steps.length > 0) {
-    list.innerHTML = steps.join('');
-    wrap.classList.remove('hidden');
-  } else {
-    list.innerHTML = `<li style="list-style: none; margin-left: -20px; color: var(--text-muted);">✓ Your portfolio is perfectly balanced. No immediate action required!</li>`;
-    wrap.classList.remove('hidden');
+    // Row click → jump to the view that owns the full detail
+    list.onclick = (e) => {
+      const row = e.target.closest('.ap-row');
+      if (row?.dataset.nav) navigate(row.dataset.nav);
+    };
+  } catch (err) {
+    console.error('Failed to load action plan:', err);
   }
 }
 

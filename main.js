@@ -120,6 +120,8 @@ const { computePortfolioHealth, projectAnnualDividends } = require('./lib/health
 const { createIbkrClient, isLoopbackGatewayUrl, gatewayLaunchSpec, treeKillSpec } = require('./lib/ibkr');
 const { computeFundOverlap, computeIndexImpliedEmployer } = require('./lib/funds');
 const { buildPlan, computePlanStatus } = require('./lib/selldown');
+const { buildActionPlan } = require('./lib/actions');
+const { isUSPerson, estimatePficExitCost } = require('./lib/pfic');
 const { spawn } = require('child_process');
 
 const CACHE_FILE      = path.join(app.getPath('userData'), 'data.json');
@@ -158,6 +160,19 @@ const DEFAULT_SETTINGS = {
   ibkrAutoStart: false,
   ibkrUsername: '',
   ibkrPasswordEncrypted: '', // base64 ciphertext from Electron safeStorage — never plaintext
+  // Tax profile: drives which tax rules the guidance engines apply (PFIC
+  // relevance in particular) + the §1291 exit-cost estimator. Defaults match
+  // the app's original persona (US/NL citizen resident in CH) so existing
+  // behavior is unchanged until the user edits them.
+  residenceCountry: 'CH',
+  employmentCountry: 'CH',
+  citizenship1: 'US',
+  citizenship2: 'NL',
+  usGreenCard: false,
+  filingStatus: 'single',
+  usMarginalRatePct: 32,
+  pficInterestRatePct: 8,
+  pficAssumedYears: 3,
 };
 
 function loadSettings() {
@@ -306,7 +321,8 @@ function portfolioView(p) {
     const symbolUpper = h.symbol?.toUpperCase();
     const q = quotesMap.get(symbolUpper);
     const watchlistInfo = watchlistMap.get(symbolUpper);
-    const rec = calculateHoldingRecommendation(h, q, watchlistInfo, drifts, p.tolerancePct, total);
+    const rec = calculateHoldingRecommendation(h, q, watchlistInfo, drifts, p.tolerancePct, total,
+      { usPerson: isUSPerson(settings) });
     return { ...h, recommendation: rec };
   });
 
@@ -1512,6 +1528,108 @@ app.whenReady().then(() => {
     delete p.sellDownPlan;
     savePortfolio({ ...p, updatedAt: new Date().toISOString() });
     return { success: true };
+  });
+
+  // ── PFIC exit-cost estimates (§1291, planning only — not tax advice) ───────
+  // Per held PFIC: what selling today would cost in US tax vs. waiting.
+  // Uses per-lot acquisition dates from the Activity Statement import when
+  // available; otherwise the assumed-years-held setting.
+  ipcMain.handle('get-pfic-estimates', async () => {
+    const p = loadPortfolio();
+    const settings = loadSettings();
+    if (!isUSPerson(settings)) return { relevant: false, estimates: [] };
+
+    const estimates = [];
+    await Promise.all((p.holdings || []).map(async h => {
+      const sym = (h.symbol || '').toUpperCase();
+      if (!sym || h.assetCategory === 'OPT' || sym.length > 8) return;
+      let quote = null;
+      try { quote = await fetchQuoteForHolding(h); } catch {}
+      const analysis = analyzeTicker(sym, p.holdings, p.cash, quote);
+      if (!analysis?.isPfic) return;
+      const est = estimatePficExitCost({
+        currentValue: h.marketValue || 0,
+        costBasis: h.costBasis ?? (h.marketValue || 0), // unknown basis ⇒ no gain to model
+        lots: h.lots || [],
+        marginalRatePct: settings.usMarginalRatePct ?? 32,
+        interestRatePct: settings.pficInterestRatePct ?? 8,
+        assumedYearsHeld: settings.pficAssumedYears ?? 3,
+      });
+      estimates.push({ symbol: sym, marketValue: h.marketValue || 0, unknownBasis: h.costBasis == null, ...est });
+    }));
+
+    estimates.sort((a, b) => b.totalTax - a.totalTax);
+    return {
+      relevant: true,
+      estimates,
+      assumptions: {
+        marginalRatePct: settings.usMarginalRatePct ?? 32,
+        interestRatePct: settings.pficInterestRatePct ?? 8,
+        assumedYears: settings.pficAssumedYears ?? 3,
+      },
+    };
+  });
+
+  // ── Dashboard action plan ──────────────────────────────────────────────────
+  // One prioritized to-do list assembled from every advice engine; the
+  // arbitration/dedupe logic lives in lib/actions.js (pure, unit-tested).
+  ipcMain.handle('get-action-plan', async (_event, watchlistData) => {
+    const p = loadPortfolio();
+    if (!p.holdings || !p.holdings.length) return { actions: [], moreCount: 0 };
+    const settings = loadSettings();
+
+    // Same quote policy as the guidance/buy-recs handlers: currency-validated
+    // for holdings, USD-only for curated candidates. All cached, so cheap.
+    const quotes = {};
+    await Promise.all(p.holdings.map(async h => {
+      try {
+        const q = await fetchQuoteForHolding(h);
+        if (q) quotes[h.symbol.toUpperCase()] = q;
+      } catch {}
+    }));
+    await Promise.all(CURATED_CANDIDATES.map(async c => {
+      if (quotes[c.symbol]) return;
+      try {
+        const q = await fetchCachedQuote(c.symbol);
+        if (q && (q.currency || 'USD').toUpperCase() === 'USD') quotes[c.symbol] = q;
+      } catch {}
+    }));
+
+    const wl = watchlistData || [];
+    const guidanceItems = generatePortfolioGuidance(p.holdings, p.cash, p.targets, settings, quotes, wl);
+    const buyRecs = generateBuyRecommendations({
+      holdings: p.holdings, cash: p.cash, targets: p.targets, settings, quotes, watchlistData: wl,
+    });
+
+    let selldown = null;
+    if (p.sellDownPlan) {
+      const current = await selldownCurrentPosition(p, p.sellDownPlan.symbol);
+      if (current) selldown = { plan: p.sellDownPlan, status: computePlanStatus(p.sellDownPlan, current) };
+    } else {
+      // No plan yet: surface the largest employer position so the action plan
+      // can nudge toward starting one (holding-level flags + settings both count).
+      const employerSyms = new Set((settings.employerSymbols || '').toUpperCase().split(',').map(s => s.trim()).filter(Boolean));
+      const employerHoldings = p.holdings.filter(h =>
+        (h.isEmployerStock || employerSyms.has((h.symbol || '').toUpperCase())) && h.quantity > 0);
+      if (employerHoldings.length) {
+        const biggest = employerHoldings.reduce((a, b) => ((b.marketValue || 0) > (a.marketValue || 0) ? b : a));
+        const total = totalValue(p.holdings, p.cash);
+        if (total > 0) {
+          selldown = {
+            plan: null,
+            candidate: {
+              symbol: (biggest.symbol || '').toUpperCase(),
+              weightPct: ((biggest.marketValue || 0) / total) * 100,
+            },
+          };
+        }
+      }
+    }
+
+    return buildActionPlan({
+      selldown, buyRecs, guidanceItems,
+      holdings: portfolioView(p).holdings, // carries per-holding .recommendation
+    });
   });
 
   // Everything the Symbol Insights dialog needs for one symbol: identity,

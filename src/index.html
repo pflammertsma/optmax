@@ -1,22 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PortMax</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
   <div class="window-drag-region">
     <div class="window-controls">
       <button class="wc-btn" id="wc-privacy" title="Toggle Privacy Mode"></button>
       <button class="wc-btn wc-minimize" id="wc-minimize" title="Minimize">&#x2013;</button>
       <button class="wc-btn wc-maximize" id="wc-maximize" title="Maximize">&#x25A1;</button>
-      <button class="wc-btn wc-close"    id="wc-close"    title="Close">&#x2715;</button>
+      <button class="wc-btn wc-close" id="wc-close" title="Close">&#x2715;</button>
     </div>
   </div>
 
@@ -30,29 +34,50 @@
 
       <!-- Sidebar Search -->
       <div class="sidebar-search">
-        <input type="text" id="sidebar-search-input" placeholder="Search Ticker..." autocomplete="off" spellcheck="false" />
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="sidebar-search-input" placeholder="Search Ticker..." autocomplete="off"
+          spellcheck="false" />
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
       </div>
 
       <nav class="nav">
         <a class="nav-link active" data-view="dashboard">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+          </svg>
           Dashboard
         </a>
         <a class="nav-link" data-view="portfolio">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
+            <path d="M22 12A10 10 0 0 0 12 2v10z" />
+          </svg>
           Portfolio
         </a>
         <a class="nav-link" data-view="targets">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <circle cx="12" cy="12" r="6"></circle>
+            <circle cx="12" cy="12" r="2"></circle>
+          </svg>
           Targets
         </a>
         <a class="nav-link" data-view="guidance">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
           Guidance
         </a>
         <a class="nav-link" data-view="health" id="nav-health">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+          </svg>
           Health
           <span id="nav-health-badge" style="margin-left:auto; display:flex; align-items:center;"></span>
         </a>
@@ -60,25 +85,45 @@
         <div class="nav-sep"></div>
 
         <a class="nav-link" data-view="favorites">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polygon
+              points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
+            </polygon>
+          </svg>
           Starred Stocks
         </a>
         <a class="nav-link" data-view="screener">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="8" y1="6" x2="21" y2="6" />
+            <line x1="8" y1="12" x2="21" y2="12" />
+            <line x1="8" y1="18" x2="21" y2="18" />
+            <line x1="3" y1="6" x2="3.01" y2="6" />
+            <line x1="3" y1="12" x2="3.01" y2="12" />
+            <line x1="3" y1="18" x2="3.01" y2="18" />
+          </svg>
           Screener
         </a>
 
         <div class="nav-sep"></div>
 
         <a class="nav-link" data-view="options-scanner">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+          </svg>
           Option Scanner
         </a>
 
         <div class="nav-sep"></div>
 
         <a class="nav-link" data-view="settings">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z">
+            </path>
+          </svg>
           Settings
         </a>
       </nav>
@@ -100,31 +145,50 @@
         </div>
 
         <div class="metric-cards" id="metric-cards" style="flex-shrink: 0; margin-bottom: 16px;">
-          <div class="metric-card skeleton"><div class="metric-label">Watchlist Stocks</div><div class="metric-value">—</div></div>
-          <div class="metric-card skeleton"><div class="metric-label">Graded Opportunities</div><div class="metric-value">—</div></div>
+          <div class="metric-card skeleton">
+            <div class="metric-label">Watchlist Stocks</div>
+            <div class="metric-value">—</div>
+          </div>
+          <div class="metric-card skeleton">
+            <div class="metric-label">Graded Opportunities</div>
+            <div class="metric-value">—</div>
+          </div>
         </div>
 
-        <!-- Actionable Next Steps Card (top 1/3) -->
-        <div class="settings-card hidden" id="dashboard-actionable-steps-wrap" style="flex: 1; min-height: 0; max-height: 33%; margin-bottom: 16px; border: 1px solid rgba(0, 240, 255, 0.15); background: rgba(0, 240, 255, 0.02); padding: 16px; border-radius: var(--radius); display: flex; flex-direction: column; flex-shrink: 0;">
-          <div class="settings-card-title" style="color: var(--cyan); margin-bottom: 12px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-shrink: 0;" title="Actionable steps determined from current portfolio allocations, holdings, and compliance checks.">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-            <span>Actionable Next Steps</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--text-muted); cursor: help;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <!-- Action Plan: one prioritized to-do list merged from every advice
+             engine (sell-down plan, buy ideas, PFIC swaps, holding recs,
+             compliance) — the first thing the user sees on landing. -->
+        <div class="settings-card hidden" id="dashboard-actionable-steps-wrap"
+          style="flex: 1; min-height: 0; max-height: 50%; margin-bottom: 16px; border: 1px solid rgba(0, 240, 255, 0.15); background: rgba(0, 240, 255, 0.02); padding: 16px; border-radius: var(--radius); display: flex; flex-direction: column; flex-shrink: 0;">
+          <div class="settings-card-title"
+            style="color: var(--cyan); margin-bottom: 12px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-shrink: 0;"
+            title="Everything the app recommends, merged into one prioritized list: scheduled sales, replacements, and buys. Click an item for the full reasoning.">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 11 12 14 22 4" />
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+            </svg>
+            <span>Your Action Plan</span>
+            <span
+              style="font-size: 11px; font-weight: 400; color: var(--text-muted); text-transform: none; letter-spacing: 0; margin-left: auto;">What
+              to do next, most important first — click an item for details</span>
           </div>
           <div style="flex: 1; overflow-y: auto; padding-right: 8px;">
-            <ul id="dashboard-actionable-steps-list" style="margin: 0; padding-left: 20px; color: var(--text-primary); font-size: 13px; line-height: 1.7; display: flex; flex-direction: column; gap: 8px;">
+            <div id="dashboard-actionable-steps-list"
+              style="display: flex; flex-direction: column; gap: 8px; color: var(--text-primary); font-size: 13px;">
               <!-- Actions will be injected here -->
-            </ul>
+            </div>
           </div>
         </div>
 
         <div class="empty-state" id="empty-state" style="display:none">
           <div class="empty-state-icon">◈</div>
           <h3 class="empty-state-title">No stocks in your watchlist yet</h3>
-          <p class="empty-state-body">Add stocks to your watchlist in the Screener view, then click <strong>Refresh Data</strong> to run your first scan.</p>
+          <p class="empty-state-body">Add stocks to your watchlist in the Screener view, then click <strong>Refresh
+              Data</strong> to run your first scan.</p>
         </div>
 
-        <div class="preview-grid" id="preview-grid" style="flex: 2; min-height: 0; display: flex; gap: 20px; overflow-x: auto; padding-bottom: 12px;">
+        <div class="preview-grid" id="preview-grid"
+          style="flex: 2; min-height: 0; display: flex; gap: 20px; overflow-x: auto; padding-bottom: 12px;">
           <div class="preview-section">
             <div class="preview-header">
               <h2 class="preview-title">Top 10 Overall</h2>
@@ -142,14 +206,17 @@
           <div class="preview-section">
             <div class="preview-header">
               <h2 class="preview-title">Top 10 Mega Caps</h2>
-              <span class="preview-badge" style="background:rgba(112,0,255,0.1); border-color:rgba(112,0,255,0.2); color:#a855f7">mkt cap ≥ $200B</span>
+              <span class="preview-badge"
+                style="background:rgba(112,0,255,0.1); border-color:rgba(112,0,255,0.2); color:#a855f7">mkt cap ≥
+                $200B</span>
             </div>
             <div class="preview-list" id="preview-megacaps"></div>
           </div>
           <div class="preview-section">
             <div class="preview-header">
               <h2 class="preview-title">Top 10 Starred</h2>
-              <span class="preview-badge" style="background:rgba(251,191,36,0.1); border-color:rgba(251,191,36,0.2); color:#fbbf24">favorites</span>
+              <span class="preview-badge"
+                style="background:rgba(251,191,36,0.1); border-color:rgba(251,191,36,0.2); color:#fbbf24">favorites</span>
             </div>
             <div class="preview-list" id="preview-starred"></div>
           </div>
@@ -199,7 +266,8 @@
           </div>
           <div class="filter-group">
             <label class="filter-label" for="filter-market-cap">Min Market Cap</label>
-            <select class="schedule-select" id="filter-market-cap" style="padding: 3px 8px; font-size: 11.5px; height: auto; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary);">
+            <select class="schedule-select" id="filter-market-cap"
+              style="padding: 3px 8px; font-size: 11.5px; height: auto; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary);">
               <option value="0">All</option>
               <option value="200000000000">> $200B (Mega)</option>
               <option value="10000000000">> $10B (Large)</option>
@@ -233,30 +301,47 @@
                 <th data-col="marketCap">Mkt Cap</th>
                 <th data-col="score" data-sort="desc">Score</th>
                 <th data-col="grade">Grade</th>
-                <th data-col="ivr" class="options-metric" title="Implied Volatility Rank: compares the stock's current option volatility to its 52-week range (0 to 100). Higher values favor options sellers.">IVR</th>
-                <th data-col="ivHvRatio" class="options-metric" title="Implied Volatility vs Historical Volatility. A ratio above 1.3x indicates option prices are relatively expensive, favoring options sellers.">IV/HV</th>
-                <th data-col="monthlyYield" class="options-metric" title="Monthly Yield: estimated monthly return from selling options contracts relative to capital required.">Mo. Yield</th>
+                <th data-col="ivr" class="options-metric"
+                  title="Implied Volatility Rank: compares the stock's current option volatility to its 52-week range (0 to 100). Higher values favor options sellers.">
+                  IVR</th>
+                <th data-col="ivHvRatio" class="options-metric"
+                  title="Implied Volatility vs Historical Volatility. A ratio above 1.3x indicates option prices are relatively expensive, favoring options sellers.">
+                  IV/HV</th>
+                <th data-col="monthlyYield" class="options-metric"
+                  title="Monthly Yield: estimated monthly return from selling options contracts relative to capital required.">
+                  Mo. Yield</th>
                 <th style="min-width:100px" class="options-metric">Score Bar</th>
                 <th></th>
               </tr>
             </thead>
-            <tbody id="tbody-screener"><tr><td colspan="12" class="empty-row">Add stocks to your watchlist to get started.</td></tr></tbody>
+            <tbody id="tbody-screener">
+              <tr>
+                <td colspan="12" class="empty-row">Add stocks to your watchlist to get started.</td>
+              </tr>
+            </tbody>
           </table>
         </div>
       </section>
 
       <!-- Option Scanner View (Consolidated) -->
       <section class="view" id="view-options-scanner">
-        <div class="view-header" style="flex-direction: column; align-items: flex-start; gap: 12px; margin-bottom: 20px;">
+        <div class="view-header"
+          style="flex-direction: column; align-items: flex-start; gap: 12px; margin-bottom: 20px;">
           <div>
             <h1 class="view-title" style="margin-bottom: 4px;">Option Scanner</h1>
-            <span class="view-subtitle">Select a strategy or run a market scan to find cash-secured put opportunities</span>
+            <span class="view-subtitle">Select a strategy or run a market scan to find cash-secured put
+              opportunities</span>
           </div>
-          <div style="display: flex; gap: 8px; background: rgba(255,255,255,0.03); padding: 4px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">
-            <button class="settings-action-btn subview-btn active" data-subview="top25" style="width:auto; margin:0">Top 25 Overall</button>
-            <button class="settings-action-btn subview-btn" data-subview="under10k" style="width:auto; margin:0">Top 25 Under $10k</button>
-            <button class="settings-action-btn subview-btn" data-subview="megacaps" style="width:auto; margin:0">Top 25 Mega Caps</button>
-            <button class="settings-action-btn subview-btn" data-subview="discover" style="width:auto; margin:0">Discover Scanner</button>
+          <div
+            style="display: flex; gap: 8px; background: rgba(255,255,255,0.03); padding: 4px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">
+            <button class="settings-action-btn subview-btn active" data-subview="top25" style="width:auto; margin:0">Top
+              25 Overall</button>
+            <button class="settings-action-btn subview-btn" data-subview="under10k" style="width:auto; margin:0">Top 25
+              Under $10k</button>
+            <button class="settings-action-btn subview-btn" data-subview="megacaps" style="width:auto; margin:0">Top 25
+              Mega Caps</button>
+            <button class="settings-action-btn subview-btn" data-subview="discover"
+              style="width:auto; margin:0">Discover Scanner</button>
           </div>
         </div>
 
@@ -280,7 +365,11 @@
                   <th></th>
                 </tr>
               </thead>
-              <tbody id="tbody-top25"><tr><td colspan="12" class="empty-row">No data yet — click Refresh.</td></tr></tbody>
+              <tbody id="tbody-top25">
+                <tr>
+                  <td colspan="12" class="empty-row">No data yet — click Refresh.</td>
+                </tr>
+              </tbody>
             </table>
           </div>
         </div>
@@ -305,7 +394,11 @@
                   <th></th>
                 </tr>
               </thead>
-              <tbody id="tbody-under10k"><tr><td colspan="12" class="empty-row">No data yet — click Refresh.</td></tr></tbody>
+              <tbody id="tbody-under10k">
+                <tr>
+                  <td colspan="12" class="empty-row">No data yet — click Refresh.</td>
+                </tr>
+              </tbody>
             </table>
           </div>
         </div>
@@ -330,7 +423,11 @@
                   <th></th>
                 </tr>
               </thead>
-              <tbody id="tbody-megacaps"><tr><td colspan="12" class="empty-row">No data yet — click Refresh.</td></tr></tbody>
+              <tbody id="tbody-megacaps">
+                <tr>
+                  <td colspan="12" class="empty-row">No data yet — click Refresh.</td>
+                </tr>
+              </tbody>
             </table>
           </div>
         </div>
@@ -339,9 +436,13 @@
         <div class="scanner-subview hidden" id="subview-discover">
           <div class="discover-intro" id="discover-intro">
             <p class="discover-intro-text">
-              Scans the 200–300 most active and volatile stocks on Yahoo Finance and evaluates them using our unified <strong>100-Point Scoring Engine</strong>. 
-              Stocks are analyzed across five core risk-return dimensions: <strong>Volatility (35 pts)</strong>, <strong>Yield (25 pts)</strong>, <strong>Strike Quality (20 pts)</strong>, <strong>Liquidity (12 pts)</strong>, and <strong>Trend (8 pts)</strong>. 
-              All valid opportunities are ranked by composite score, automatically added to your Watchlist, and merged directly into your Dashboard cache. 
+              Scans the 200–300 most active and volatile stocks on Yahoo Finance and evaluates them using our unified
+              <strong>100-Point Scoring Engine</strong>.
+              Stocks are analyzed across five core risk-return dimensions: <strong>Volatility (35 pts)</strong>,
+              <strong>Yield (25 pts)</strong>, <strong>Strike Quality (20 pts)</strong>, <strong>Liquidity (12
+                pts)</strong>, and <strong>Trend (8 pts)</strong>.
+              All valid opportunities are ranked by composite score, automatically added to your Watchlist, and merged
+              directly into your Dashboard cache.
               Scan takes <strong>5–10 minutes</strong>.
             </p>
             <div class="discover-sources">
@@ -351,11 +452,17 @@
             </div>
             <div class="discover-actions">
               <button class="discover-run-btn" id="discover-run-btn">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
                 Scan Market
               </button>
               <button class="discover-run-btn discover-force-btn" id="discover-force-btn">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><polyline points="16 8 21 8 21 3"/></svg>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                  <polyline points="16 8 21 8 21 3" />
+                </svg>
                 Force Full Scan
               </button>
             </div>
@@ -377,17 +484,30 @@
               <div class="discover-group-header">
                 <div>
                   <h3 class="discover-group-title">Top Candidates by Score</h3>
-                  <span class="discover-group-sub">Ranked by composite 100-point score — all found opportunities shown</span>
+                  <span class="discover-group-sub">Ranked by composite 100-point score — all found opportunities
+                    shown</span>
                 </div>
               </div>
               <div class="table-wrapper">
                 <table class="data-table">
-                  <thead><tr>
-                    <th>#</th><th>Symbol</th><th>Score</th><th>Grade</th>
-                    <th>IV%</th><th>IVR</th><th>IV/HV</th>
-                    <th>Mo. Yield</th><th>Ann. Yield</th>
-                  </tr></thead>
-                  <tbody id="discover-tbody-unified"><tr><td colspan="9" class="empty-row">Run a scan to see candidates.</td></tr></tbody>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Symbol</th>
+                      <th>Score</th>
+                      <th>Grade</th>
+                      <th>IV%</th>
+                      <th>IVR</th>
+                      <th>IV/HV</th>
+                      <th>Mo. Yield</th>
+                      <th>Ann. Yield</th>
+                    </tr>
+                  </thead>
+                  <tbody id="discover-tbody-unified">
+                    <tr>
+                      <td colspan="9" class="empty-row">Run a scan to see candidates.</td>
+                    </tr>
+                  </tbody>
                 </table>
               </div>
             </div>
@@ -395,7 +515,10 @@
             <div class="discover-footer">
               <span class="discover-summary" id="discover-summary"></span>
               <button class="discover-run-btn discover-run-again" id="discover-run-again-btn">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="23 4 23 10 17 10" />
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                </svg>
                 Scan Again
               </button>
             </div>
@@ -420,7 +543,8 @@
           <div>
             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
               <h1 class="view-title" style="margin-bottom: 0;">Starred Stocks</h1>
-              <span class="preview-badge" style="background:rgba(251,191,36,0.1); border-color:rgba(251,191,36,0.2); color:#fbbf24; margin: 0;">favorites</span>
+              <span class="preview-badge"
+                style="background:rgba(251,191,36,0.1); border-color:rgba(251,191,36,0.2); color:#fbbf24; margin: 0;">favorites</span>
             </div>
             <span class="view-subtitle">Your favorite watchlisted opportunities</span>
           </div>
@@ -443,17 +567,33 @@
                 <th data-col="marketCap">Mkt Cap</th>
                 <th data-col="grade">Grade</th>
                 <th data-col="score">Score</th>
-                <th data-col="strike" class="options-metric" title="Strike Price: the target price at which you agree to buy the stock.">Strike</th>
-                <th data-col="dte" class="options-metric" title="Days to Expiration: the number of calendar days remaining until the options contract expires.">DTE</th>
-                <th data-col="premium" class="options-metric" title="Premium: the cash income paid to you by the option buyer for taking on the contract.">Premium</th>
-                <th data-col="capitalRequired" class="options-metric" title="Capital Required: the cash buffer you must hold in your account to collateralize the options contract (usually Strike × 100).">Capital Req.</th>
-                <th data-col="monthlyYield" class="options-metric" title="Monthly Yield: estimated monthly return on your required capital.">Mo. Yield</th>
-                <th data-col="annualizedYield" class="options-metric" title="Annualized Yield: the monthly return compounded/projected over a full 12-month period.">Ann. Yield</th>
-                <th data-col="monthlyIncome" class="options-metric" title="Monthly Income: estimated cash cashflow per month based on premium and contract size.">Mo. Income</th>
+                <th data-col="strike" class="options-metric"
+                  title="Strike Price: the target price at which you agree to buy the stock.">Strike</th>
+                <th data-col="dte" class="options-metric"
+                  title="Days to Expiration: the number of calendar days remaining until the options contract expires.">
+                  DTE</th>
+                <th data-col="premium" class="options-metric"
+                  title="Premium: the cash income paid to you by the option buyer for taking on the contract.">Premium
+                </th>
+                <th data-col="capitalRequired" class="options-metric"
+                  title="Capital Required: the cash buffer you must hold in your account to collateralize the options contract (usually Strike × 100).">
+                  Capital Req.</th>
+                <th data-col="monthlyYield" class="options-metric"
+                  title="Monthly Yield: estimated monthly return on your required capital.">Mo. Yield</th>
+                <th data-col="annualizedYield" class="options-metric"
+                  title="Annualized Yield: the monthly return compounded/projected over a full 12-month period.">Ann.
+                  Yield</th>
+                <th data-col="monthlyIncome" class="options-metric"
+                  title="Monthly Income: estimated cash cashflow per month based on premium and contract size.">Mo.
+                  Income</th>
                 <th></th>
               </tr>
             </thead>
-            <tbody id="tbody-favorites"><tr><td colspan="14" class="empty-row">No starred stocks yet.</td></tr></tbody>
+            <tbody id="tbody-favorites">
+              <tr>
+                <td colspan="14" class="empty-row">No starred stocks yet.</td>
+              </tr>
+            </tbody>
           </table>
         </div>
       </section>
@@ -471,33 +611,62 @@
           </div>
           <div style="display:flex; gap:8px; align-items:center;">
             <button class="settings-action-btn" id="pf-ibkr-sync-btn" style="width:auto">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M21 12a9 9 0 1 1-3-6.7" />
+                <polyline points="21 3 21 9 15 9" />
+              </svg>
               Sync IBKR
             </button>
             <button class="settings-action-btn" id="pf-prices-btn" style="width:auto">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
               Refresh Prices
             </button>
             <button class="settings-action-btn" id="pf-import-btn" style="width:auto">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
               Import IBKR CSV
             </button>
           </div>
         </div>
 
         <div class="metric-cards" id="pf-metric-cards">
-          <div class="metric-card" title="Overall score based on diversification, tax compliance, and allocation drift"><div class="metric-label">Health Grade</div><div class="metric-value" id="pf-health-grade">—</div></div>
-          <div class="metric-card" title="Total value of all positions, cash, and option contracts"><div class="metric-label">Total Value</div><div class="metric-value" id="pf-total-value">—</div></div>
-          <div class="metric-card" title="Settled cash waiting to be deployed or held as cushion"><div class="metric-label" id="pf-cash-label">Cash</div><div class="metric-value" id="pf-cash">—</div></div>
-          <div class="metric-card" title="Estimated annual dividend payments based on current holdings"><div class="metric-label">Est. Dividends / yr</div><div class="metric-value" id="pf-dividends">—</div></div>
-          <div class="metric-card" title="Percentage of portfolio held in employer stock (keep under 10% for safety)"><div class="metric-label">Employer Stock</div><div class="metric-value" id="pf-employer-pct">—</div></div>
-          <div class="metric-card" title="Your largest single position (aim for broad ETFs as largest)"><div class="metric-label">Largest Position</div><div class="metric-value" id="pf-largest">—</div></div>
+          <div class="metric-card" title="Overall score based on diversification, tax compliance, and allocation drift">
+            <div class="metric-label">Health Grade</div>
+            <div class="metric-value" id="pf-health-grade">—</div>
+          </div>
+          <div class="metric-card" title="Total value of all positions, cash, and option contracts">
+            <div class="metric-label">Total Value</div>
+            <div class="metric-value" id="pf-total-value">—</div>
+          </div>
+          <div class="metric-card" title="Settled cash waiting to be deployed or held as cushion">
+            <div class="metric-label" id="pf-cash-label">Cash</div>
+            <div class="metric-value" id="pf-cash">—</div>
+          </div>
+          <div class="metric-card" title="Estimated annual dividend payments based on current holdings">
+            <div class="metric-label">Est. Dividends / yr</div>
+            <div class="metric-value" id="pf-dividends">—</div>
+          </div>
+          <div class="metric-card" title="Percentage of portfolio held in employer stock (keep under 10% for safety)">
+            <div class="metric-label">Employer Stock</div>
+            <div class="metric-value" id="pf-employer-pct">—</div>
+          </div>
+          <div class="metric-card" title="Your largest single position (aim for broad ETFs as largest)">
+            <div class="metric-label">Largest Position</div>
+            <div class="metric-value" id="pf-largest">—</div>
+          </div>
         </div>
 
         <div class="empty-state" id="pf-empty-state" style="display:none">
           <div class="empty-state-icon">◔</div>
           <h3 class="empty-state-title">No portfolio data yet</h3>
-          <p class="empty-state-body">Export your positions from IBKR (Client Portal → Portfolio → Export) and click <strong>Import IBKR CSV</strong> above.</p>
+          <p class="empty-state-body">Export your positions from IBKR (Client Portal → Portfolio → Export) and click
+            <strong>Import IBKR CSV</strong> above.</p>
         </div>
 
         <div id="pf-content" style="display:none">
@@ -507,13 +676,17 @@
                 <tr>
                   <th data-col="symbol" title="Stock ticker or option contract symbol">Symbol</th>
                   <th data-col="marketValue" title="Current market value of your position">Market Value</th>
-                  <th data-col="weightPct" title="Percentage of this position relative to your entire portfolio">Weight</th>
+                  <th data-col="weightPct" title="Percentage of this position relative to your entire portfolio">Weight
+                  </th>
                   <th data-col="costBasis" title="Total price paid to acquire these shares">Cost Basis</th>
                   <th data-col="pnl" title="Unrealized profit or loss since purchase">Unrl. P&amp;L</th>
                   <th data-col="pnlPct" title="Percentage gain or loss on your original investment">P&amp;L %</th>
                   <th data-col="currency" title="Base trading currency of the asset">Ccy</th>
-                  <th data-col="recommendation" title="Actionable suggestion (Buy/Trim/Hold) driven by allocation target and ticker metrics">Rec</th>
-                  <th data-col="bucket" title="Core (broad market index ETFs) or Satellite (individual stocks and options)">Bucket</th>
+                  <th data-col="recommendation"
+                    title="Actionable suggestion (Buy/Trim/Hold) driven by allocation target and ticker metrics">Rec
+                  </th>
+                  <th data-col="bucket"
+                    title="Core (broad market index ETFs) or Satellite (individual stocks and options)">Bucket</th>
                 </tr>
               </thead>
               <tbody id="pf-holdings-tbody"></tbody>
@@ -528,7 +701,8 @@
         <div class="view-header">
           <div>
             <h1 class="view-title">Portfolio Health</h1>
-            <span class="view-subtitle">A 100-point grade across concentration, diversification, drift, tax hygiene &amp; cash deployment</span>
+            <span class="view-subtitle">A 100-point grade across concentration, diversification, drift, tax hygiene
+              &amp; cash deployment</span>
           </div>
         </div>
 
@@ -540,7 +714,9 @@
 
         <div class="settings-card" id="pf-health-card" style="display:none">
           <div class="settings-card-title">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+            </svg>
             Score Breakdown
             <span id="pf-health-badge" style="margin-left:auto"></span>
           </div>
@@ -558,39 +734,60 @@
           </div>
         </div>
 
-        <div class="settings-grid" style="grid-template-columns: minmax(340px, 1fr) minmax(480px, 1.4fr)" id="pf-targets-grid">
+        <div class="settings-grid" style="grid-template-columns: minmax(340px, 1fr) minmax(480px, 1.4fr)"
+          id="pf-targets-grid">
           <div class="settings-card">
             <div class="settings-card-title">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="4" y1="21" x2="4" y2="14" />
+                <line x1="4" y1="10" x2="4" y2="3" />
+                <line x1="12" y1="21" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12" y2="3" />
+                <line x1="20" y1="21" x2="20" y2="16" />
+                <line x1="20" y1="12" x2="20" y2="3" />
+                <line x1="1" y1="14" x2="7" y2="14" />
+                <line x1="9" y1="8" x2="15" y2="8" />
+                <line x1="17" y1="16" x2="23" y2="16" />
+              </svg>
               Target Allocation
             </div>
-            <p class="settings-card-desc">Buckets group holdings by their role in your plan: <strong>core</strong> = broad index funds (e.g. VTI, VEA); <strong>satellite</strong> = individual stock/option bets; <strong>cash</strong> = uninvested money. Rebalancing trades are calculated below based on your targets.</p>
+            <p class="settings-card-desc">Buckets group holdings by their role in your plan: <strong>core</strong> =
+              broad index funds (e.g. VTI, VEA); <strong>satellite</strong> = individual stock/option bets;
+              <strong>cash</strong> = uninvested money. Rebalancing trades are calculated below based on your targets.
+            </p>
 
             <!-- Dynamic Age-based recommendation block -->
-            <div class="recommended-allocation" id="pf-recommendation-box" style="margin: 16px 0; padding: 12px 16px; background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.2); border-radius: var(--radius-sm);">
-              <div style="font-size: 13px; font-weight: 600; color: var(--cyan); margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+            <div class="recommended-allocation" id="pf-recommendation-box"
+              style="margin: 16px 0; padding: 12px 16px; background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.2); border-radius: var(--radius-sm);">
+              <div
+                style="font-size: 13px; font-weight: 600; color: var(--cyan); margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
                 <span>Age-Indexed Recommendation</span>
                 <span id="pf-rec-age-label" style="font-size: 11px; opacity: 0.8;"></span>
               </div>
               <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">
-                Bonds/fixed-income are held via index funds and belong in <strong>Core</strong>. Recommended bucket targets:
+                Bonds/fixed-income are held via index funds and belong in <strong>Core</strong>. Recommended bucket
+                targets:
                 <div style="margin-top: 4px; display: flex; gap: 12px; font-weight: 500; color: var(--text-main);">
                   <span>Core: <strong id="pf-rec-core">—</strong></span>
                   <span>Satellite: <strong id="pf-rec-sat">—</strong></span>
                   <span>Cash: <strong id="pf-rec-cash">—</strong></span>
                 </div>
               </div>
-              <button class="settings-action-btn" id="pf-apply-rec-btn" style="width: auto; padding: 4px 10px; font-size: 11px; margin: 0; align-self: flex-start;">
+              <button class="settings-action-btn" id="pf-apply-rec-btn"
+                style="width: auto; padding: 4px 10px; font-size: 11px; margin: 0; align-self: flex-start;">
                 Apply Recommendation
               </button>
             </div>
 
             <button class="settings-action-btn" id="pf-autobucket-btn" style="margin-bottom: 12px;">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
               Auto-assign buckets
             </button>
-            <p class="setting-desc" style="margin-bottom: 16px;">Classifies well-known broad-market index ETFs as core and everything else as satellite. Keeps manual selections.</p>
-            
+            <p class="setting-desc" style="margin-bottom: 16px;">Classifies well-known broad-market index ETFs as core
+              and everything else as satellite. Keeps manual selections.</p>
+
             <div id="pf-targets-fields"></div>
             <div class="settings-field">
               <label class="settings-field-label" for="pf-tolerance-input">Tolerance (± pct points)</label>
@@ -600,14 +797,25 @@
 
           <div class="settings-card">
             <div class="settings-card-title">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
               Drift vs. Target
             </div>
-            <p class="settings-card-desc">Suggested trades to return to target — informational only; place any trades yourself at your broker.</p>
+            <p class="settings-card-desc">Suggested trades to return to target — informational only; place any trades
+              yourself at your broker.</p>
             <div class="table-wrapper">
               <table class="data-table" id="pf-drift-table">
                 <thead>
-                  <tr><th>Bucket</th><th>Target</th><th>Actual</th><th>Drift</th><th>Action</th></tr>
+                  <tr>
+                    <th>Bucket</th>
+                    <th>Target</th>
+                    <th>Actual</th>
+                    <th>Drift</th>
+                    <th>Action</th>
+                  </tr>
                 </thead>
                 <tbody id="pf-drift-tbody"></tbody>
               </table>
@@ -630,12 +838,18 @@
                concentration warning into a tracked quarterly schedule.
                Informational only — trades are placed manually at the broker. -->
           <div class="settings-card" id="pf-selldown-card" style="grid-column: 1 / -1; display:none;">
-            <div class="settings-card-title" style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+            <div class="settings-card-title"
+              style="display:flex; align-items:center; justify-content:space-between; width:100%;">
               <span style="display:flex; align-items:center; gap:8px;">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
+                  <polyline points="23 18 13.5 8.5 8.5 13.5 1 6" />
+                  <polyline points="17 18 23 18 23 12" />
+                </svg>
                 Employer Stock Sell-Down Plan
               </span>
-              <span style="font-size:11px; font-weight:400; color:var(--text-muted); text-transform:none; letter-spacing:0;">A steady quarterly schedule — you place the trades yourself at your broker</span>
+              <span
+                style="font-size:11px; font-weight:400; color:var(--text-muted); text-transform:none; letter-spacing:0;">A
+                steady quarterly schedule — you place the trades yourself at your broker</span>
             </div>
             <div id="pf-selldown-body"></div>
           </div>
@@ -643,33 +857,51 @@
           <!-- Tax-Smart Buy Ideas: rules-based output of the user's own targets
                + tax profile (US/NL citizen, CH resident). Not financial advice. -->
           <div class="settings-card" id="pf-buy-ideas-card" style="grid-column: 1 / -1; display:none;">
-            <div class="settings-card-title" style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+            <div class="settings-card-title"
+              style="display:flex; align-items:center; justify-content:space-between; width:100%;">
               <span style="display:flex; align-items:center; gap:8px;">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><polyline points="14 7 21 7 21 14"/></svg>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2">
+                  <path d="M3 17l6-6 4 4 8-8" />
+                  <polyline points="14 7 21 7 21 14" />
+                </svg>
                 Tax-Smart Buy Ideas
               </span>
-              <span style="font-size:11px; font-weight:400; color:var(--text-muted); text-transform:none; letter-spacing:0;">Rules-based from your targets &amp; tax profile — not financial advice</span>
+              <span
+                style="font-size:11px; font-weight:400; color:var(--text-muted); text-transform:none; letter-spacing:0;">Rules-based
+                from your targets &amp; tax profile — not financial advice</span>
             </div>
-            <div id="pf-buy-ideas-glidepath" style="display:none; font-size:12px; color:#f59e0b; padding:8px 12px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2); border-radius:8px; margin-bottom:10px;"></div>
+            <div id="pf-buy-ideas-glidepath"
+              style="display:none; font-size:12px; color:#f59e0b; padding:8px 12px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2); border-radius:8px; margin-bottom:10px;">
+            </div>
             <div id="pf-buy-ideas-list" style="display:flex; flex-direction:column; gap:8px;"></div>
             <div id="pf-buy-ideas-swaps" style="margin-top:12px; display:none;">
-              <div style="font-size:11px; font-weight:600; color:#f43f5e; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">PFIC swaps — replace, don't add</div>
+              <div
+                style="font-size:11px; font-weight:600; color:#f43f5e; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">
+                PFIC swaps — replace, don't add</div>
               <div id="pf-buy-ideas-swaps-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+              <!-- §1291 exit-cost estimates per held PFIC (planning only) -->
+              <div id="pf-pfic-costs" style="display:none; margin-top:10px;"></div>
             </div>
           </div>
 
           <div class="settings-card" style="grid-column: 1 / -1;">
             <div class="settings-card-title">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
               Compliance Alerts &amp; Rebalancing Guidance
             </div>
-            <p class="settings-card-desc">Systematic analysis of your portfolio context (tax risk, concentration, cash drag, and expat guardrails).</p>
-            
+            <p class="settings-card-desc">Systematic analysis of your portfolio context (tax risk, concentration, cash
+              drag, and expat guardrails).</p>
+
             <div class="guidance-tabs">
               <button class="tab-btn active" data-filter="all">All <span id="badge-count-all">0</span></button>
-              <button class="tab-btn" data-filter="tax">Tax &amp; Concentration <span id="badge-count-tax">0</span></button>
-              <button class="tab-btn" data-filter="rebalance">Rebalancing <span id="badge-count-rebalance">0</span></button>
-              <button class="tab-btn" data-filter="options">Options Yield <span id="badge-count-options">0</span></button>
+              <button class="tab-btn" data-filter="tax">Tax &amp; Concentration <span
+                  id="badge-count-tax">0</span></button>
+              <button class="tab-btn" data-filter="rebalance">Rebalancing <span
+                  id="badge-count-rebalance">0</span></button>
+              <button class="tab-btn" data-filter="options">Options Yield <span
+                  id="badge-count-options">0</span></button>
             </div>
 
             <div class="guidance-list" id="pf-guidance-list">
@@ -689,10 +921,14 @@
           <!-- Opportunity Data Card -->
           <div class="settings-card">
             <div class="settings-card-title">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
               Opportunity Data
             </div>
-            <p class="settings-card-desc">Scans all watchlist stocks for new options opportunities. This is the main data fetch — run it when you want fresh opportunity data.</p>
+            <p class="settings-card-desc">Scans all watchlist stocks for new options opportunities. This is the main
+              data fetch — run it when you want fresh opportunity data.</p>
 
             <div class="settings-field">
               <label class="settings-field-label" for="interval-select">Scan every</label>
@@ -731,7 +967,10 @@
             </div>
 
             <button class="settings-action-btn" id="sidebar-refresh-btn">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
               Refresh Now
             </button>
 
@@ -754,10 +993,14 @@
           <!-- Price Update Card -->
           <div class="settings-card settings-card-price">
             <div class="settings-card-title">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="1" x2="12" y2="23" />
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              </svg>
               Price Update
             </div>
-            <p class="settings-card-desc">Refreshes current stock prices for all tracked opportunities without re-running the full options scan.</p>
+            <p class="settings-card-desc">Refreshes current stock prices for all tracked opportunities without
+              re-running the full options scan.</p>
 
             <div class="settings-field">
               <label class="settings-field-label" for="price-interval-select">Update every</label>
@@ -779,13 +1022,17 @@
                 <span class="settings-progress-count" id="price-progress-count"></span>
               </div>
               <div class="settings-progress-track">
-                <div class="settings-progress-fill settings-progress-fill-price" id="price-progress-fill" style="width:0%"></div>
+                <div class="settings-progress-fill settings-progress-fill-price" id="price-progress-fill"
+                  style="width:0%"></div>
               </div>
               <div class="settings-progress-symbol" id="price-progress-symbol"></div>
             </div>
 
             <button class="settings-action-btn settings-action-btn-price" id="price-refresh-btn">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
               Update Prices Now
             </button>
 
@@ -804,10 +1051,14 @@
           <!-- Scoring Configuration Card -->
           <div class="settings-card settings-card-scoring">
             <div class="settings-card-title">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
               Scoring Configuration
             </div>
-            <p class="settings-card-desc">Configure grade thresholds, kill switches, and target parameters used by the 100-point scoring engine.</p>
+            <p class="settings-card-desc">Configure grade thresholds, kill switches, and target parameters used by the
+              100-point scoring engine.</p>
 
             <div class="settings-field">
               <label class="settings-field-label">Grade Thresholds</label>
@@ -867,7 +1118,8 @@
               <label class="settings-field-label">Yield Targets</label>
               <div class="threshold-row">
                 <label style="font-size:12px;color:var(--text-secondary)">Monthly</label>
-                <input type="number" class="threshold-input" id="yield-target-monthly" min="0" max="20" step="0.1" value="1.0" />
+                <input type="number" class="threshold-input" id="yield-target-monthly" min="0" max="20" step="0.1"
+                  value="1.0" />
                 <span class="threshold-unit">%</span>
               </div>
               <div class="threshold-row" style="margin-top:6px">
@@ -881,9 +1133,11 @@
               <label class="settings-field-label">Preferred Delta Range</label>
               <div class="threshold-row">
                 <label style="font-size:12px;color:var(--text-secondary)">Min</label>
-                <input type="number" class="threshold-input" id="delta-min" min="0.05" max="0.50" step="0.01" value="0.25" />
+                <input type="number" class="threshold-input" id="delta-min" min="0.05" max="0.50" step="0.01"
+                  value="0.25" />
                 <label style="font-size:12px;color:var(--text-secondary);margin-left:8px">Max</label>
-                <input type="number" class="threshold-input" id="delta-max" min="0.05" max="0.50" step="0.01" value="0.35" />
+                <input type="number" class="threshold-input" id="delta-max" min="0.05" max="0.50" step="0.01"
+                  value="0.35" />
               </div>
             </div>
           </div>
@@ -891,93 +1145,242 @@
           <!-- Long-Term Portfolio Settings Card -->
           <div class="settings-card settings-card-portfolio">
             <div class="settings-card-title">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+              </svg>
               Long-Term Portfolio Settings
             </div>
-            <p class="settings-card-desc">Configure parameters for retirement glidepath calculations and cash drag thresholds.</p>
+            <p class="settings-card-desc">Configure parameters for retirement glidepath calculations and cash drag
+              thresholds.</p>
 
             <div class="settings-field">
               <label class="settings-field-label" for="settings-birth-year">Birth Year</label>
-              <input type="number" class="threshold-input" id="settings-birth-year" min="1900" max="2100" step="1" value="1984" style="width: 80px" />
-              <p class="setting-desc" style="margin-top:4px">Used to determine your current age for glidepath recommendations.</p>
+              <input type="number" class="threshold-input" id="settings-birth-year" min="1900" max="2100" step="1"
+                value="1984" style="width: 80px" />
+              <p class="setting-desc" style="margin-top:4px">Used to determine your current age for glidepath
+                recommendations.</p>
             </div>
 
             <div class="settings-field">
               <label class="settings-field-label" for="settings-glidepath-base">Glidepath Equity Base</label>
-              <input type="number" class="threshold-input" id="settings-glidepath-base" min="80" max="150" step="1" value="110" style="width: 80px" />
-              <p class="setting-desc" style="margin-top:4px">Formula: <code>target_equity % = Base - Age</code>. A <span class="help-tooltip" style="border-bottom: 1px dotted var(--text-secondary); cursor: help;" title="A retirement glidepath target automatically shifts your mix from equities (aggressive/growth) to bonds (defensive/income) as you age to reduce investment risk.">glidepath</span> automatically adjusts your asset mix as you age. Standard is 110.</p>
+              <input type="number" class="threshold-input" id="settings-glidepath-base" min="80" max="150" step="1"
+                value="110" style="width: 80px" />
+              <p class="setting-desc" style="margin-top:4px">Formula: <code>target_equity % = Base - Age</code>. A <span
+                  class="help-tooltip" style="border-bottom: 1px dotted var(--text-secondary); cursor: help;"
+                  title="A retirement glidepath target automatically shifts your mix from equities (aggressive/growth) to bonds (defensive/income) as you age to reduce investment risk.">glidepath</span>
+                automatically adjusts your asset mix as you age. Standard is 110.</p>
             </div>
 
             <div class="settings-field">
               <label class="settings-field-label" for="settings-cash-drag-threshold">Cash Drag Buffer ($)</label>
-              <input type="number" class="threshold-input" id="settings-cash-drag-threshold" min="0" max="100000" step="500" value="5000" style="width: 80px" />
-              <p class="setting-desc" style="margin-top:4px">Fires alert if uninvested cash exceeds this buffer and represents &gt;10% of portfolio, indicating <span class="help-tooltip" style="border-bottom: 1px dotted var(--text-secondary); cursor: help;" title="Cash drag is when uninvested cash sits in your account earning little to no return, reducing ('dragging down') your long-term compound growth.">cash drag</span>.</p>
+              <input type="number" class="threshold-input" id="settings-cash-drag-threshold" min="0" max="100000"
+                step="500" value="5000" style="width: 80px" />
+              <p class="setting-desc" style="margin-top:4px">Fires alert if uninvested cash exceeds this buffer and
+                represents &gt;10% of portfolio, indicating <span class="help-tooltip"
+                  style="border-bottom: 1px dotted var(--text-secondary); cursor: help;"
+                  title="Cash drag is when uninvested cash sits in your account earning little to no return, reducing ('dragging down') your long-term compound growth.">cash
+                  drag</span>.</p>
             </div>
 
             <div class="settings-field">
-              <label class="settings-field-label" for="settings-dividend-tax-rate">Effective Dividend Tax Rate (%)</label>
-              <input type="number" class="threshold-input" id="settings-dividend-tax-rate" min="0" max="60" step="1" value="30" style="width: 80px" />
-              <p class="setting-desc" style="margin-top:4px">Your combined effective rate on dividend income (Swiss income tax and US qualified rates with <span class="help-tooltip" style="border-bottom: 1px dotted var(--text-secondary); cursor: help;" title="As a US citizen living in Switzerland, you are taxed by both countries on your dividends. However, the US lets you claim a credit for Swiss taxes you already paid, so you don't pay tax twice on the same money. The 'interplay' is the complex way these Swiss tax credits offset your US tax bill to produce a final combined tax rate.">foreign tax credit interplay</span>). Used to rank buy ideas by annual tax drag — in Switzerland capital gains are untaxed for private investors but dividends are ordinary income, so lower-yield funds are structurally more tax-efficient for you.</p>
+              <label class="settings-field-label" for="settings-dividend-tax-rate">Effective Dividend Tax Rate
+                (%)</label>
+              <input type="number" class="threshold-input" id="settings-dividend-tax-rate" min="0" max="60" step="1"
+                value="30" style="width: 80px" />
+              <p class="setting-desc" style="margin-top:4px">Your combined effective rate on dividend income (Swiss
+                income tax and US qualified rates with <span class="help-tooltip"
+                  style="border-bottom: 1px dotted var(--text-secondary); cursor: help;"
+                  title="As a US citizen living in Switzerland, you are taxed by both countries on your dividends. However, the US lets you claim a credit for Swiss taxes you already paid, so you don't pay tax twice on the same money. The 'interplay' is the complex way these Swiss tax credits offset your US tax bill to produce a final combined tax rate.">foreign
+                  tax credit interplay</span>). Used to rank buy ideas by annual tax drag — in Switzerland capital gains
+                are untaxed for private investors but dividends are ordinary income, so lower-yield funds are
+                structurally more tax-efficient for you.</p>
             </div>
 
             <div class="settings-field">
               <label class="settings-field-label" for="settings-employer-symbols">Employer Stock Tickers</label>
-              <input type="text" class="threshold-input" id="settings-employer-symbols" placeholder="e.g. AAPL, MSFT" style="width: 200px" />
-              <p class="setting-desc" style="margin-top:4px">Comma-separated list of symbols you receive from your employer. Used to compute concentration risk.</p>
+              <input type="text" class="threshold-input" id="settings-employer-symbols" placeholder="e.g. AAPL, MSFT"
+                style="width: 200px" />
+              <p class="setting-desc" style="margin-top:4px">Comma-separated list of symbols you receive from your
+                employer. Used to compute concentration risk.</p>
             </div>
 
             <div class="settings-field">
               <label class="settings-field-label" for="settings-ibkr-gateway-url">IBKR Gateway URL</label>
-              <input type="text" class="threshold-input" id="settings-ibkr-gateway-url" placeholder="https://localhost:5000" style="width: 200px" />
-              <p class="setting-desc" style="margin-top:4px">Address of the locally running IBKR Client Portal Gateway. Leave as the default unless you changed the port.</p>
+              <input type="text" class="threshold-input" id="settings-ibkr-gateway-url"
+                placeholder="https://localhost:5000" style="width: 200px" />
+              <p class="setting-desc" style="margin-top:4px">Address of the locally running IBKR Client Portal Gateway.
+                Leave as the default unless you changed the port.</p>
             </div>
 
             <div class="settings-field">
               <label class="settings-field-label">Gateway Folder</label>
               <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                <button class="settings-action-btn" id="pf-pick-gateway-dir" style="width:auto; margin:0;">Choose clientportal.gw folder…</button>
+                <button class="settings-action-btn" id="pf-pick-gateway-dir" style="width:auto; margin:0;">Choose
+                  clientportal.gw folder…</button>
                 <span id="pf-gateway-dir-label" style="font-size:12px; color:var(--text-muted);">not set</span>
               </div>
-              <p class="setting-desc" style="margin-top:4px">Point this at the folder you unzipped from <code>clientportal.gw.zip</code>. PortMax launches the gateway for you — no terminal needed.</p>
+              <p class="setting-desc" style="margin-top:4px">Point this at the folder you unzipped from
+                <code>clientportal.gw.zip</code>. PortMax launches the gateway for you — no terminal needed.</p>
             </div>
 
             <div class="settings-field">
-              <label class="settings-field-label" for="settings-ibkr-autostart" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+              <label class="settings-field-label" for="settings-ibkr-autostart"
+                style="display:flex; align-items:center; gap:8px; cursor:pointer;">
                 <input type="checkbox" id="settings-ibkr-autostart" style="width:14px; height:14px;" />
                 Auto-start gateway when PortMax opens
               </label>
-              <p class="setting-desc" style="margin-top:4px">You still complete the IBKR login (with 2FA) yourself — that part can't be automated for security.</p>
+              <p class="setting-desc" style="margin-top:4px">You still complete the IBKR login (with 2FA) yourself —
+                that part can't be automated for security.</p>
             </div>
 
             <div class="settings-field">
               <label class="settings-field-label" for="settings-ibkr-username">IBKR Username</label>
-              <input type="text" class="threshold-input" id="settings-ibkr-username" placeholder="optional" style="width: 200px" autocomplete="off" />
+              <input type="text" class="threshold-input" id="settings-ibkr-username" placeholder="optional"
+                style="width: 200px" autocomplete="off" />
             </div>
 
             <div class="settings-field">
-              <label class="settings-field-label" for="settings-ibkr-password">IBKR Password</label>
-              <input type="password" class="threshold-input" id="settings-ibkr-password" placeholder="enter to save/replace" style="width: 200px" autocomplete="new-password" />
+              <label class="settings-field-label" for="settings-ibkr-password"
+                style="display:flex; align-items:center; gap:8px;">
+                IBKR Password
+                <span
+                  style="font-size:10px; font-weight:600; color:#f59e0b; background:rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; text-transform: none;">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5"
+                    style="flex-shrink:0;">
+                    <path
+                      d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                  Not recommended
+                </span>
+              </label>
+              <input type="password" class="threshold-input" id="settings-ibkr-password"
+                placeholder="enter to save/replace" style="width: 200px" autocomplete="new-password" />
               <div style="display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap;">
                 <button class="settings-action-btn" id="pf-save-credentials" style="width:auto; margin:0;">Save</button>
-                <button class="settings-action-btn" id="pf-clear-credentials" style="width:auto; margin:0; background:transparent; border-color:rgba(244,63,94,0.3); color:#f43f5e;">Clear stored credentials</button>
+                <button class="settings-action-btn" id="pf-clear-credentials"
+                  style="width:auto; margin:0; background:transparent; border-color:rgba(244,63,94,0.3); color:#f43f5e;">Clear
+                  stored credentials</button>
                 <span id="pf-credentials-status" style="font-size:12px; color:var(--text-muted);"></span>
               </div>
-              <p class="setting-desc" style="margin-top:4px">Stored encrypted via your OS's credential vault (Windows Credential Manager / macOS Keychain) — the same mechanism browsers use for saved passwords. Both fields are auto-filled at login, landing you straight at the 2FA prompt. Never sent anywhere but IBKR's own login page.</p>
-              <div style="display:flex; gap:8px; align-items:flex-start; margin-top:10px; padding:10px 12px; border-radius:8px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25);">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" style="flex-shrink:0; margin-top:2px;"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                <p style="font-size:12px; color:var(--text-secondary); line-height:1.5; margin:0;"><strong style="color:#f59e0b">Storing your password isn't required and we recommend against it.</strong> Username-only prefill already gets you to the password field in one click; adding the password means the plaintext is briefly held in memory and auto-typed on your behalf every login. Prefer leaving this blank and typing your password manually — only save it here if you've weighed that tradeoff yourself.</p>
+              <p class="setting-desc" style="margin-top:4px">Stored encrypted via your OS's credential vault (Windows
+                Credential Manager / macOS Keychain) — the same mechanism browsers use for saved passwords. Both fields
+                are auto-filled at login, landing you straight at the 2FA prompt. Never sent anywhere but IBKR's own
+                login page. Storing password is not required and manually typing is recommended.</p>
+            </div>
+          </div>
+
+          <!-- Tax Profile Card: residency/citizenship drive which tax rules the
+               guidance engines apply (PFIC relevance, LTCG notes) and feed the
+               PFIC exit-cost estimator. Estimates only — not tax advice. -->
+          <div class="settings-card" id="tax-profile-card">
+            <div class="settings-card-title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              </svg>
+              Tax Profile
+            </div>
+            <p class="settings-card-desc">Where you live and which passports you hold determine which tax rules the
+              app's guidance applies — most importantly whether the US <span class="help-tooltip"
+                style="border-bottom: 1px dotted var(--text-secondary); cursor: help;"
+                title="Passive Foreign Investment Company. Any fund registered outside the United States. Only 'US persons' (citizens, green-card holders, US residents) are hit by these punitive rules — for everyone else they're irrelevant.">PFIC</span>
+              rules apply to you at all. Everything here feeds planning estimates, not tax filings.</p>
+
+            <div style="display:flex; gap:16px; flex-wrap:wrap;">
+              <div class="settings-field">
+                <label class="settings-field-label" for="settings-residence-country">Country of residence</label>
+                <select class="schedule-select" id="settings-residence-country" style="width: 180px"></select>
               </div>
+              <div class="settings-field">
+                <label class="settings-field-label" for="settings-employment-country">Country of employment</label>
+                <select class="schedule-select" id="settings-employment-country" style="width: 180px"></select>
+              </div>
+            </div>
+            <div style="display:flex; gap:16px; flex-wrap:wrap;">
+              <div class="settings-field">
+                <label class="settings-field-label" for="settings-citizenship-1">Citizenship</label>
+                <select class="schedule-select" id="settings-citizenship-1" style="width: 180px"></select>
+              </div>
+              <div class="settings-field">
+                <label class="settings-field-label" for="settings-citizenship-2">Second citizenship</label>
+                <select class="schedule-select" id="settings-citizenship-2" style="width: 180px"></select>
+              </div>
+            </div>
+            <div class="settings-field">
+              <label class="settings-field-label" for="settings-us-green-card"
+                style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                <input type="checkbox" id="settings-us-green-card" style="width:14px; height:14px;" />
+                US green-card holder
+              </label>
+              <p class="setting-desc" style="margin-top:4px">Green-card holders are taxed like US citizens even while
+                living abroad.</p>
+            </div>
+
+            <div id="tax-profile-pfic-status"
+              style="font-size:12px; padding:8px 12px; border-radius:8px; margin:4px 0 12px 0;"></div>
+
+            <div id="pfic-estimator-fields">
+              <p class="setting-desc"
+                style="margin-bottom:10px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; font-size:11px; letter-spacing:0.5px;">
+                PFIC exit-cost estimator</p>
+              <div style="display:flex; gap:16px; flex-wrap:wrap;">
+                <div class="settings-field">
+                  <label class="settings-field-label" for="settings-filing-status">US filing status</label>
+                  <select class="schedule-select" id="settings-filing-status" style="width: 180px">
+                    <option value="single">Single</option>
+                    <option value="mfj">Married filing jointly</option>
+                    <option value="mfs">Married filing separately</option>
+                    <option value="hoh">Head of household</option>
+                  </select>
+                </div>
+                <div class="settings-field">
+                  <label class="settings-field-label" for="settings-us-marginal-rate">US marginal rate (%)</label>
+                  <input type="number" class="threshold-input" id="settings-us-marginal-rate" min="0" max="50" step="1"
+                    value="32" style="width: 80px" />
+                </div>
+              </div>
+              <p class="setting-desc" style="margin-top:-6px; margin-bottom:12px">Your top US ordinary-income bracket —
+                it only affects the current-year slice of a PFIC gain. The prior-year slices are taxed at the top rate
+                (37%) regardless of your income; that's the punitive part. If unsure: 24% is common for expats using
+                foreign tax credits, 32–37% at Big-Tech compensation levels.</p>
+              <div style="display:flex; gap:16px; flex-wrap:wrap;">
+                <div class="settings-field">
+                  <label class="settings-field-label" for="settings-pfic-interest-rate">IRS interest assumption
+                    (%/yr)</label>
+                  <input type="number" class="threshold-input" id="settings-pfic-interest-rate" min="0" max="15"
+                    step="0.5" value="8" style="width: 80px" />
+                </div>
+                <div class="settings-field">
+                  <label class="settings-field-label" for="settings-pfic-years-held">Assumed years held
+                    (fallback)</label>
+                  <input type="number" class="threshold-input" id="settings-pfic-years-held" min="1" max="30" step="1"
+                    value="3" style="width: 80px" />
+                </div>
+              </div>
+              <p class="setting-desc" style="margin-top:-6px">The IRS underpayment rate the interest charge compounds at
+                (recently 7–8%). "Assumed years held" is only used for funds where your import didn't include per-lot
+                purchase dates.</p>
             </div>
           </div>
 
           <!-- Reset All Data Card -->
           <div class="settings-card" style="border-color: rgba(244, 63, 94, 0.2)">
             <div class="settings-card-title" style="color: var(--red)">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <line x1="10" y1="11" x2="10" y2="17" />
+                <line x1="14" y1="11" x2="14" y2="17" />
+              </svg>
               Danger Zone
             </div>
-            <p class="settings-card-desc">Permanently erase all custom configurations, watchlist stocks, starred items, and downloaded opportunity cache files to start completely fresh.</p>
-            <button class="settings-action-btn" id="reset-all-data-btn" style="background: rgba(244, 63, 94, 0.12); color: #f43f5e; border-color: rgba(244, 63, 94, 0.3); align-self: flex-start;">
+            <p class="settings-card-desc">Permanently erase all custom configurations, watchlist stocks, starred items,
+              and downloaded opportunity cache files to start completely fresh.</p>
+            <button class="settings-action-btn" id="reset-all-data-btn"
+              style="background: rgba(244, 63, 94, 0.12); color: #f43f5e; border-color: rgba(244, 63, 94, 0.3); align-self: flex-start;">
               Reset All Data
             </button>
           </div>
@@ -990,51 +1393,70 @@
 
   <!-- Analysis Modal -->
   <div class="modal-overlay hidden" id="modal-overlay">
-    <div class="modal" style="width: 820px; height: 620px; max-height: 90vh; max-width: 95vw; display:flex; flex-direction:column; padding: 0;">
+    <div class="modal"
+      style="width: 820px; height: 620px; max-height: 90vh; max-width: 95vw; display:flex; flex-direction:column; padding: 0;">
       <button class="modal-close" id="modal-close" style="top: 14px; right: 18px; z-index: 10;">✕</button>
-      
-      <div class="modal-header" style="padding: 24px 28px 12px 28px; border-bottom: none; display: flex; justify-content: space-between; align-items: flex-start; flex-shrink: 0;">
+
+      <div class="modal-header"
+        style="padding: 24px 28px 12px 28px; border-bottom: none; display: flex; justify-content: space-between; align-items: flex-start; flex-shrink: 0;">
         <div style="min-width: 0; flex: 1; padding-right: 12px;">
           <div style="display:flex; align-items:center; gap:10px; flex-wrap: wrap;">
-            <h2 class="modal-company" id="modal-company" style="margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;">—</h2>
+            <h2 class="modal-company" id="modal-company"
+              style="margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;">—
+            </h2>
             <span class="modal-symbol-badge" id="modal-symbol-badge" style="margin:0;">—</span>
           </div>
           <span class="modal-exchange" id="modal-exchange" style="margin-top: 4px; display: block;">—</span>
-          <div class="modal-strategy-badges" id="modal-strategy-badges" style="margin-top: 6px; display: flex; gap: 6px;"></div>
+          <div class="modal-strategy-badges" id="modal-strategy-badges"
+            style="margin-top: 6px; display: flex; gap: 6px;"></div>
         </div>
         <div style="display: flex; align-items: center; gap: 16px; flex-shrink: 0; padding-right: 32px;">
           <div style="text-align:right;">
-            <div style="font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700;" id="modal-price" class="privacy-amount">—</div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700;" id="modal-price"
+              class="privacy-amount">—</div>
             <div style="font-size:12px; margin-top:2px;" id="modal-change">—</div>
           </div>
-          <button class="watchlist-header-btn" id="modal-watchlist-action-btn" style="padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(0, 240, 255, 0.3); background: rgba(0, 240, 255, 0.05); color: var(--cyan); font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none;">
+          <button class="watchlist-header-btn" id="modal-watchlist-action-btn"
+            style="padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(0, 240, 255, 0.3); background: rgba(0, 240, 255, 0.05); color: var(--cyan); font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none;">
             + Watchlist
           </button>
-          <button class="star-btn" id="modal-star-btn" style="font-size: 24px; padding: 0; background: none; border: none; cursor: pointer; color: var(--text-muted);">☆</button>
+          <button class="star-btn" id="modal-star-btn"
+            style="font-size: 24px; padding: 0; background: none; border: none; cursor: pointer; color: var(--text-muted);">☆</button>
         </div>
       </div>
 
       <!-- Detail Tabs -->
-      <div class="symbol-tabs" style="display:flex; gap:16px; margin: 0 28px 12px 28px; border-bottom: 1px solid var(--border); padding-bottom:8px; flex-shrink: 0;">
-        <button class="tab-btn active" id="modal-tab-compliance" style="font-weight:600; font-size:13px; color:var(--cyan); border:none; background:none; cursor:pointer; padding:4px 8px; border-bottom:2px solid var(--cyan); outline: none;">Compliance &amp; Fund Analysis</button>
-        <button class="tab-btn" id="modal-tab-options" style="font-weight:600; font-size:13px; color:var(--text-secondary); border:none; background:none; cursor:pointer; padding:4px 8px; outline: none;">Options Opportunity</button>
+      <div class="symbol-tabs"
+        style="display:flex; gap:16px; margin: 0 28px 12px 28px; border-bottom: 1px solid var(--border); padding-bottom:8px; flex-shrink: 0;">
+        <button class="tab-btn active" id="modal-tab-compliance"
+          style="font-weight:600; font-size:13px; color:var(--cyan); border:none; background:none; cursor:pointer; padding:4px 8px; border-bottom:2px solid var(--cyan); outline: none;">Compliance
+          &amp; Fund Analysis</button>
+        <button class="tab-btn" id="modal-tab-options"
+          style="font-weight:600; font-size:13px; color:var(--text-secondary); border:none; background:none; cursor:pointer; padding:4px 8px; outline: none;">Options
+          Opportunity</button>
       </div>
 
-      <div class="modal-body" id="modal-details-body" style="flex: 1; display: grid; grid-template-columns: 1.25fr 1fr; gap: 28px; padding: 8px 28px 24px 28px; overflow: hidden; min-height: 0;">
+      <div class="modal-body" id="modal-details-body"
+        style="flex: 1; display: grid; grid-template-columns: 1.25fr 1fr; gap: 28px; padding: 8px 28px 24px 28px; overflow: hidden; min-height: 0;">
         <!-- Left Column: Tabbed Content (Scrollable internally) -->
         <div class="modal-left-col" style="overflow-y: auto; padding-right: 8px; min-width: 0; height: 100%;">
-          
+
           <!-- Tab 1: Compliance & Fund Analysis -->
           <div id="modal-content-compliance" style="display: block;">
             <div id="si-compliance" style="margin-bottom:16px;"></div>
-            <div class="stats-grid" id="si-stats" style="display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-bottom:16px;"></div>
+            <div class="stats-grid" id="si-stats"
+              style="display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-bottom:16px;"></div>
             <div id="si-overlap-callout" style="margin-bottom:16px;"></div>
             <div id="si-holdings-section" style="display:none; margin-bottom:16px;">
-              <div style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Top Holdings — what you'd actually be buying</div>
+              <div
+                style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">
+                Top Holdings — what you'd actually be buying</div>
               <div id="si-holdings-list" style="display:flex; flex-direction:column; gap:5px;"></div>
             </div>
             <div id="si-sectors-section" style="display:none; margin-bottom:16px;">
-              <div style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Sector Weights</div>
+              <div
+                style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">
+                Sector Weights</div>
               <div id="si-sectors-list" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
             </div>
           </div>
@@ -1070,27 +1492,33 @@
             </div>
 
             <!-- Block explanation -->
-            <div class="mechanics-box" id="modal-block-explanation-box" style="background:rgba(244,63,94,0.05); border-color:rgba(244,63,94,0.15); display:none">
+            <div class="mechanics-box" id="modal-block-explanation-box"
+              style="background:rgba(244,63,94,0.05); border-color:rgba(244,63,94,0.15); display:none">
               <h3 class="mechanics-title" style="color:var(--red)">⚠ Block Explanation</h3>
-              <p class="mechanics-text" id="modal-block-explanation" style="color:var(--text-secondary); line-height:1.6"></p>
+              <p class="mechanics-text" id="modal-block-explanation"
+                style="color:var(--text-secondary); line-height:1.6"></p>
             </div>
           </div>
         </div>
 
         <!-- Right Column: Permanent Sidebar (Price Chart + Options Data) -->
-        <div class="modal-right-col" style="display: flex; flex-direction: column; gap: 16px; overflow-y: auto; min-width: 0; height: 100%;">
+        <div class="modal-right-col"
+          style="display: flex; flex-direction: column; gap: 16px; overflow-y: auto; min-width: 0; height: 100%;">
           <!-- Price chart (always shown) -->
-          <div class="chart-container" style="height:150px; flex-shrink: 0; background: rgba(255,255,255,0.01); border: 1px solid var(--border); border-radius: 8px; padding: 10px;">
+          <div class="chart-container"
+            style="height:150px; flex-shrink: 0; background: rgba(255,255,255,0.01); border: 1px solid var(--border); border-radius: 8px; padding: 10px;">
             <canvas id="price-chart"></canvas>
           </div>
 
           <!-- Options data grid (shown if options data is available) -->
           <div id="modal-sidebar-options-section" style="display: block;">
             <h3 class="stats-title" style="margin-bottom: 8px;">Options Data</h3>
-            <div class="stats-grid" id="stats-grid-options" style="display: grid; grid-template-columns: 1fr; gap: 6px;"></div>
+            <div class="stats-grid" id="stats-grid-options"
+              style="display: grid; grid-template-columns: 1fr; gap: 6px;"></div>
           </div>
-          
-          <div id="modal-sidebar-no-options" style="display: none; padding: 20px; text-align: center; color: var(--text-muted); border: 1px dashed var(--border); border-radius: 8px; font-size: 12px; line-height: 1.5;">
+
+          <div id="modal-sidebar-no-options"
+            style="display: none; padding: 20px; text-align: center; color: var(--text-muted); border: 1px dashed var(--border); border-radius: 8px; font-size: 12px; line-height: 1.5;">
             No options writing data available for this symbol.
           </div>
         </div>
@@ -1107,7 +1535,8 @@
 
         <div class="help-section">
           <h3>What is PortMax?</h3>
-          <p>PortMax scans your watchlist for cash-secured put opportunities and scores each one on a unified 100-point scale across five dimensions: volatility, yield, strike quality, liquidity, and trend.</p>
+          <p>PortMax scans your watchlist for cash-secured put opportunities and scores each one on a unified 100-point
+            scale across five dimensions: volatility, yield, strike quality, liquidity, and trend.</p>
         </div>
 
         <div class="help-section">
@@ -1147,29 +1576,41 @@
 
         <div class="help-section">
           <h3>Screener &amp; Filters</h3>
-          <p>The Screener shows your opportunities with multi-column sorting (click any header to toggle ascending/descending order) and features interactive sliders to filter by Minimum Score, Min Monthly Yield, Min Market Cap, and a dual-thumb Price Range selector.</p>
+          <p>The Screener shows your opportunities with multi-column sorting (click any header to toggle
+            ascending/descending order) and features interactive sliders to filter by Minimum Score, Min Monthly Yield,
+            Min Market Cap, and a dual-thumb Price Range selector.</p>
         </div>
 
         <div class="help-section">
           <h3>Watchlists &amp; Favorites</h3>
-          <p>Add tickers via the Screener input box. When a stock is watchlisted, the system immediately runs three automatic sync tasks (chart history, options scan, and price update) to fully populate it.</p>
-          <p>Click the <strong>Star column (☆/★)</strong> inside the Screener table or the details modal to mark a stock as a favorite. Starred favorites are tracked collectively in the main Starred Stocks view and on your Dashboard.</p>
+          <p>Add tickers via the Screener input box. When a stock is watchlisted, the system immediately runs three
+            automatic sync tasks (chart history, options scan, and price update) to fully populate it.</p>
+          <p>Click the <strong>Star column (☆/★)</strong> inside the Screener table or the details modal to mark a stock
+            as a favorite. Starred favorites are tracked collectively in the main Starred Stocks view and on your
+            Dashboard.</p>
         </div>
 
         <div class="help-section">
           <h3>Refresh Schedule</h3>
-          <p><strong>Opportunity Data</strong> — Full options scan on all watchlist stocks. Run when you want fresh opportunity data. Also triggered automatically after a Discover scan.</p>
-          <p><strong>Price Update</strong> — Lightweight update of current stock prices only. IV and volatility are not recalculated.</p>
+          <p><strong>Opportunity Data</strong> — Full options scan on all watchlist stocks. Run when you want fresh
+            opportunity data. Also triggered automatically after a Discover scan.</p>
+          <p><strong>Price Update</strong> — Lightweight update of current stock prices only. IV and volatility are not
+            recalculated.</p>
         </div>
 
         <div class="help-section">
           <h3>Core vs. Satellite Strategy</h3>
           <p>This is a popular portfolio structuring method that balances safety with growth/income opportunities:</p>
           <ul class="help-list">
-            <li><strong>Core (The Foundation)</strong> — Broad, highly diversified, low-cost index ETFs (like S&amp;P 500 or Total World funds). This forms the stable bedrock of your wealth and should represent the majority of your assets.</li>
-            <li><strong>Satellite (The Opportunities)</strong> — Individual stocks, sector-specific funds, or tactical option-selling candidates. These carry higher risk/reward and are used to try and beat the market average or generate active income.</li>
+            <li><strong>Core (The Foundation)</strong> — Broad, highly diversified, low-cost index ETFs (like S&amp;P
+              500 or Total World funds). This forms the stable bedrock of your wealth and should represent the majority
+              of your assets.</li>
+            <li><strong>Satellite (The Opportunities)</strong> — Individual stocks, sector-specific funds, or tactical
+              option-selling candidates. These carry higher risk/reward and are used to try and beat the market average
+              or generate active income.</li>
           </ul>
-          <p>By dividing your portfolio this way, you ensure that you don't take excessive single-stock concentration risks while still having room to capture high-potential market opportunities.</p>
+          <p>By dividing your portfolio this way, you ensure that you don't take excessive single-stock concentration
+            risks while still having room to capture high-potential market opportunities.</p>
         </div>
 
       </div>
@@ -1180,12 +1621,17 @@
 
   <!-- IBKR embedded login modal -->
   <div class="modal-overlay hidden" id="ibkr-login-overlay">
-    <div class="modal" style="width: 560px; max-width: 92vw; height: 640px; max-height: 90vh; display:flex; flex-direction:column;">
+    <div class="modal"
+      style="width: 560px; max-width: 92vw; height: 640px; max-height: 90vh; display:flex; flex-direction:column;">
       <button class="modal-close" id="ibkr-login-close">✕</button>
       <div class="modal-header" style="padding-bottom: 12px;">
         <div style="display:flex; align-items:center; gap:12px;">
-          <div style="width:34px; height:34px; border-radius:9px; background:rgba(244,63,94,0.12); border:1px solid rgba(244,63,94,0.25); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg>
+          <div
+            style="width:34px; height:34px; border-radius:9px; background:rgba(244,63,94,0.12); border:1px solid rgba(244,63,94,0.25); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="2">
+              <rect x="3" y="11" width="18" height="10" rx="2" />
+              <path d="M7 11V8a5 5 0 0 1 10 0v3" />
+            </svg>
           </div>
           <div>
             <h2 class="modal-company" style="margin-bottom:2px;">Log in to IBKR</h2>
@@ -1193,9 +1639,14 @@
           </div>
         </div>
       </div>
-      <div class="modal-body" style="flex:1; padding:0; overflow:hidden; position:relative; background:#fff; border-radius:0 0 12px 12px;">
-        <div id="ibkr-login-loading" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--text-muted); font-size:13px; background:#fff;">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" style="animation: spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-9-9" stroke-linecap="round"/></svg>
+      <div class="modal-body"
+        style="flex:1; padding:0; overflow:hidden; position:relative; background:#fff; border-radius:0 0 12px 12px;">
+        <div id="ibkr-login-loading"
+          style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--text-muted); font-size:13px; background:#fff;">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"
+            style="animation: spin 1s linear infinite;">
+            <path d="M21 12a9 9 0 1 1-9-9" stroke-linecap="round" />
+          </svg>
           <span>Loading the gateway login page…</span>
         </div>
         <!-- webview injected here at open time so it always loads the current gateway URL -->
@@ -1207,4 +1658,5 @@
   <script src="scoring.js"></script>
   <script src="app.js"></script>
 </body>
+
 </html>

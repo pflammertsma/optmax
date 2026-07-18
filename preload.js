@@ -65,6 +65,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveSellDownPlan:      (plan)          => ipcRenderer.invoke('selldown-save-plan', plan),
   clearSellDownPlan:     ()              => ipcRenderer.invoke('selldown-clear-plan'),
 
+  // Dashboard action plan (aggregated advice)
+  getActionPlan:         (watchlistData) => ipcRenderer.invoke('get-action-plan', watchlistData),
+
+  // PFIC exit-cost estimates (planning only)
+  getPficEstimates:      ()              => ipcRenderer.invoke('get-pfic-estimates'),
+
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window-minimize'),
   maximizeWindow: () => ipcRenderer.send('window-maximize'),
