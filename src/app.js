@@ -14,6 +14,9 @@ let currentModal = null;
 let priceChart   = null;
 let currentGuidanceFilter = 'all';
 let currentGuidanceItems = [];
+// Single-stock/employer concentration limit (%), mirrored from settings so
+// render paths can colour/threshold without an extra IPC. Critical = 1.5×.
+let concentrationLimit = 10;
 
 // Symbols just added to the watchlist whose options data is still being
 // fetched — shown as placeholder rows in the screener so the ticker appears
@@ -112,6 +115,11 @@ function navigate(viewId) {
     const btn = document.querySelector(`.subview-btn[data-subview="${subviewId}"]`);
     if (btn) btn.click();
   }
+
+  // Views that render on demand must do so however we arrived here — click,
+  // boot-time restore of the last view, or a programmatic navigate. Wiring
+  // this only to the nav-link click handler left Progress blank on refresh.
+  if (finalViewId === 'progress' && typeof renderProgressView === 'function') renderProgressView();
 }
 
 document.querySelectorAll('.nav-link').forEach(link => {
@@ -127,6 +135,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
         .then(p => loadPortfolioHealth(p.holdings.length > 0))
         .catch(err => console.error('Health cold-load failed:', err));
     }
+    // Progress render now lives in navigate() so it also fires on boot/refresh.
   });
 });
 
@@ -1538,41 +1547,51 @@ function saveScoringConfig(updates) {
 
 // ─── Tax profile (Settings) ──────────────────────────────────────────────────
 // Codes are ISO-3166 alpha-2; 'US' is the one the logic actually keys on.
+// ISO-3166 alpha-2 codes; 'US' is the one the PFIC logic keys on. Sorted by
+// display name (— select — pinned first, Other pinned last).
 const TAX_COUNTRIES = [
-  ['', '— select —'], ['US', 'United States'], ['CH', 'Switzerland'], ['NL', 'Netherlands'],
-  ['DE', 'Germany'], ['FR', 'France'], ['GB', 'United Kingdom'], ['IE', 'Ireland'],
-  ['BE', 'Belgium'], ['LU', 'Luxembourg'], ['AT', 'Austria'], ['IT', 'Italy'],
-  ['ES', 'Spain'], ['PT', 'Portugal'], ['DK', 'Denmark'], ['SE', 'Sweden'],
-  ['NO', 'Norway'], ['FI', 'Finland'], ['PL', 'Poland'], ['CZ', 'Czechia'],
-  ['CA', 'Canada'], ['MX', 'Mexico'], ['BR', 'Brazil'], ['AU', 'Australia'],
-  ['NZ', 'New Zealand'], ['JP', 'Japan'], ['KR', 'South Korea'], ['SG', 'Singapore'],
-  ['HK', 'Hong Kong'], ['TW', 'Taiwan'], ['IN', 'India'], ['IL', 'Israel'],
-  ['AE', 'United Arab Emirates'], ['ZA', 'South Africa'], ['OTHER', 'Other'],
+  ['', '— select —'],
+  ['AU', 'Australia'], ['AT', 'Austria'], ['BE', 'Belgium'], ['BR', 'Brazil'],
+  ['CA', 'Canada'], ['CZ', 'Czechia'], ['DK', 'Denmark'], ['FI', 'Finland'],
+  ['FR', 'France'], ['DE', 'Germany'], ['HK', 'Hong Kong'], ['IN', 'India'],
+  ['IE', 'Ireland'], ['IL', 'Israel'], ['IT', 'Italy'], ['JP', 'Japan'],
+  ['LU', 'Luxembourg'], ['MX', 'Mexico'], ['NL', 'Netherlands'], ['NZ', 'New Zealand'],
+  ['NO', 'Norway'], ['PL', 'Poland'], ['PT', 'Portugal'], ['SG', 'Singapore'],
+  ['ZA', 'South Africa'], ['KR', 'South Korea'], ['ES', 'Spain'], ['SE', 'Sweden'],
+  ['CH', 'Switzerland'], ['TW', 'Taiwan'], ['AE', 'United Arab Emirates'],
+  ['GB', 'United Kingdom'], ['US', 'United States'], ['OTHER', 'Other'],
 ];
 
 function populateCountrySelects() {
   const opts = TAX_COUNTRIES.map(([code, name]) => `<option value="${code}">${name}</option>`).join('');
-  for (const id of ['settings-residence-country', 'settings-employment-country', 'settings-citizenship-1', 'settings-citizenship-2']) {
+  for (const id of ['settings-residence-country', 'settings-citizenship-1', 'settings-citizenship-2']) {
     const sel = el(id);
     if (sel && !sel.options.length) sel.innerHTML = opts;
   }
+  // Employment gets an extra "Not employed" option (retirees / between jobs).
+  const empSel = el('settings-employment-country');
+  if (empSel && !empSel.options.length) {
+    empSel.innerHTML = '<option value="">— select —</option><option value="NONE">Not employed</option>'
+      + TAX_COUNTRIES.filter(([c]) => c !== '').map(([code, name]) => `<option value="${code}">${name}</option>`).join('');
+  }
 }
 
-// Mirrors lib/pfic.js isUSPerson — renderer can't require lib modules.
-function taxProfileIsUSPerson(s) {
-  if (s.usGreenCard) return true;
-  const c1 = (s.citizenship1 || '').toUpperCase();
-  const c2 = (s.citizenship2 || '').toUpperCase();
-  const res = (s.residenceCountry || '').toUpperCase();
+// Reads the LIVE dropdown/checkbox selections so the banner can never
+// contradict what the user sees selected. Mirrors lib/pfic.js isUSPerson.
+function taxProfileIsUSPersonFromUI() {
+  if (el('settings-us-green-card')?.checked) return true;
+  const c1 = (el('settings-citizenship-1')?.value || '').toUpperCase();
+  const c2 = (el('settings-citizenship-2')?.value || '').toUpperCase();
+  const res = (el('settings-residence-country')?.value || '').toUpperCase();
   if (c1 === 'US' || c2 === 'US' || res === 'US') return true;
-  return !c1 && !c2 && !res; // never filled in ⇒ assume US person (fail-safe)
+  return !c1 && !c2 && !res; // nothing selected ⇒ assume US person (fail-safe)
 }
 
-function updateTaxProfileStatus(settings) {
+function updateTaxProfileStatus() {
   const box = el('tax-profile-pfic-status');
   const estFields = el('pfic-estimator-fields');
   if (!box) return;
-  const usPerson = taxProfileIsUSPerson(settings);
+  const usPerson = taxProfileIsUSPersonFromUI();
   if (usPerson) {
     box.style.cssText = 'font-size:12px; padding:8px 12px; border-radius:8px; margin:4px 0 12px 0; color:#f59e0b; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25);';
     box.innerHTML = '<strong>US tax rules apply to you.</strong> Foreign-domiciled funds (PFICs) carry punitive US taxation — the app flags them and estimates your exit cost below.';
@@ -1638,6 +1657,8 @@ async function initSettingsUI() {
     setIfEl('settings-cash-drag-threshold', settings.cashDragThreshold ?? 5000);
     setIfEl('settings-dividend-tax-rate', settings.dividendTaxRatePct ?? 30);
     setIfEl('settings-employer-symbols', settings.employerSymbols ?? '');
+    setIfEl('settings-concentration-limit', settings.concentrationLimitPct ?? 10);
+    concentrationLimit = settings.concentrationLimitPct ?? 10;
 
     // Tax profile
     populateCountrySelects();
@@ -1651,7 +1672,7 @@ async function initSettingsUI() {
     setIfEl('settings-us-marginal-rate', settings.usMarginalRatePct ?? 32);
     setIfEl('settings-pfic-interest-rate', settings.pficInterestRatePct ?? 8);
     setIfEl('settings-pfic-years-held', settings.pficAssumedYears ?? 3);
-    updateTaxProfileStatus(settings);
+    updateTaxProfileStatus();
     setIfEl('settings-ibkr-gateway-url', settings.ibkrGatewayUrl ?? 'https://localhost:5000');
     setIfEl('settings-ibkr-username', settings.ibkrUsername ?? '');
     const dirLabel = el('pf-gateway-dir-label');
@@ -1714,7 +1735,7 @@ async function initSettingsUI() {
   // (IBKR username + password are saved together via the dedicated Save
   // button below, not here — the password must never pass through the
   // generic plaintext saveSettings path.)
-  ['settings-birth-year', 'settings-glidepath-base', 'settings-cash-drag-threshold', 'settings-dividend-tax-rate', 'settings-employer-symbols', 'settings-ibkr-gateway-url',
+  ['settings-birth-year', 'settings-glidepath-base', 'settings-cash-drag-threshold', 'settings-dividend-tax-rate', 'settings-employer-symbols', 'settings-concentration-limit', 'settings-ibkr-gateway-url',
    'settings-residence-country', 'settings-employment-country', 'settings-citizenship-1', 'settings-citizenship-2', 'settings-filing-status',
    'settings-us-marginal-rate', 'settings-pfic-interest-rate', 'settings-pfic-years-held'].forEach(id => {
     const e = el(id); if (!e) return;
@@ -1725,6 +1746,7 @@ async function initSettingsUI() {
         'settings-cash-drag-threshold': 'cashDragThreshold',
         'settings-dividend-tax-rate': 'dividendTaxRatePct',
         'settings-employer-symbols': 'employerSymbols',
+        'settings-concentration-limit': 'concentrationLimitPct',
         'settings-ibkr-gateway-url': 'ibkrGatewayUrl',
         'settings-residence-country': 'residenceCountry',
         'settings-employment-country': 'employmentCountry',
@@ -1742,8 +1764,9 @@ async function initSettingsUI() {
       if (!textFields.includes(id)) {
         val = floatFields.includes(id) ? parseFloat(e.value) : parseInt(e.value, 10);
       }
-      const merged = await window.electronAPI.saveSettings({ [key]: val });
-      updateTaxProfileStatus(merged);
+      await window.electronAPI.saveSettings({ [key]: val });
+      updateTaxProfileStatus();
+      if (key === 'concentrationLimitPct' && Number.isFinite(val)) concentrationLimit = val;
 
       // Trigger portfolio render to update alerts immediately on settings changes
       const p = await window.electronAPI.getPortfolio();
@@ -1754,8 +1777,8 @@ async function initSettingsUI() {
   const greenCardChk = el('settings-us-green-card');
   if (greenCardChk) {
     greenCardChk.addEventListener('change', async () => {
-      const merged = await window.electronAPI.saveSettings({ usGreenCard: greenCardChk.checked });
-      updateTaxProfileStatus(merged);
+      await window.electronAPI.saveSettings({ usGreenCard: greenCardChk.checked });
+      updateTaxProfileStatus();
       const p = await window.electronAPI.getPortfolio();
       if (p) renderPortfolio(p);
     });
@@ -2153,6 +2176,143 @@ function renderBuyIdeas(watchlistData) {
     .catch(err => console.error('Failed to load buy recommendations:', err));
 }
 
+// ─── Progress view: the profile's trajectory over time ───────────────────────
+const progressCharts = {};
+
+function pgDate(iso) {
+  return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+async function renderProgressView() {
+  const emptyEl = el('progress-empty-state');
+  const contentEl = el('progress-content');
+  if (!contentEl) return;
+  let history = [];
+  try {
+    const res = await window.electronAPI.getProfileHistory();
+    history = res.history || [];
+  } catch (err) {
+    console.error('Failed to load profile history:', err);
+  }
+
+  if (history.length < 1) {
+    if (emptyEl) emptyEl.style.display = '';
+    contentEl.style.display = 'none';
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+  contentEl.style.display = '';
+
+  const labels = history.map(h => pgDate(h.date));
+  const first = history[0], last = history[history.length - 1];
+  const delta = (a, b) => (a == null || b == null) ? null : Math.round((a - b) * 100) / 100;
+
+  // ── KPI row ──────────────────────────────────────────────────────────────
+  const empPts = history.filter(h => h.employerPctDirect != null);
+  const empFirst = empPts[0]?.employerPctDirect, empLast = empPts[empPts.length - 1]?.employerPctDirect;
+  const empDelta = delta(empLast, empFirst);
+  const healthPts = history.filter(h => h.healthScore != null);
+  const hFirst = healthPts[0]?.healthScore, hLast = healthPts[healthPts.length - 1]?.healthScore;
+  const pficPts = history.filter(h => h.pficValue != null);
+  const pficLast = pficPts[pficPts.length - 1]?.pficValue;
+
+  const trend = (d, goodIsDown) => {
+    if (d == null || Math.abs(d) < 0.01) return '<span style="color:var(--text-muted); font-size:12px;">no change</span>';
+    const good = goodIsDown ? d < 0 : d > 0;
+    const arrow = d < 0 ? '▼' : '▲';
+    return `<span style="color:${good ? 'var(--green)' : 'var(--red)'}; font-size:12px;">${arrow} ${Math.abs(d).toFixed(1)}</span>`;
+  };
+
+  const kpis = [];
+  if (empLast != null) kpis.push({ label: 'Employer concentration', value: `${empLast.toFixed(1)}%`, sub: `${trend(empDelta, true)} since ${pgDate(empPts[0].date)}` });
+  if (hLast != null) kpis.push({ label: 'Health score', value: `${hLast}/100`, sub: `${trend(delta(hLast, hFirst), false)} since ${pgDate(healthPts[0].date)}` });
+  kpis.push({ label: 'Total value', value: `<span class="privacy-amount">$${Math.round(last.totalValue).toLocaleString('en-US')}</span>`, sub: `<span style="color:var(--text-muted); font-size:12px;">${history.length} data point${history.length > 1 ? 's' : ''}</span>` });
+  if (pficLast != null && pficLast > 0) kpis.push({ label: 'PFIC exposure', value: `<span class="privacy-amount">$${Math.round(pficLast).toLocaleString('en-US')}</span>`, sub: `<span style="color:var(--text-muted); font-size:12px;">${pficPts[pficPts.length - 1].pficCount} foreign fund(s)</span>` });
+
+  el('progress-kpis').innerHTML = kpis.map(k => `
+    <div class="metric-card" style="background:var(--surface-1, rgba(255,255,255,0.02)); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px;">
+      <div class="metric-label">${k.label}</div>
+      <div class="metric-value" style="font-size:22px;">${k.value}</div>
+      <div style="margin-top:2px;">${k.sub}</div>
+    </div>`).join('');
+
+  if (!window.Chart) { el('progress-footnote').textContent = 'Charts need Chart.js, which failed to load.'; return; }
+
+  const ink = getComputedStyle(document.body).getPropertyValue('--text-secondary')?.trim() || '#888';
+  const gridColor = 'rgba(255,255,255,0.06)';
+  const mkLine = (canvasId, datasets, yOpts = {}) => {
+    if (progressCharts[canvasId]) progressCharts[canvasId].destroy();
+    const ctx = el(canvasId);
+    if (!ctx) return;
+    progressCharts[canvasId] = new window.Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { intersect: false, mode: 'index' },
+        plugins: { legend: { display: datasets.length > 1, labels: { color: ink, boxWidth: 12, font: { size: 11 } } } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: ink, font: { size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
+          y: { grid: { color: gridColor }, ticks: { color: ink, font: { size: 11 }, ...yOpts.ticks }, ...yOpts.scale },
+        },
+      },
+    });
+  };
+
+  // ── Employer concentration vs. target ────────────────────────────────────
+  // Use the user's own sell-down goal as the target line when a plan exists;
+  // otherwise the configurable single-stock concentration limit.
+  let targetPct = concentrationLimit;
+  try {
+    const sd = await window.electronAPI.getSellDownStatus();
+    if (sd?.plan?.targetWeightPct != null) targetPct = sd.plan.targetWeightPct;
+  } catch {}
+  mkLine('progress-conc-chart', [
+    { label: 'Employer %', data: history.map(h => h.employerPctDirect), borderColor: '#d95926', backgroundColor: 'rgba(217,89,38,0.10)', fill: true, borderWidth: 2, tension: 0.25, spanGaps: true, pointRadius: history.length > 30 ? 0 : 3, pointHoverRadius: 5 },
+    { label: `Target ${targetPct}%`, data: history.map(() => targetPct), borderColor: '#898781', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, fill: false },
+  ], { scale: { beginAtZero: true, suggestedMax: Math.max(50, Math.ceil((empLast || 40) / 10) * 10) }, ticks: { callback: v => v + '%' } });
+
+  // ── Health score ─────────────────────────────────────────────────────────
+  mkLine('progress-health-chart', [
+    { label: 'Score', data: history.map(h => h.healthScore), borderColor: '#199e70', backgroundColor: 'rgba(25,158,112,0.10)', fill: true, borderWidth: 2, tension: 0.25, spanGaps: true, pointRadius: history.length > 30 ? 0 : 3, pointHoverRadius: 5 },
+  ], { scale: { beginAtZero: true, max: 100 } });
+
+  // ── Total value (privacy-masked axis) ────────────────────────────────────
+  mkLine('progress-value-chart', [
+    { label: 'Total value', data: history.map(h => h.totalValue), borderColor: '#2a78d6', backgroundColor: 'rgba(42,120,214,0.10)', fill: true, borderWidth: 2, tension: 0.25, spanGaps: true, pointRadius: history.length > 30 ? 0 : 3, pointHoverRadius: 5 },
+  ], { ticks: { callback: v => isPrivacyMode ? '•••' : '$' + (v / 1000).toFixed(0) + 'k' } });
+
+  const sources = [...new Set(history.map(h => h.source))];
+  el('progress-footnote').innerHTML =
+    `History records a point whenever your portfolio changes; import dated Activity Statements to backfill the past. `
+    + `Backfilled statements are scored the same way as live data (the health grade doesn't need live prices). `
+    + `A gap in a line just means that metric wasn't captured at that point. `
+    + `Sources so far: ${sources.join(', ')}.`;
+}
+
+function initProgressView() {
+  const btn = el('progress-import-btn');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = 'Importing…';
+    try {
+      const res = await window.electronAPI.importHistoryCsv();
+      if (res.canceled) return;
+      if (!res.success) { alert(`Import failed: ${res.error}`); return; }
+      await renderProgressView();
+      const note = el('progress-footnote');
+      if (note) note.innerHTML = `<span style="color:var(--green);">Added a history point for ${pgDate(res.statementDate)}.</span> ` + note.innerHTML;
+    } catch (err) {
+      alert(`Import failed: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = orig;
+    }
+  });
+}
+
 // ─── PFIC exit-cost estimates (§1291, planning only) ─────────────────────────
 // Rendered under the PFIC swaps list on Guidance: what selling each foreign
 // fund today is estimated to cost in US tax, and what waiting adds.
@@ -2402,7 +2562,7 @@ async function enrichEmployerExposure(directPct) {
     const elPct = el('pf-employer-pct');
     if (!elPct) return;
     elPct.innerHTML = `${exp.totalPct.toFixed(2)}%<span style="display:block; font-size:11px; font-weight:400; color:var(--text-muted); margin-top:2px;">${exp.directPct.toFixed(1)}% direct + ${exp.impliedPct.toFixed(1)}% via funds</span>`;
-    elPct.style.color = exp.totalPct > 15 ? 'var(--red)' : exp.totalPct > 10 ? '#f59e0b' : '';
+    elPct.style.color = exp.totalPct > concentrationLimit * 1.5 ? 'var(--red)' : exp.totalPct > concentrationLimit ? '#f59e0b' : '';
     const card = elPct.closest('.metric-card');
     if (card) {
       const perFund = exp.perFund.map(f => `${f.symbol}: ${f.employerFundPct.toFixed(1)}% of fund ≈ $${f.impliedUsd.toLocaleString('en-US')}`).join('\n');
@@ -2526,7 +2686,7 @@ function renderPortfolio(p) {
   el('pf-cash-label').textContent = p.baseCurrency ? `Cash (${p.baseCurrency})` : 'Cash';
   const conc = d.concentration;
   el('pf-employer-pct').textContent = has ? fmt.pct(conc.pct) : '—';
-  el('pf-employer-pct').style.color = conc.pct > 15 ? 'var(--red)' : conc.pct > 10 ? '#f59e0b' : '';
+  el('pf-employer-pct').style.color = conc.pct > concentrationLimit * 1.5 ? 'var(--red)' : conc.pct > concentrationLimit ? '#f59e0b' : '';
   if (has) enrichEmployerExposure(conc.pct);
   const top = d.topPositions[0];
   el('pf-largest').textContent = top ? `${top.symbol} · ${top.weightPct.toFixed(1)}%` : '—';
@@ -3238,6 +3398,7 @@ initScreenerFilters();
 initScreenerSorting();
 initDiscoverView();
 initPortfolioView();
+initProgressView();
 initOptionsScannerView();
 initSortableTable('table-top25',    () => allData.filter(d => d._score && d._score.totalScore > 0));
 initSortableTable('table-under10k', () => allData.filter(d => d._score && d._score.totalScore > 0 && d.currentPrice <= 100));

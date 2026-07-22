@@ -130,6 +130,13 @@ console.log('Running test/guidance.test.js...');
   // GOOG weight = 7/57 = 12.2% (>10% => warning)
   assert.strictEqual(items.some(i => i.id === 'employer-concentration-soft'), true);
 
+  // Configurable limit: raise it to 20% and the same 12.2% is no longer flagged
+  items = generatePortfolioGuidance(holdings, 0, [], { employerSymbols: 'GOOG', concentrationLimitPct: 20 });
+  assert.strictEqual(items.some(i => i.id === 'employer-concentration-soft' || i.id === 'employer-concentration-hard'), false);
+  // Lower it to 8% and 12.2% becomes CRITICAL (>1.5×8 = 12%)
+  items = generatePortfolioGuidance(holdings, 0, [], { employerSymbols: 'GOOG', concentrationLimitPct: 8 });
+  assert.strictEqual(items.some(i => i.id === 'employer-concentration-hard'), true);
+
   // Cash drag
   holdings = [
     { symbol: 'VTI', marketValue: 20000, isEmployerStock: false }
@@ -277,6 +284,16 @@ console.log('Running test/guidance.test.js...');
   res = calculateHoldingRecommendation(holding, null, null, [], 5, 10000);
   assert.strictEqual(res.type, 'Trim');
   assert.ok(res.reason.includes('concentration'));
+  assert.ok(res.reason.includes('10% limit'));
+
+  // Configurable concentration limit: at 25% the same 20%-weight stock is fine
+  res = calculateHoldingRecommendation(holding, null, null, [], 5, 10000, { concentrationLimitPct: 25 });
+  assert.ok(!(res.type === 'Trim' && res.reason.includes('concentration')));
+  // ...and a lower limit trims a smaller position, with the limit shown
+  holding = { symbol: 'AAPL', bucket: 'satellite', marketValue: 600 }; // 6% weight
+  res = calculateHoldingRecommendation(holding, null, null, [], 5, 10000, { concentrationLimitPct: 5 });
+  assert.strictEqual(res.type, 'Trim');
+  assert.ok(res.reason.includes('5% limit'));
 
   // Individual stock in Core bucket should get "Trim" reclassification warning
   holding = { symbol: 'AAPL', bucket: 'core', marketValue: 500 };

@@ -81,6 +81,14 @@
           Health
           <span id="nav-health-badge" style="margin-left:auto; display:flex; align-items:center;"></span>
         </a>
+        <a class="nav-link" data-view="progress">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 3v18h18" />
+            <path d="M19 9l-5 5-4-4-3 3" />
+          </svg>
+          Progress
+        </a>
 
         <div class="nav-sep"></div>
 
@@ -725,6 +733,64 @@
         </div>
       </section>
 
+      <!-- Progress View: trajectory of the profile over time -->
+      <section class="view" id="view-progress">
+        <div class="view-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+          <div>
+            <h1 class="view-title">Progress</h1>
+            <span class="view-subtitle">How your portfolio is changing over time — de-risking employer stock, improving health, deploying cash</span>
+          </div>
+          <button class="settings-action-btn" id="progress-import-btn" style="width:auto; margin:0; padding:8px 14px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Import past statement
+          </button>
+        </div>
+
+        <div class="empty-state" id="progress-empty-state" style="display:none">
+          <div class="empty-state-icon">📈</div>
+          <h3 class="empty-state-title">No history yet</h3>
+          <p class="empty-state-body">History builds automatically each time your portfolio changes. To backfill the past, import a dated IBKR <strong>Activity Statement</strong> with the button above — each one adds a point at its own date.</p>
+        </div>
+
+        <div id="progress-content" style="display:none;">
+          <div class="metric-cards" id="progress-kpis" style="margin-bottom:16px;"></div>
+
+          <div class="settings-card" style="margin-bottom:16px;">
+            <div class="settings-card-title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+              Employer stock concentration vs. target
+            </div>
+            <p class="settings-card-desc">The headline of your plan: the share of your portfolio in your employer's stock, trending toward your goal. Lower is safer.</p>
+            <div style="position:relative; width:100%; height:260px;">
+              <canvas id="progress-conc-chart" role="img" aria-label="Line chart of employer stock concentration over time versus target."></canvas>
+            </div>
+          </div>
+
+          <div class="settings-grid" style="grid-template-columns:1fr 1fr;">
+            <div class="settings-card">
+              <div class="settings-card-title">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                Portfolio health score
+              </div>
+              <div style="position:relative; width:100%; height:220px;">
+                <canvas id="progress-health-chart" role="img" aria-label="Line chart of portfolio health score over time."></canvas>
+              </div>
+            </div>
+            <div class="settings-card">
+              <div class="settings-card-title">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                Total portfolio value
+              </div>
+              <div style="position:relative; width:100%; height:220px;">
+                <canvas id="progress-value-chart" role="img" aria-label="Line chart of total portfolio value over time."></canvas>
+              </div>
+            </div>
+          </div>
+
+          <p class="setting-desc" id="progress-footnote" style="margin-top:12px;"></p>
+        </div>
+      </section>
+
       <!-- Targets View -->
       <section class="view" id="view-targets">
         <div class="view-header">
@@ -1202,6 +1268,16 @@
                 style="width: 200px" />
               <p class="setting-desc" style="margin-top:4px">Comma-separated list of symbols you receive from your
                 employer. Used to compute concentration risk.</p>
+            </div>
+
+            <div class="settings-field">
+              <label class="settings-field-label" for="settings-concentration-limit">Single-Stock Concentration Limit (%)</label>
+              <input type="number" class="threshold-input" id="settings-concentration-limit" min="1" max="100"
+                step="1" value="10" style="width: 80px" />
+              <p class="setting-desc" style="margin-top:4px">The most any one company (including your employer) should be
+                of your portfolio. Drives the concentration warnings, "Trim" recommendations, and the target line on the
+                Progress chart. The <strong>critical</strong> alert triggers at 1.5× this value (default: warn above 10%,
+                critical above 15%).</p>
             </div>
 
             <div class="settings-field">

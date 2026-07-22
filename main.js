@@ -122,6 +122,7 @@ const { computeFundOverlap, computeIndexImpliedEmployer } = require('./lib/funds
 const { buildPlan, computePlanStatus } = require('./lib/selldown');
 const { buildActionPlan } = require('./lib/actions');
 const { isUSPerson, estimatePficExitCost } = require('./lib/pfic');
+const { parseStatementMeta, buildProfileSnapshot, appendSnapshot } = require('./lib/history');
 const { spawn } = require('child_process');
 
 const CACHE_FILE      = path.join(app.getPath('userData'), 'data.json');
@@ -132,6 +133,7 @@ const DISC_CACHE_FILE = path.join(app.getPath('userData'), 'discovery-cache.json
 const SEED_CACHE_FILE = path.join(__dirname, 'lib', 'discovery-seed.json');
 const QUOTE_CACHE_FILE = path.join(app.getPath('userData'), 'quote-cache.json');
 const FUND_INSIGHTS_CACHE_FILE = path.join(app.getPath('userData'), 'fund-insights-cache.json');
+const PROFILE_HISTORY_FILE = path.join(app.getPath('userData'), 'profile-history.json');
 
 const DEFAULT_SETTINGS = {
   refreshIntervalDays: 1,
@@ -153,6 +155,7 @@ const DEFAULT_SETTINGS = {
   birthYear: 1984,
   glidepathBase: 110,
   cashDragThreshold: 5000,
+  concentrationLimitPct: 10, // single-stock/employer ceiling; critical = 1.5×
   employerSymbols: '',
   dividendTaxRatePct: 30, // effective rate on dividends (CH income tax × US qualified-rate/FTC interplay)
   ibkrGatewayUrl: 'https://localhost:5000',
@@ -283,6 +286,7 @@ function portfolioFingerprint(p, settings) {
     tolerancePct: p.tolerancePct,
     employerSymbols: p.employerSymbols,
     cashDragThreshold: settings.cashDragThreshold ?? null,
+    concentrationLimitPct: settings.concentrationLimitPct ?? null,
   });
   return crypto.createHash('sha1').update(material).digest('hex');
 }
@@ -298,6 +302,121 @@ function loadHealthCache() {
 
 function saveHealthCache(payload) {
   fs.writeFileSync(HEALTH_CACHE_FILE, JSON.stringify(payload), 'utf8');
+}
+
+// ── Profile history ─────────────────────────────────────────────────────────
+// Dated snapshots of the portfolio's shape, appended whenever it actually
+// changes (health recompute) or backfilled from a dated Activity Statement.
+function loadProfileHistory() {
+  try {
+    if (fs.existsSync(PROFILE_HISTORY_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(PROFILE_HISTORY_FILE, 'utf8'));
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+  return [];
+}
+
+function saveProfileHistory(list) {
+  fs.writeFileSync(PROFILE_HISTORY_FILE, JSON.stringify(list), 'utf8');
+}
+
+function localToday() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function ageFromSettings(settings) {
+  return settings.birthYear ? new Date().getFullYear() - settings.birthYear : null;
+}
+
+// PFIC value/symbols + equity value, classified from symbol/quote data. Works
+// with quotes={} (backfill) since analyzeTicker falls back to known-symbol sets.
+function snapshotEnrichments(holdings, cash, quotes, settings) {
+  const usPerson = isUSPerson(settings);
+  let pficValue = 0, equityValue = 0;
+  const pficSymbols = [];
+  for (const h of holdings || []) {
+    if (h.assetCategory === 'OPT' || (h.symbol || '').length > 8) continue;
+    const q = quotes[(h.symbol || '').toUpperCase()];
+    const a = analyzeTicker(h.symbol, holdings, cash, q);
+    if (a && a.isPfic && usPerson) { pficValue += h.marketValue || 0; pficSymbols.push(h.symbol); }
+    if (!a || (a.type !== 'bond etf' && a.type !== 'cash')) equityValue += h.marketValue || 0;
+  }
+  return { pfic: { value: pficValue, count: pficSymbols.length, symbols: pficSymbols }, equityValue };
+}
+
+// Build + persist one snapshot. Dedupes to one point per date.
+function captureProfileSnapshot({ p, settings, health = null, dividends = null, quotes = {}, employerViaFundsPct = null, nav = null, date, source = 'live' }) {
+  const enr = snapshotEnrichments(p.holdings || [], p.cash || 0, quotes || {}, settings);
+  // The health SCORE degrades gracefully without live quotes (ETF/PFIC
+  // detection falls back to static classification; dividends aren't part of
+  // the score) — so backfilled statement + seed points get a real, graphable
+  // score, not a null gap. Only when we can't score at all do we leave it null.
+  if (!health && (p.holdings || []).length) {
+    try {
+      health = computePortfolioHealth({
+        holdings: p.holdings, cash: p.cash || 0, targets: p.targets || [],
+        tolerancePct: p.tolerancePct ?? 5, quotes: quotes || {}, settings,
+      });
+    } catch (err) {
+      console.warn('History health compute failed:', err.message);
+    }
+  }
+  const snap = buildProfileSnapshot({
+    date: date || localToday(),
+    source,
+    holdings: p.holdings || [],
+    cash: p.cash || 0,
+    targets: p.targets || [],
+    settings,
+    age: ageFromSettings(settings),
+    glidepathBase: settings.glidepathBase ?? 110,
+    health, dividends, employerViaFundsPct,
+    equityValue: enr.equityValue, pfic: enr.pfic, nav,
+  });
+  const history = appendSnapshot(loadProfileHistory(), snap);
+  saveProfileHistory(history);
+  return history;
+}
+
+// Give a first-time user a non-empty chart: a current structural snapshot,
+// plus (if a sell-down plan exists) its start point so employer concentration
+// already shows a start→now line.
+function seedProfileHistoryIfEmpty() {
+  const existing = loadProfileHistory();
+  if (existing.length) return existing;
+  const p = loadPortfolio();
+  if (!p.holdings || !p.holdings.length) return existing;
+  const settings = loadSettings();
+  let history = captureProfileSnapshot({ p, settings, source: 'seed' });
+
+  const plan = p.sellDownPlan;
+  if (plan && plan.startDate && plan.startWeightPct != null) {
+    const startDate = plan.startDate.slice(0, 10);
+    if (!history.some(h => h.date === startDate)) {
+      history = appendSnapshot(history, {
+        date: startDate,
+        source: 'seed',
+        capturedAt: plan.createdAt || plan.startDate,
+        totalValue: plan.startTotalValue ?? null,
+        cash: null, cashPct: null,
+        stockValue: null, dividendAccruals: null, twrPct: null,
+        buckets: [],
+        employerPctDirect: Math.round(plan.startWeightPct * 100) / 100,
+        employerPctTotal: null,
+        employerSymbols: [plan.symbol],
+        topSymbol: plan.symbol, topPct: Math.round(plan.startWeightPct * 100) / 100,
+        equityPct: null, targetEquityPct: null,
+        pficValue: null, pficCount: null, pficSymbols: null,
+        healthScore: null, healthGrade: null, dividendAnnual: null,
+        holdings: [],
+      });
+      saveProfileHistory(history);
+    }
+  }
+  return history;
 }
 
 // Portfolio plus derived metrics the renderer needs (math stays in lib/portfolio.js).
@@ -322,7 +441,7 @@ function portfolioView(p) {
     const q = quotesMap.get(symbolUpper);
     const watchlistInfo = watchlistMap.get(symbolUpper);
     const rec = calculateHoldingRecommendation(h, q, watchlistInfo, drifts, p.tolerancePct, total,
-      { usPerson: isUSPerson(settings) });
+      { usPerson: isUSPerson(settings), concentrationLimitPct: settings.concentrationLimitPct ?? 10 });
     return { ...h, recommendation: rec };
   });
 
@@ -1365,6 +1484,15 @@ app.whenReady().then(() => {
     const dividends = projectAnnualDividends(p.holdings, quotes);
     const payload = { fingerprint, computedAt: new Date().toISOString(), health, dividends };
     saveHealthCache(payload);
+
+    // A real recompute means the portfolio changed (fingerprint-gated) — the
+    // natural moment to record a history point. Reuses the quotes we just
+    // fetched, so no extra network. Failures here never break the health call.
+    try {
+      captureProfileSnapshot({ p, settings, health, dividends, quotes, source: 'live' });
+    } catch (err) {
+      console.warn('Profile-history capture failed:', err.message);
+    }
     return payload;
   });
 
@@ -1568,6 +1696,60 @@ app.whenReady().then(() => {
         assumedYears: settings.pficAssumedYears ?? 3,
       },
     };
+  });
+
+  // ── Profile history (trajectory of the portfolio's shape over time) ────────
+  ipcMain.handle('get-profile-history', () => {
+    try {
+      return { history: seedProfileHistoryIfEmpty() };
+    } catch (err) {
+      return { history: [], error: err.message };
+    }
+  });
+
+  // Backfill a historical point from a dated IBKR Activity Statement. Adds the
+  // snapshot at the statement's own date WITHOUT touching current holdings.
+  ipcMain.handle('import-history-csv', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      title: 'Import a dated IBKR Activity Statement for history',
+      filters: [{ name: 'CSV files', extensions: ['csv'] }],
+      properties: ['openFile'],
+    });
+    if (canceled || !filePaths.length) return { success: false, canceled: true };
+
+    try {
+      const text = fs.readFileSync(filePaths[0], 'utf8');
+      const { statementDate, nav } = parseStatementMeta(text);
+      if (!statementDate) {
+        return { success: false, error: 'No statement date found. This needs an IBKR Activity Statement (which carries a "Period" date), not a plain positions export.' };
+      }
+      const { holdings, cash, errors } = parsePositionsCsv(text);
+      if (!holdings.length) {
+        return { success: false, error: errors.join('; ') || 'No positions found in the statement.' };
+      }
+
+      // Carry over employer flags/buckets from the current portfolio so the
+      // historical point classifies concentration the same way.
+      const prev = loadPortfolio();
+      const prevBySymbol = new Map(prev.holdings.map(h => [h.symbol, h]));
+      const settings = loadSettings();
+      const employerSyms = new Set((settings.employerSymbols || '').toUpperCase().split(',').map(s => s.trim()).filter(Boolean));
+      for (const h of holdings) {
+        const old = prevBySymbol.get(h.symbol);
+        if (old) { h.bucket = old.bucket; if (old.isEmployerStock) h.isEmployerStock = true; }
+        if (employerSyms.has((h.symbol || '').toUpperCase())) h.isEmployerStock = true;
+      }
+
+      const history = captureProfileSnapshot({
+        p: { holdings, cash, targets: prev.targets },
+        settings, quotes: {}, nav,
+        date: statementDate, source: 'statement',
+      });
+      return { success: true, statementDate, history, warnings: errors };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   });
 
   // ── Dashboard action plan ──────────────────────────────────────────────────

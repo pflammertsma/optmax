@@ -71,6 +71,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // PFIC exit-cost estimates (planning only)
   getPficEstimates:      ()              => ipcRenderer.invoke('get-pfic-estimates'),
 
+  // Profile history (trajectory over time)
+  getProfileHistory:     ()              => ipcRenderer.invoke('get-profile-history'),
+  importHistoryCsv:      ()              => ipcRenderer.invoke('import-history-csv'),
+
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window-minimize'),
   maximizeWindow: () => ipcRenderer.send('window-maximize'),

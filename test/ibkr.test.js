@@ -254,12 +254,60 @@ const happyRoutes = [
   await testAsync('syncPortfolio reports needs-login without touching portfolio endpoints', async () => {
     const transport = mockTransport([
       ['/iserver/auth/status', { status: 200, json: { authenticated: false, connected: true } }],
+      ['/iserver/reauthenticate', { status: 200, json: {} }],
     ]);
-    const client = createIbkrClient('https://localhost:5000', transport);
+    const client = createIbkrClient('https://localhost:5000', transport, { reauthPollDelayMs: 0 });
     const r = await client.syncPortfolio();
     assert.strictEqual(r.success, false);
     assert.strictEqual(r.state, 'needs-login');
     assert.ok(!transport.calls.some(c => c.includes('/portfolio/')));
+  });
+
+  await testAsync('getStatus promotes a connected-but-unauthenticated session via reauthenticate', async () => {
+    // Models the post-2FA gateway: connected:true/authenticated:false until
+    // /iserver/reauthenticate is called, then it flips to authenticated.
+    let reauthed = false;
+    const transport = async (_base, method, apiPath) => {
+      if (apiPath.startsWith('/tickle')) return { status: 200, json: {} };
+      if (apiPath.startsWith('/iserver/reauthenticate')) { reauthed = true; return { status: 200, json: {} }; }
+      if (apiPath.startsWith('/iserver/auth/status')) {
+        return { status: 200, json: { connected: true, authenticated: reauthed } };
+      }
+      return { status: 404, json: null };
+    };
+    const calls = [];
+    const wrapped = async (b, m, p) => { calls.push(`${m} ${p}`); return transport(b, m, p); };
+    const client = createIbkrClient('https://localhost:5000', wrapped, { reauthPollDelayMs: 0 });
+    const s = await client.getStatus();
+    assert.strictEqual(s.state, 'connected');
+    assert.strictEqual(s.authenticated, true);
+    assert.ok(calls.some(c => c.includes('/iserver/reauthenticate')), 'must call reauthenticate');
+  });
+
+  await testAsync('getStatus does NOT reauthenticate a genuine no-session (connected:false)', async () => {
+    const calls = [];
+    const transport = async (_b, m, p) => {
+      calls.push(`${m} ${p}`);
+      if (p.startsWith('/tickle')) return { status: 200, json: {} };
+      if (p.startsWith('/iserver/auth/status')) return { status: 200, json: { connected: false, authenticated: false } };
+      return { status: 404, json: null };
+    };
+    const client = createIbkrClient('https://localhost:5000', transport, { reauthPollDelayMs: 0 });
+    const s = await client.getStatus();
+    assert.strictEqual(s.state, 'needs-login');
+    assert.ok(!calls.some(c => c.includes('/iserver/reauthenticate')), 'must not reauthenticate without a session');
+  });
+
+  await testAsync('getStatus stays needs-login if reauthenticate never promotes the session', async () => {
+    const transport = async (_b, m, p) => {
+      if (p.startsWith('/tickle') || p.startsWith('/iserver/reauthenticate')) return { status: 200, json: {} };
+      if (p.startsWith('/iserver/auth/status')) return { status: 200, json: { connected: true, authenticated: false } };
+      return { status: 404, json: null };
+    };
+    const client = createIbkrClient('https://localhost:5000', transport, { reauthPollDelayMs: 0, reauthPollAttempts: 2 });
+    const s = await client.getStatus();
+    assert.strictEqual(s.state, 'needs-login');
+    assert.strictEqual(s.authenticated, false);
   });
 
   await testAsync('syncPortfolio reports unreachable on transport error', async () => {
