@@ -227,12 +227,20 @@
             <h1 class="view-title">Screener</h1>
             <span class="view-subtitle">All watchlist stocks ranked by composite score</span>
           </div>
-          <div class="toggle-container" title="Reveal option-writing metrics like IVR and Yield">
-            <span class="toggle-label">Options Writing Mode</span>
-            <label class="switch">
-              <input type="checkbox" id="screener-show-options">
-              <span class="slider round"></span>
-            </label>
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <button class="settings-action-btn" id="screener-refresh-btn" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600;" title="Refresh prices, options chains, and metrics for all watchlist stocks">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
+              </svg>
+              Refresh Screener
+            </button>
+            <div class="toggle-container" title="Reveal option-writing metrics like IVR and Yield">
+              <span class="toggle-label">Options Writing Mode</span>
+              <label class="switch">
+                <input type="checkbox" id="screener-show-options">
+                <span class="slider round"></span>
+              </label>
+            </div>
           </div>
         </div>
 

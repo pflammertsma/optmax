@@ -646,15 +646,20 @@ function renderScreener() {
       taxDragHtml = `<span style="color:var(--text-muted);" title="0% dividend yield means 0 tax drag. Highly tax efficient in CH.">0.00%/yr</span>`;
     }
 
-    const expRatioStr = d.expenseRatioPct != null && d.expenseRatioPct > 0 ? d.expenseRatioPct.toFixed(2) + '%' : '—';
+    let expRatioStr = '<span style="color:var(--text-muted);" title="Individual stock — no fund expense ratio">N/A</span>';
+    if (d.expenseRatioPct != null) {
+      expRatioStr = d.expenseRatioPct.toFixed(2) + '%';
+    } else if (d.analysis?.type === 'etf' || d.analysis?.type === 'bond etf' || d.quoteType === 'ETF' || d.overlap) {
+      expRatioStr = '0.00%';
+    }
 
     let taxStatusHtml = '';
     if (d.analysis?.isPfic || d.isPfic) {
       taxStatusHtml = `<span class="preview-badge" style="background:rgba(244,63,94,0.12); border-color:rgba(244,63,94,0.3); color:#f43f5e;" data-glossary="pfic" title="PFIC: Non-US domiciled fund. Punitive US tax rules apply. Click for glossary.">PFIC</span>`;
-    } else if (d.analysis?.suitability === 'excellent' || (d.analysis && !d.analysis.isPfic)) {
-      taxStatusHtml = `<span class="preview-badge" style="background:rgba(16,185,129,0.12); border-color:rgba(16,185,129,0.3); color:#10b981;" data-glossary="us-tax-person" title="US-domiciled asset. Safe for US expats. Click for glossary.">US Domicile</span>`;
     } else if (d.symbol?.endsWith('.SW')) {
       taxStatusHtml = `<span class="preview-badge" style="background:rgba(0,240,255,0.12); border-color:rgba(0,240,255,0.3); color:var(--cyan);" title="Swiss stock. 35% Swiss withholding reclaimable via tax return.">Swiss</span>`;
+    } else if (!d.analysis || d.analysis.suitability === 'excellent' || !d.analysis.isPfic) {
+      taxStatusHtml = `<span class="preview-badge" style="background:rgba(16,185,129,0.12); border-color:rgba(16,185,129,0.3); color:#10b981;" data-glossary="us-tax-person" title="US-domiciled asset. Safe for US expats. Click for glossary.">US Domicile</span>`;
     } else {
       taxStatusHtml = `<span style="color:var(--text-muted); font-size:11px;">Standard</span>`;
     }
@@ -799,6 +804,11 @@ function initScreenerFilters() {
       screenerFilters.starredOnly = starredToggle.checked;
       renderScreener();
     });
+  }
+
+  const screenerRefreshBtn = el('screener-refresh-btn');
+  if (screenerRefreshBtn) {
+    screenerRefreshBtn.addEventListener('click', refreshData);
   }
 
   const screenerShowOptions = el('screener-show-options');
@@ -1563,7 +1573,7 @@ function setPriceLabels(pricedAt, nextPriceUpdate) {
 }
 
 function setListBtnsState(loading) {
-  ['refresh-btn', 'sidebar-refresh-btn'].forEach(id => {
+  ['refresh-btn', 'sidebar-refresh-btn', 'screener-refresh-btn'].forEach(id => {
     const b = el(id); if (!b) return;
     b.disabled = loading;
     loading ? b.classList.add('spinning') : b.classList.remove('spinning');

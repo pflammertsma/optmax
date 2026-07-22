@@ -567,6 +567,16 @@ async function analyzeSingleSymbol(symbol, minMarginMultiplier, ivHistory) {
   const annualizedYield = monthlyYield * 12;
   const monthlyIncome   = premium * 100 * (30 / dte);
 
+  const yieldPct = quote?.trailingAnnualDividendYield > 0
+    ? Math.round(quote.trailingAnnualDividendYield * 10000) / 100
+    : (quote?.trailingAnnualDividendRate > 0 && currentPrice > 0
+      ? Math.round((quote.trailingAnnualDividendRate / currentPrice) * 10000) / 100
+      : (quote?.dividendYield > 0 ? Math.round(quote.dividendYield * 100) / 100 : (quote?.trailingAnnualDividendRate === 0 || quote?.dividendYield === 0 ? 0 : null)));
+
+  const dividendTaxRatePct = settings.dividendTaxRatePct ?? 30;
+  const taxDragPct = yieldPct != null ? Math.round(yieldPct * dividendTaxRatePct) / 100 : null;
+  const analysis = analyzeTicker(symbol, [], 0, quote);
+
   return {
     symbol,
     companyName: quote.longName || quote.shortName || symbol,
@@ -587,6 +597,10 @@ async function analyzeSingleSymbol(symbol, minMarginMultiplier, ivHistory) {
     aboveMA50,
     earningsClear: true,
     atSupport: false,
+    yieldPct,
+    taxDragPct,
+    dividendTaxRatePct,
+    analysis,
   };
 }
 
@@ -617,6 +631,7 @@ async function fetchOptionsData(symbolsOverride = null, onProgress = null) {
                       existingOpp && 
                       existingOpp.marketCap !== undefined && 
                       existingOpp.marketCap !== null && 
+                      existingOpp.yieldPct !== undefined &&
                       fetchedAtStr && 
                       (Date.now() - new Date(fetchedAtStr).getTime()) < 60 * 60 * 1000;
 
@@ -644,6 +659,55 @@ async function fetchOptionsData(symbolsOverride = null, onProgress = null) {
 
   opportunities.sort((a, b) => b.annualizedYield - a.annualizedYield);
   return { opportunities, ivHistory };
+}
+
+// Batch quote enrichment helper for dividend yields, tax drag, expense ratios, and compliance
+async function enrichOpportunitiesWithQuotes(opportunities, settings) {
+  if (!opportunities || !opportunities.length) return opportunities;
+  const symbols = opportunities.map(o => o.symbol);
+  const dividendTaxRatePct = settings?.dividendTaxRatePct ?? 30;
+  
+  const chunkSize = 100;
+  for (let i = 0; i < symbols.length; i += chunkSize) {
+    const chunk = symbols.slice(i, i + chunkSize);
+    try {
+      const quotes = await yahooFinance.quote(chunk);
+      const quoteMap = new Map();
+      if (Array.isArray(quotes)) {
+        quotes.forEach(q => { if (q && q.symbol) quoteMap.set(q.symbol.toUpperCase(), q); });
+      } else if (quotes && quotes.symbol) {
+        quoteMap.set(quotes.symbol.toUpperCase(), quotes);
+      }
+
+      opportunities.forEach(d => {
+        const q = quoteMap.get((d.symbol || '').toUpperCase());
+        if (q) {
+          const price = q.regularMarketPrice || d.currentPrice;
+          const yieldPct = q.trailingAnnualDividendYield > 0
+            ? Math.round(q.trailingAnnualDividendYield * 10000) / 100
+            : (q.trailingAnnualDividendRate > 0 && price > 0
+              ? Math.round((q.trailingAnnualDividendRate / price) * 10000) / 100
+              : (q.dividendYield > 0 ? Math.round(q.dividendYield * 100) / 100 : (q.trailingAnnualDividendRate === 0 || q.dividendYield === 0 ? 0 : null)));
+
+          d.quoteType = q.quoteType;
+          d.yieldPct = yieldPct;
+          d.taxDragPct = yieldPct != null ? Math.round(yieldPct * dividendTaxRatePct) / 100 : null;
+          d.dividendTaxRatePct = dividendTaxRatePct;
+          if (q.annualReportExpenseRatio != null) {
+            d.expenseRatioPct = Math.round(q.annualReportExpenseRatio * 10000) / 100;
+          } else if (q.expenseRatio != null) {
+            d.expenseRatioPct = Math.round(q.expenseRatio * 10000) / 100;
+          }
+          d.analysis = analyzeTicker(d.symbol, [], 0, q);
+        } else if (!d.analysis) {
+          d.analysis = analyzeTicker(d.symbol, [], 0, null);
+        }
+      });
+    } catch (err) {
+      console.warn(`Chunk quote enrichment failed (${chunk[0]}…):`, err.message);
+    }
+  }
+  return opportunities;
 }
 
 // ── Lightweight price update ──────────────────────────────────────────────────
@@ -890,13 +954,18 @@ function stopGateway() {
 app.whenReady().then(() => {
   loadQuoteCache();
   loadFundInsightsCache();
-  ipcMain.handle('load-initial-data', () => {
+  ipcMain.handle('load-initial-data', async () => {
     const cache    = loadCache();
     const settings = loadSettings();
     if (!cache) return null;
 
     const daysAgo  = Math.floor((Date.now() - new Date(cache.fetchedAt)) / (24 * 60 * 60 * 1000));
     const hoursAgo = Math.floor((Date.now() - new Date(cache.pricedAt || cache.fetchedAt)) / (60 * 60 * 1000));
+
+    if (cache.data && Array.isArray(cache.data) && cache.data.length > 0) {
+      await enrichOpportunitiesWithQuotes(cache.data, settings);
+      saveCache(cache.data, cache.ivHistory);
+    }
 
     return {
       data:           cache.data,
