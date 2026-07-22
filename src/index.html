@@ -984,41 +984,48 @@
 
         <div class="settings-grid">
 
-          <!-- Opportunity Data Card -->
+          <!-- Opportunity Data Scan Card -->
           <div class="settings-card">
             <div class="settings-card-title">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="23 4 23 10 17 10" />
                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
               </svg>
-              Opportunity Data
+              Opportunity Data Scan
             </div>
-            <p class="settings-card-desc">Scans all watchlist stocks for new options opportunities. This is the main
-              data fetch — run it when you want fresh opportunity data.</p>
+            <p class="settings-card-desc">Scans all watchlist stocks for new options opportunities.</p>
 
-            <div class="settings-field">
-              <label class="settings-field-label" for="interval-select">Scan every</label>
-              <select class="schedule-select" id="interval-select">
-                <option value="1" selected>1 day</option>
-                <option value="2">2 days</option>
-                <option value="7">7 days</option>
-                <option value="14">14 days</option>
-                <option value="30">30 days</option>
-              </select>
-              <p class="setting-desc" id="interval-desc"></p>
-            </div>
+            <div class="settings-field-group">
+              <div class="settings-field">
+                <label class="settings-field-label" for="interval-select">
+                  Scan Interval
+                  <span class="info-icon" title="Frequency for automatic full options watchlist scanning.">i</span>
+                </label>
+                <select class="schedule-select" id="interval-select">
+                  <option value="1" selected>1 day</option>
+                  <option value="2">2 days</option>
+                  <option value="7">7 days</option>
+                  <option value="14">14 days</option>
+                  <option value="30">30 days</option>
+                </select>
+                <p class="setting-desc" id="interval-desc" style="display:none"></p>
+              </div>
 
-            <div class="settings-field">
-              <label class="settings-field-label" for="margin-select">Min. Margin (OTM)</label>
-              <select class="schedule-select" id="margin-select">
-                <option value="0">0% — nearest strike</option>
-                <option value="5" selected>5%</option>
-                <option value="7.5">7.5%</option>
-                <option value="10">10%</option>
-                <option value="12.5">12.5%</option>
-                <option value="15">15%</option>
-              </select>
-              <p class="setting-desc" id="margin-desc"></p>
+              <div class="settings-field">
+                <label class="settings-field-label" for="margin-select">
+                  Min. Margin (OTM)
+                  <span class="info-icon" title="Filter for put options where strike is at least X% below current stock price for downside protection.">i</span>
+                </label>
+                <select class="schedule-select" id="margin-select">
+                  <option value="0">0% — nearest strike</option>
+                  <option value="5" selected>5%</option>
+                  <option value="7.5">7.5%</option>
+                  <option value="10">10%</option>
+                  <option value="12.5">12.5%</option>
+                  <option value="15">15%</option>
+                </select>
+                <p class="setting-desc" id="margin-desc" style="display:none"></p>
+              </div>
             </div>
 
             <div class="settings-progress hidden" id="fetch-progress-wrap">
@@ -1037,7 +1044,7 @@
                 <polyline points="23 4 23 10 17 10" />
                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
               </svg>
-              Refresh Now
+              Refresh Opportunities Now
             </button>
 
             <div class="schedule-dates settings-dates">
@@ -1063,13 +1070,15 @@
                 <line x1="12" y1="1" x2="12" y2="23" />
                 <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
               </svg>
-              Price Update
+              Stock Price Updates
             </div>
-            <p class="settings-card-desc">Refreshes current stock prices for all tracked opportunities without
-              re-running the full options scan.</p>
+            <p class="settings-card-desc">Refreshes current stock prices for tracked opportunities without re-scanning options.</p>
 
             <div class="settings-field">
-              <label class="settings-field-label" for="price-interval-select">Update every</label>
+              <label class="settings-field-label" for="price-interval-select">
+                Update Frequency
+                <span class="info-icon" title="Frequency for automatic underlying stock price updates.">i</span>
+              </label>
               <select class="schedule-select" id="price-interval-select">
                 <option value="1">1 hour</option>
                 <option value="2">2 hours</option>
@@ -1079,7 +1088,7 @@
                 <option value="24">24 hours</option>
                 <option value="0">Manual only</option>
               </select>
-              <p class="setting-desc" id="price-interval-desc"></p>
+              <p class="setting-desc" id="price-interval-desc" style="display:none"></p>
             </div>
 
             <div class="settings-progress hidden" id="price-progress-wrap">
@@ -1114,96 +1123,118 @@
             </div>
           </div>
 
-          <!-- Scoring Configuration Card -->
+          <!-- Scoring Configuration & Targets Card -->
           <div class="settings-card settings-card-scoring">
             <div class="settings-card-title">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12 6 12 12 16 14" />
               </svg>
-              Scoring Configuration
+              Scoring Engine &amp; Targets
             </div>
-            <p class="settings-card-desc">Configure grade thresholds, kill switches, and target parameters used by the
-              100-point scoring engine.</p>
+            <p class="settings-card-desc">Grade thresholds, kill switches, and target parameters for the 100-point options scoring engine.</p>
 
             <div class="settings-field">
-              <label class="settings-field-label">Grade Thresholds</label>
-              <div class="score-thresholds">
-                <div class="threshold-row">
+              <label class="settings-field-label">
+                Grade Thresholds
+                <span class="info-icon" title="Minimum total score out of 100 required for options candidates to receive grades A through E.">i</span>
+              </label>
+              <div class="score-thresholds-strip">
+                <div class="threshold-col">
                   <span class="grade-badge grade-badge-A">A</span>
-                  <label>≥</label>
-                  <input type="number" class="threshold-input" id="threshold-a" min="0" max="100" value="50" />
-                  <span class="threshold-unit">pts</span>
+                  <div class="threshold-val-row">
+                    <span style="font-size:10.5px; color:var(--text-muted)">≥</span>
+                    <input type="number" class="threshold-input compact-input" id="threshold-a" min="0" max="100" value="50" />
+                    <span class="threshold-unit">pts</span>
+                  </div>
                 </div>
-                <div class="threshold-row">
+                <div class="threshold-col">
                   <span class="grade-badge grade-badge-B">B</span>
-                  <label>≥</label>
-                  <input type="number" class="threshold-input" id="threshold-b" min="0" max="100" value="40" />
-                  <span class="threshold-unit">pts</span>
+                  <div class="threshold-val-row">
+                    <span style="font-size:10.5px; color:var(--text-muted)">≥</span>
+                    <input type="number" class="threshold-input compact-input" id="threshold-b" min="0" max="100" value="40" />
+                    <span class="threshold-unit">pts</span>
+                  </div>
                 </div>
-                <div class="threshold-row">
+                <div class="threshold-col">
                   <span class="grade-badge grade-badge-C">C</span>
-                  <label>≥</label>
-                  <input type="number" class="threshold-input" id="threshold-c" min="0" max="100" value="30" />
-                  <span class="threshold-unit">pts</span>
+                  <div class="threshold-val-row">
+                    <span style="font-size:10.5px; color:var(--text-muted)">≥</span>
+                    <input type="number" class="threshold-input compact-input" id="threshold-c" min="0" max="100" value="30" />
+                    <span class="threshold-unit">pts</span>
+                  </div>
                 </div>
-                <div class="threshold-row">
+                <div class="threshold-col">
                   <span class="grade-badge grade-badge-D">D</span>
-                  <label>≥</label>
-                  <input type="number" class="threshold-input" id="threshold-d" min="0" max="100" value="20" />
-                  <span class="threshold-unit">pts</span>
+                  <div class="threshold-val-row">
+                    <span style="font-size:10.5px; color:var(--text-muted)">≥</span>
+                    <input type="number" class="threshold-input compact-input" id="threshold-d" min="0" max="100" value="20" />
+                    <span class="threshold-unit">pts</span>
+                  </div>
                 </div>
-                <div class="threshold-row">
+                <div class="threshold-col">
                   <span class="grade-badge grade-badge-E">E</span>
-                  <label>≥</label>
-                  <input type="number" class="threshold-input" id="threshold-e" min="0" max="100" value="1" />
-                  <span class="threshold-unit">pts</span>
+                  <div class="threshold-val-row">
+                    <span style="font-size:10.5px; color:var(--text-muted)">≥</span>
+                    <input type="number" class="threshold-input compact-input" id="threshold-e" min="0" max="100" value="1" />
+                    <span class="threshold-unit">pts</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div class="settings-field">
-              <label class="settings-field-label">Kill Switches</label>
-              <div class="kill-switches">
-                <label class="kill-switch-row">
-                  <input type="checkbox" id="ks-earnings" checked />
-                  <span>Block if earnings inside expiry window</span>
+            <div class="settings-field-group">
+              <div class="settings-field">
+                <label class="settings-field-label">
+                  Kill Switches
+                  <span class="info-icon" title="Hard filters that automatically disqualify options candidates regardless of total score.">i</span>
                 </label>
-                <label class="kill-switch-row">
-                  <input type="checkbox" id="ks-bid-ask" checked />
-                  <span>Block if bid-ask spread &gt; $0.50</span>
+                <div class="kill-switches">
+                  <label class="kill-switch-row">
+                    <input type="checkbox" id="ks-earnings" checked />
+                    <span>Block if earnings inside expiry window</span>
+                  </label>
+                  <label class="kill-switch-row">
+                    <input type="checkbox" id="ks-bid-ask" checked />
+                    <span>Block if bid-ask spread &gt; $0.50</span>
+                  </label>
+                  <label class="kill-switch-row">
+                    <input type="checkbox" id="ks-high-iv" checked />
+                    <span>Block if absolute IV &gt; 80%</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="settings-field">
+                <label class="settings-field-label">
+                  Yield Targets
+                  <span class="info-icon" title="Monthly premium yield target relative to cash risk and calculated annual auto rate.">i</span>
                 </label>
-                <label class="kill-switch-row">
-                  <input type="checkbox" id="ks-high-iv" checked />
-                  <span>Block if absolute IV &gt; 80%</span>
-                </label>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <div class="threshold-row">
+                    <label style="font-size:11.5px; color:var(--text-secondary); width:80px">Monthly</label>
+                    <input type="number" class="threshold-input" id="yield-target-monthly" min="0" max="20" step="0.1" value="1.0" style="width: 60px" />
+                    <span class="threshold-unit">%</span>
+                  </div>
+                  <div class="threshold-row">
+                    <label style="font-size:11.5px; color:var(--text-secondary); width:80px">Annual (auto)</label>
+                    <input type="number" class="threshold-input" id="yield-target-annual" readonly style="width: 60px; opacity:0.8" />
+                    <span class="threshold-unit">%</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div class="settings-field">
-              <label class="settings-field-label">Yield Targets</label>
-              <div class="threshold-row">
-                <label style="font-size:12px;color:var(--text-secondary)">Monthly</label>
-                <input type="number" class="threshold-input" id="yield-target-monthly" min="0" max="20" step="0.1"
-                  value="1.0" />
-                <span class="threshold-unit">%</span>
-              </div>
-              <div class="threshold-row" style="margin-top:6px">
-                <label style="font-size:12px;color:var(--text-secondary)">Annual (auto)</label>
-                <input type="number" class="threshold-input" id="yield-target-annual" readonly />
-                <span class="threshold-unit">%</span>
-              </div>
-            </div>
-
-            <div class="settings-field">
-              <label class="settings-field-label">Preferred Delta Range</label>
-              <div class="threshold-row">
-                <label style="font-size:12px;color:var(--text-secondary)">Min</label>
-                <input type="number" class="threshold-input" id="delta-min" min="0.05" max="0.50" step="0.01"
-                  value="0.25" />
-                <label style="font-size:12px;color:var(--text-secondary);margin-left:8px">Max</label>
-                <input type="number" class="threshold-input" id="delta-max" min="0.05" max="0.50" step="0.01"
-                  value="0.35" />
+            <div class="settings-field" style="margin-top: 8px;">
+              <label class="settings-field-label">
+                Preferred Delta Range
+                <span class="info-icon" title="Target put option delta range (typically 0.25 to 0.35).">i</span>
+              </label>
+              <div class="threshold-row" style="gap:8px">
+                <label style="font-size:11.5px; color:var(--text-secondary)">Min</label>
+                <input type="number" class="threshold-input" id="delta-min" min="0.05" max="0.50" step="0.01" value="0.25" style="width: 60px" placeholder="Min" />
+                <label style="font-size:11.5px; color:var(--text-secondary); margin-left:8px">Max</label>
+                <input type="number" class="threshold-input" id="delta-max" min="0.05" max="0.50" step="0.01" value="0.35" style="width: 60px" placeholder="Max" />
               </div>
             </div>
           </div>
@@ -1216,140 +1247,132 @@
               </svg>
               Long-Term Portfolio Settings
             </div>
-            <p class="settings-card-desc">Configure parameters for retirement glidepath calculations and cash drag
-              thresholds.</p>
+            <p class="settings-card-desc">Retirement glidepath, asset allocation, cash drag buffer, and tax parameters.</p>
 
-            <div class="settings-field">
-              <label class="settings-field-label" for="settings-birth-year">Birth Year</label>
-              <input type="number" class="threshold-input" id="settings-birth-year" min="1900" max="2100" step="1"
-                value="1984" style="width: 80px" />
-              <p class="setting-desc" style="margin-top:4px">Used to determine your current age for glidepath
-                recommendations.</p>
-            </div>
-
-            <div class="settings-field">
-              <label class="settings-field-label" for="settings-glidepath-base">Glidepath Equity Base</label>
-              <input type="number" class="threshold-input" id="settings-glidepath-base" min="80" max="150" step="1"
-                value="110" style="width: 80px" />
-              <p class="setting-desc" style="margin-top:4px">Formula: <code>target_equity % = Base - Age</code>. A <span
-                  class="help-tooltip" style="border-bottom: 1px dotted var(--text-secondary); cursor: help;"
-                  title="A retirement glidepath target automatically shifts your mix from equities (aggressive/growth) to bonds (defensive/income) as you age to reduce investment risk.">glidepath</span>
-                automatically adjusts your asset mix as you age. Standard is 110.</p>
-            </div>
-
-            <div class="settings-field">
-              <label class="settings-field-label" for="settings-cash-drag-threshold">Cash Drag Buffer ($)</label>
-              <input type="number" class="threshold-input" id="settings-cash-drag-threshold" min="0" max="100000"
-                step="500" value="5000" style="width: 80px" />
-              <p class="setting-desc" style="margin-top:4px">Fires alert if uninvested cash exceeds this buffer and
-                represents &gt;10% of portfolio, indicating <span class="help-tooltip"
-                  style="border-bottom: 1px dotted var(--text-secondary); cursor: help;"
-                  title="Cash drag is when uninvested cash sits in your account earning little to no return, reducing ('dragging down') your long-term compound growth.">cash
-                  drag</span>.</p>
-            </div>
-
-            <div class="settings-field">
-              <label class="settings-field-label" for="settings-dividend-tax-rate">Effective Dividend Tax Rate
-                (%)</label>
-              <input type="number" class="threshold-input" id="settings-dividend-tax-rate" min="0" max="60" step="1"
-                value="30" style="width: 80px" />
-              <p class="setting-desc" style="margin-top:4px">Your combined effective rate on dividend income (Swiss
-                income tax and US qualified rates with <span class="help-tooltip"
-                  style="border-bottom: 1px dotted var(--text-secondary); cursor: help;"
-                  title="As a US citizen living in Switzerland, you are taxed by both countries on your dividends. However, the US lets you claim a credit for Swiss taxes you already paid, so you don't pay tax twice on the same money. The 'interplay' is the complex way these Swiss tax credits offset your US tax bill to produce a final combined tax rate.">foreign
-                  tax credit interplay</span>). Used to rank buy ideas by annual tax drag — in Switzerland capital gains
-                are untaxed for private investors but dividends are ordinary income, so lower-yield funds are
-                structurally more tax-efficient for you.</p>
-            </div>
-
-            <div class="settings-field">
-              <label class="settings-field-label" for="settings-employer-symbols">Employer Stock Tickers</label>
-              <input type="text" class="threshold-input" id="settings-employer-symbols" placeholder="e.g. AAPL, MSFT"
-                style="width: 200px" />
-              <p class="setting-desc" style="margin-top:4px">Comma-separated list of symbols you receive from your
-                employer. Used to compute concentration risk.</p>
-            </div>
-
-            <div class="settings-field">
-              <label class="settings-field-label" for="settings-concentration-limit">Single-Stock Concentration Limit (%)</label>
-              <input type="number" class="threshold-input" id="settings-concentration-limit" min="1" max="100"
-                step="1" value="10" style="width: 80px" />
-              <p class="setting-desc" style="margin-top:4px">The most any one company (including your employer) should be
-                of your portfolio. Drives the concentration warnings, "Trim" recommendations, and the target line on the
-                Progress chart. The <strong>critical</strong> alert triggers at 1.5× this value (default: warn above 10%,
-                critical above 15%).</p>
-            </div>
-
-            <div class="settings-field">
-              <label class="settings-field-label" for="settings-ibkr-gateway-url">IBKR Gateway URL</label>
-              <input type="text" class="threshold-input" id="settings-ibkr-gateway-url"
-                placeholder="https://localhost:5000" style="width: 200px" />
-              <p class="setting-desc" style="margin-top:4px">Address of the locally running IBKR Client Portal Gateway.
-                Leave as the default unless you changed the port.</p>
-            </div>
-
-            <div class="settings-field">
-              <label class="settings-field-label">Gateway Folder</label>
-              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                <button class="settings-action-btn" id="pf-pick-gateway-dir" style="width:auto; margin:0;">Choose
-                  clientportal.gw folder…</button>
-                <span id="pf-gateway-dir-label" style="font-size:12px; color:var(--text-muted);">not set</span>
+            <div class="settings-field-group">
+              <div class="settings-field">
+                <label class="settings-field-label" for="settings-birth-year">
+                  Birth Year
+                  <span class="info-icon" title="Used to calculate your current age for retirement glidepath recommendations.">i</span>
+                </label>
+                <input type="number" class="threshold-input" id="settings-birth-year" min="1900" max="2100" step="1" value="1984" style="width: 100%" />
               </div>
-              <p class="setting-desc" style="margin-top:4px">Point this at the folder you unzipped from
-                <code>clientportal.gw.zip</code>. PortMax launches the gateway for you — no terminal needed.</p>
-            </div>
 
-            <div class="settings-field">
-              <label class="settings-field-label" for="settings-ibkr-autostart"
-                style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                <input type="checkbox" id="settings-ibkr-autostart" style="width:14px; height:14px;" />
-                Auto-start gateway when PortMax opens
-              </label>
-              <p class="setting-desc" style="margin-top:4px">You still complete the IBKR login (with 2FA) yourself —
-                that part can't be automated for security.</p>
-            </div>
-
-            <div class="settings-field">
-              <label class="settings-field-label" for="settings-ibkr-username">IBKR Username</label>
-              <input type="text" class="threshold-input" id="settings-ibkr-username" placeholder="optional"
-                style="width: 200px" autocomplete="off" />
-            </div>
-
-            <div class="settings-field">
-              <label class="settings-field-label" for="settings-ibkr-password"
-                style="display:flex; align-items:center; gap:8px;">
-                IBKR Password
-                <span
-                  style="font-size:10px; font-weight:600; color:#f59e0b; background:rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; text-transform: none;">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5"
-                    style="flex-shrink:0;">
-                    <path
-                      d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                    <line x1="12" y1="9" x2="12" y2="13" />
-                    <line x1="12" y1="17" x2="12.01" y2="17" />
-                  </svg>
-                  Not recommended
-                </span>
-              </label>
-              <input type="password" class="threshold-input" id="settings-ibkr-password"
-                placeholder="enter to save/replace" style="width: 200px" autocomplete="new-password" />
-              <div style="display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap;">
-                <button class="settings-action-btn" id="pf-save-credentials" style="width:auto; margin:0;">Save</button>
-                <button class="settings-action-btn" id="pf-clear-credentials"
-                  style="width:auto; margin:0; background:transparent; border-color:rgba(244,63,94,0.3); color:#f43f5e;">Clear
-                  stored credentials</button>
-                <span id="pf-credentials-status" style="font-size:12px; color:var(--text-muted);"></span>
+              <div class="settings-field">
+                <label class="settings-field-label" for="settings-glidepath-base">
+                  Glidepath Base
+                  <span class="info-icon" title="Formula: target_equity % = Base - Age. Standard base is 110. Automatically shifts asset mix from equities to defensive assets as you age.">i</span>
+                </label>
+                <input type="number" class="threshold-input" id="settings-glidepath-base" min="80" max="150" step="1" value="110" style="width: 100%" />
               </div>
-              <p class="setting-desc" style="margin-top:4px">Stored encrypted via your OS's credential vault (Windows
-                Credential Manager / macOS Keychain) — the same mechanism browsers use for saved passwords. Both fields
-                are auto-filled at login, landing you straight at the 2FA prompt. Never sent anywhere but IBKR's own
-                login page. Storing password is not required and manually typing is recommended.</p>
+            </div>
+
+            <div class="settings-field-group">
+              <div class="settings-field">
+                <label class="settings-field-label" for="settings-cash-drag-threshold">
+                  Cash Drag Buffer ($)
+                  <span class="info-icon" title="Fires alert if uninvested cash exceeds this buffer and represents >10% of portfolio value.">i</span>
+                </label>
+                <input type="number" class="threshold-input" id="settings-cash-drag-threshold" min="0" max="100000" step="500" value="5000" style="width: 100%" />
+              </div>
+
+              <div class="settings-field">
+                <label class="settings-field-label" for="settings-concentration-limit">
+                  Concentration Limit (%)
+                  <span class="info-icon" title="Maximum single-stock holding percentage before triggering concentration warnings and Trim recommendations. Critical alert triggers at 1.5x.">i</span>
+                </label>
+                <input type="number" class="threshold-input" id="settings-concentration-limit" min="1" max="100" step="1" value="10" style="width: 100%" />
+              </div>
+            </div>
+
+            <div class="settings-field-group">
+              <div class="settings-field">
+                <label class="settings-field-label" for="settings-employer-symbols">
+                  Employer Tickers
+                  <span class="info-icon" title="Comma-separated list of stock tickers received from your employer, used to track total employer exposure.">i</span>
+                </label>
+                <input type="text" class="threshold-input" id="settings-employer-symbols" placeholder="e.g. AAPL, MSFT" style="width: 100%" />
+              </div>
+
+              <div class="settings-field">
+                <label class="settings-field-label" for="settings-dividend-tax-rate">
+                  Eff. Dividend Tax (%)
+                  <span class="info-icon" title="Your combined effective rate on dividend income (Swiss tax + US qualified rate interplay). Ranks buy ideas by annual tax drag.">i</span>
+                </label>
+                <input type="number" class="threshold-input" id="settings-dividend-tax-rate" min="0" max="60" step="1" value="30" style="width: 100%" />
+              </div>
             </div>
           </div>
 
-          <!-- Tax Profile Card: residency/citizenship drive which tax rules the
-               guidance engines apply (PFIC relevance, LTCG notes) and feed the
-               PFIC exit-cost estimator. Estimates only — not tax advice. -->
+          <!-- IBKR Gateway Integration Card -->
+          <div class="settings-card">
+            <div class="settings-card-title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
+              </svg>
+              IBKR Gateway Integration
+            </div>
+            <p class="settings-card-desc">Client Portal Gateway setup and secure local OS credential manager.</p>
+
+            <div class="settings-field-group">
+              <div class="settings-field">
+                <label class="settings-field-label" for="settings-ibkr-gateway-url">
+                  Gateway URL
+                  <span class="info-icon" title="Address of local IBKR Client Portal Gateway (default: https://localhost:5000).">i</span>
+                </label>
+                <input type="text" class="threshold-input" id="settings-ibkr-gateway-url" placeholder="https://localhost:5000" style="width: 100%" />
+              </div>
+
+              <div class="settings-field">
+                <label class="settings-field-label">Gateway Folder</label>
+                <div style="display:flex; gap:8px; align-items:center; height:34px">
+                  <button class="settings-action-btn" id="pf-pick-gateway-dir" style="width:auto; margin:0; padding:6px 12px; font-size:11.5px">Choose folder…</button>
+                  <span id="pf-gateway-dir-label" style="font-size:11.5px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">not set</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-field">
+              <label class="settings-field-label" for="settings-ibkr-autostart" style="display:flex; align-items:center; gap:8px; cursor:pointer; text-transform:none">
+                <input type="checkbox" id="settings-ibkr-autostart" style="width:14px; height:14px; accent-color:var(--cyan);" />
+                <span>Auto-start gateway when PortMax opens</span>
+                <span class="info-icon" title="PortMax automatically launches the gateway background process. Interactive 2FA login is completed in browser.">i</span>
+              </label>
+            </div>
+
+            <div class="settings-field" style="border-top: 1px solid var(--border); padding-top: 12px; margin-top: 2px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+                <label class="settings-field-label" style="margin:0">
+                  Credentials Vault
+                  <span class="info-icon" title="Credentials stored securely in OS Vault (Windows Credential Manager / macOS Keychain). Manually typing password is recommended.">i</span>
+                </label>
+                <span style="font-size:10px; font-weight:600; color:#f59e0b; background:rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); padding: 2px 6px; border-radius: 4px;">
+                  Not recommended
+                </span>
+              </div>
+
+              <div class="settings-field-group">
+                <div class="settings-field">
+                  <label style="font-size:11px; color:var(--text-secondary)" for="settings-ibkr-username">Username</label>
+                  <input type="text" class="threshold-input" id="settings-ibkr-username" placeholder="optional" style="width: 100%" autocomplete="off" />
+                </div>
+                <div class="settings-field">
+                  <label style="font-size:11px; color:var(--text-secondary)" for="settings-ibkr-password">Password</label>
+                  <input type="password" class="threshold-input" id="settings-ibkr-password" placeholder="enter to save/replace" style="width: 100%" autocomplete="new-password" />
+                </div>
+              </div>
+
+              <div style="display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap;">
+                <button class="settings-action-btn" id="pf-save-credentials" style="width:auto; margin:0;">Save</button>
+                <button class="settings-action-btn" id="pf-clear-credentials" style="width:auto; margin:0; background:transparent; border-color:rgba(244,63,94,0.3); color:#f43f5e;">Clear stored credentials</button>
+                <span id="pf-credentials-status" style="font-size:12px; color:var(--text-muted);"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tax Profile & PFIC Estimator Card -->
           <div class="settings-card" id="tax-profile-card">
             <div class="settings-card-title">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1357,55 +1380,38 @@
                 <line x1="2" y1="12" x2="22" y2="12" />
                 <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
               </svg>
-              Tax Profile
+              Tax Profile &amp; Expat Rules
             </div>
-            <p class="settings-card-desc">Where you live and which passports you hold determine which tax rules the
-              app's guidance applies — most importantly whether the US <span class="help-tooltip"
-                style="border-bottom: 1px dotted var(--text-secondary); cursor: help;"
-                title="Passive Foreign Investment Company. Any fund registered outside the United States. Only 'US persons' (citizens, green-card holders, US residents) are hit by these punitive rules — for everyone else they're irrelevant.">PFIC</span>
-              rules apply to you at all. Everything here feeds planning estimates, not tax filings.</p>
+            <p class="settings-card-desc">
+              Residency and citizenship drive tax guidance and whether US
+              <span class="help-tooltip" title="Passive Foreign Investment Company. Any fund registered outside the United States. Only US persons are hit by these punitive rules.">PFIC</span>
+              rules apply.
+            </p>
 
-            <div style="display:flex; gap:16px; flex-wrap:wrap;">
-              <div class="settings-field">
-                <label class="settings-field-label" for="settings-residence-country">Country of residence</label>
-                <select class="schedule-select" id="settings-residence-country" style="width: 180px"></select>
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:var(--radius-sm); margin-bottom:6px; gap:8px;">
+              <div style="min-width:0; flex:1;">
+                <span style="font-size:10px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; display:block;">Active Tax Profile</span>
+                <div id="tax-profile-summary-text" style="font-size:12px; color:var(--text-primary); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                  Resident: Switzerland • Passports: United States
+                </div>
               </div>
-              <div class="settings-field">
-                <label class="settings-field-label" for="settings-employment-country">Country of employment</label>
-                <select class="schedule-select" id="settings-employment-country" style="width: 180px"></select>
-              </div>
-            </div>
-            <div style="display:flex; gap:16px; flex-wrap:wrap;">
-              <div class="settings-field">
-                <label class="settings-field-label" for="settings-citizenship-1">Citizenship</label>
-                <select class="schedule-select" id="settings-citizenship-1" style="width: 180px"></select>
-              </div>
-              <div class="settings-field">
-                <label class="settings-field-label" for="settings-citizenship-2">Second citizenship</label>
-                <select class="schedule-select" id="settings-citizenship-2" style="width: 180px"></select>
-              </div>
-            </div>
-            <div class="settings-field">
-              <label class="settings-field-label" for="settings-us-green-card"
-                style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                <input type="checkbox" id="settings-us-green-card" style="width:14px; height:14px;" />
-                US green-card holder
-              </label>
-              <p class="setting-desc" style="margin-top:4px">Green-card holders are taxed like US citizens even while
-                living abroad.</p>
+              <button class="settings-action-btn" id="open-tax-profile-modal-btn" style="margin:0; width:auto; padding:5px 10px; font-size:11.5px; flex-shrink:0;">
+                Edit…
+              </button>
             </div>
 
-            <div id="tax-profile-pfic-status"
-              style="font-size:12px; padding:8px 12px; border-radius:8px; margin:4px 0 12px 0;"></div>
+            <div id="tax-profile-pfic-status" style="font-size:11.5px; padding:6px 10px; border-radius:6px; margin:2px 0 6px 0;"></div>
 
-            <div id="pfic-estimator-fields">
-              <p class="setting-desc"
-                style="margin-bottom:10px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; font-size:11px; letter-spacing:0.5px;">
-                PFIC exit-cost estimator</p>
-              <div style="display:flex; gap:16px; flex-wrap:wrap;">
+            <div id="pfic-estimator-fields" style="margin-top: 6px;">
+              <p class="setting-desc" style="margin-bottom:6px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; font-size:10.5px; letter-spacing:0.5px;">
+                PFIC Exit-Cost Estimator
+                <span class="info-icon" title="Estimates §1291 punitive tax and compound interest on non-US domiciled funds for US taxpayers.">i</span>
+              </p>
+
+              <div class="settings-field-group">
                 <div class="settings-field">
-                  <label class="settings-field-label" for="settings-filing-status">US filing status</label>
-                  <select class="schedule-select" id="settings-filing-status" style="width: 180px">
+                  <label class="settings-field-label" for="settings-filing-status">US Filing Status</label>
+                  <select class="schedule-select" id="settings-filing-status" style="width: 100%">
                     <option value="single">Single</option>
                     <option value="mfj">Married filing jointly</option>
                     <option value="mfs">Married filing separately</option>
@@ -1413,32 +1419,30 @@
                   </select>
                 </div>
                 <div class="settings-field">
-                  <label class="settings-field-label" for="settings-us-marginal-rate">US marginal rate (%)</label>
-                  <input type="number" class="threshold-input" id="settings-us-marginal-rate" min="0" max="50" step="1"
-                    value="32" style="width: 80px" />
+                  <label class="settings-field-label" for="settings-us-marginal-rate">
+                    US Marginal Rate (%)
+                    <span class="info-icon" title="Top US ordinary income rate affecting current-year slice of PFIC gain (prior-year slices are taxed at 37%).">i</span>
+                  </label>
+                  <input type="number" class="threshold-input" id="settings-us-marginal-rate" min="0" max="50" step="1" value="32" style="width: 100%" />
                 </div>
               </div>
-              <p class="setting-desc" style="margin-top:-6px; margin-bottom:12px">Your top US ordinary-income bracket —
-                it only affects the current-year slice of a PFIC gain. The prior-year slices are taxed at the top rate
-                (37%) regardless of your income; that's the punitive part. If unsure: 24% is common for expats using
-                foreign tax credits, 32–37% at Big-Tech compensation levels.</p>
-              <div style="display:flex; gap:16px; flex-wrap:wrap;">
+
+              <div class="settings-field-group" style="margin-top: 8px;">
                 <div class="settings-field">
-                  <label class="settings-field-label" for="settings-pfic-interest-rate">IRS interest assumption
-                    (%/yr)</label>
-                  <input type="number" class="threshold-input" id="settings-pfic-interest-rate" min="0" max="15"
-                    step="0.5" value="8" style="width: 80px" />
+                  <label class="settings-field-label" for="settings-pfic-interest-rate">
+                    IRS Interest (%/yr)
+                    <span class="info-icon" title="The IRS underpayment rate at which compound interest accrues (typically 7–8%).">i</span>
+                  </label>
+                  <input type="number" class="threshold-input" id="settings-pfic-interest-rate" min="0" max="15" step="0.5" value="8" style="width: 100%" />
                 </div>
                 <div class="settings-field">
-                  <label class="settings-field-label" for="settings-pfic-years-held">Assumed years held
-                    (fallback)</label>
-                  <input type="number" class="threshold-input" id="settings-pfic-years-held" min="1" max="30" step="1"
-                    value="3" style="width: 80px" />
+                  <label class="settings-field-label" for="settings-pfic-years-held">
+                    Assumed Years Held
+                    <span class="info-icon" title="Fallback holding period used when imported positions lack exact lot purchase dates.">i</span>
+                  </label>
+                  <input type="number" class="threshold-input" id="settings-pfic-years-held" min="1" max="30" step="1" value="3" style="width: 100%" />
                 </div>
               </div>
-              <p class="setting-desc" style="margin-top:-6px">The IRS underpayment rate the interest charge compounds at
-                (recently 7–8%). "Assumed years held" is only used for funds where your import didn't include per-lot
-                purchase dates.</p>
             </div>
           </div>
 
@@ -1453,10 +1457,8 @@
               </svg>
               Danger Zone
             </div>
-            <p class="settings-card-desc">Permanently erase all custom configurations, watchlist stocks, starred items,
-              and downloaded opportunity cache files to start completely fresh.</p>
-            <button class="settings-action-btn" id="reset-all-data-btn"
-              style="background: rgba(244, 63, 94, 0.12); color: #f43f5e; border-color: rgba(244, 63, 94, 0.3); align-self: flex-start;">
+            <p class="settings-card-desc">Permanently erase all custom configurations, watchlist stocks, starred items, and downloaded opportunity cache files.</p>
+            <button class="settings-action-btn" id="reset-all-data-btn" style="background: rgba(244, 63, 94, 0.12); color: #f43f5e; border-color: rgba(244, 63, 94, 0.3); align-self: flex-start;">
               Reset All Data
             </button>
           </div>
@@ -1727,6 +1729,64 @@
         </div>
         <!-- webview injected here at open time so it always loads the current gateway URL -->
         <div id="ibkr-webview-host" style="width:100%; height:100%;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tax Profile Modal -->
+  <div class="modal-overlay hidden" id="tax-profile-modal-overlay">
+    <div class="modal" style="width: 480px; max-width: 92vw; padding: 24px;">
+      <button class="modal-close" id="tax-profile-modal-close">✕</button>
+
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="2" y1="12" x2="22" y2="12" />
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+        </svg>
+        <h2 style="font-size:16px; font-weight:600; color:var(--text-primary); margin:0">Tax Residency &amp; Passports</h2>
+      </div>
+
+      <p style="font-size:12.5px; color:var(--text-muted); line-height:1.5; margin-bottom:20px;">
+        Your country of residence, employment, and citizenship determine which expat tax rules (such as US PFIC laws) apply to your guidance.
+      </p>
+
+      <div style="display:flex; flex-direction:column; gap:16px; margin-bottom:24px;">
+        <div class="settings-field-group">
+          <div class="settings-field">
+            <label class="settings-field-label" for="settings-residence-country">Residence Country</label>
+            <select class="schedule-select" id="settings-residence-country" style="width: 100%"></select>
+          </div>
+          <div class="settings-field">
+            <label class="settings-field-label" for="settings-employment-country">Employment Country</label>
+            <select class="schedule-select" id="settings-employment-country" style="width: 100%"></select>
+          </div>
+        </div>
+
+        <div class="settings-field-group">
+          <div class="settings-field">
+            <label class="settings-field-label" for="settings-citizenship-1">Citizenship</label>
+            <select class="schedule-select" id="settings-citizenship-1" style="width: 100%"></select>
+          </div>
+          <div class="settings-field">
+            <label class="settings-field-label" for="settings-citizenship-2">Second Citizenship</label>
+            <select class="schedule-select" id="settings-citizenship-2" style="width: 100%"></select>
+          </div>
+        </div>
+
+        <div class="settings-field">
+          <label class="settings-field-label" for="settings-us-green-card" style="display:flex; align-items:center; gap:8px; cursor:pointer; text-transform:none">
+            <input type="checkbox" id="settings-us-green-card" style="width:14px; height:14px; accent-color:var(--cyan);" />
+            <span>US Green-card Holder</span>
+            <span class="info-icon" title="Green-card holders are taxed like US citizens even while residing abroad.">i</span>
+          </label>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end;">
+        <button class="settings-action-btn" id="tax-profile-modal-save" style="background:var(--cyan); color:#000; font-weight:600; border:none; padding:8px 20px;">
+          Done
+        </button>
       </div>
     </div>
   </div>

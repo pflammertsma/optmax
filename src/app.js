@@ -1587,9 +1587,36 @@ function taxProfileIsUSPersonFromUI() {
   return !c1 && !c2 && !res; // nothing selected ⇒ assume US person (fail-safe)
 }
 
+function updateTaxProfileSummaryText() {
+  const summaryEl = el('tax-profile-summary-text');
+  if (!summaryEl) return;
+  const res = el('settings-residence-country')?.value || 'CH';
+  const emp = el('settings-employment-country')?.value;
+  const c1 = el('settings-citizenship-1')?.value || 'US';
+  const c2 = el('settings-citizenship-2')?.value;
+  const gc = el('settings-us-green-card')?.checked;
+
+  const countryNames = Object.fromEntries(TAX_COUNTRIES);
+  const resName = countryNames[res] || res;
+  const c1Name = countryNames[c1] || c1;
+  const c2Name = countryNames[c2] || c2;
+  const empName = countryNames[emp] || (emp === 'NONE' ? 'Not employed' : emp);
+
+  const parts = [];
+  parts.push(`Resident: ${resName}`);
+  if (emp && emp !== 'NONE') parts.push(`Employed: ${empName}`);
+
+  const cits = [c1Name, c2Name].filter(Boolean);
+  if (cits.length) parts.push(`Passport${cits.length > 1 ? 's' : ''}: ${cits.join(', ')}`);
+  if (gc) parts.push('US Green Card');
+
+  summaryEl.textContent = parts.join(' • ');
+}
+
 function updateTaxProfileStatus() {
   const box = el('tax-profile-pfic-status');
   const estFields = el('pfic-estimator-fields');
+  updateTaxProfileSummaryText();
   if (!box) return;
   const usPerson = taxProfileIsUSPersonFromUI();
   if (usPerson) {
@@ -1781,6 +1808,24 @@ async function initSettingsUI() {
       updateTaxProfileStatus();
       const p = await window.electronAPI.getPortfolio();
       if (p) renderPortfolio(p);
+    });
+  }
+
+  // Tax profile modal events
+  const openTaxModalBtn = el('open-tax-profile-modal-btn');
+  const taxModalOverlay = el('tax-profile-modal-overlay');
+  const closeTaxModalBtn = el('tax-profile-modal-close');
+  const saveTaxModalBtn = el('tax-profile-modal-save');
+
+  if (openTaxModalBtn && taxModalOverlay) {
+    openTaxModalBtn.addEventListener('click', () => taxModalOverlay.classList.remove('hidden'));
+  }
+  const closeTaxModal = () => taxModalOverlay?.classList.add('hidden');
+  if (closeTaxModalBtn) closeTaxModalBtn.addEventListener('click', closeTaxModal);
+  if (saveTaxModalBtn) saveTaxModalBtn.addEventListener('click', closeTaxModal);
+  if (taxModalOverlay) {
+    taxModalOverlay.addEventListener('click', (e) => {
+      if (e.target === taxModalOverlay) closeTaxModal();
     });
   }
 
