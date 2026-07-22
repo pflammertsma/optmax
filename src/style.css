@@ -2233,13 +2233,13 @@ html, body {
   color: var(--text-primary) !important;
 }
 
-/* Hide options metrics utility */
+/* Hide options metrics utility & standard mode metrics toggle */
 .hide-options-metrics .options-metric {
   display: none !important;
 }
 
-table.hide-options-metrics {
-  max-width: 800px !important;
+table:not(.hide-options-metrics) .standard-metric {
+  display: none !important;
 }
 
 /* Premium Sliding Toggle Switch Styles */

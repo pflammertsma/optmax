@@ -634,6 +634,31 @@ function renderScreener() {
     const isStarred = starredList.includes(d.symbol);
     const starIcon = isStarred ? '★' : '☆';
     const starClass = isStarred ? 'star-btn starred' : 'star-btn';
+
+    // Standard mode metrics
+    const divYieldStr = d.yieldPct != null && d.yieldPct > 0 ? d.yieldPct.toFixed(2) + '%' : (d.yieldPct === 0 ? '0.00%' : '—');
+    
+    let taxDragHtml = '—';
+    if (d.taxDragPct != null && d.taxDragPct > 0) {
+      const color = d.taxDragPct >= 1.5 ? '#f43f5e' : d.taxDragPct >= 0.5 ? '#f59e0b' : '#10b981';
+      taxDragHtml = `<span style="color:${color}; font-weight:600;" data-glossary="dividend-tax" title="Annual tax drag based on your dividend tax rate. Click for glossary.">${d.taxDragPct.toFixed(2)}%/yr</span>`;
+    } else if (d.yieldPct === 0) {
+      taxDragHtml = `<span style="color:var(--text-muted);" title="0% dividend yield means 0 tax drag. Highly tax efficient in CH.">0.00%/yr</span>`;
+    }
+
+    const expRatioStr = d.expenseRatioPct != null && d.expenseRatioPct > 0 ? d.expenseRatioPct.toFixed(2) + '%' : '—';
+
+    let taxStatusHtml = '';
+    if (d.analysis?.isPfic || d.isPfic) {
+      taxStatusHtml = `<span class="preview-badge" style="background:rgba(244,63,94,0.12); border-color:rgba(244,63,94,0.3); color:#f43f5e;" data-glossary="pfic" title="PFIC: Non-US domiciled fund. Punitive US tax rules apply. Click for glossary.">PFIC</span>`;
+    } else if (d.analysis?.suitability === 'excellent' || (d.analysis && !d.analysis.isPfic)) {
+      taxStatusHtml = `<span class="preview-badge" style="background:rgba(16,185,129,0.12); border-color:rgba(16,185,129,0.3); color:#10b981;" data-glossary="us-tax-person" title="US-domiciled asset. Safe for US expats. Click for glossary.">US Domicile</span>`;
+    } else if (d.symbol?.endsWith('.SW')) {
+      taxStatusHtml = `<span class="preview-badge" style="background:rgba(0,240,255,0.12); border-color:rgba(0,240,255,0.3); color:var(--cyan);" title="Swiss stock. 35% Swiss withholding reclaimable via tax return.">Swiss</span>`;
+    } else {
+      taxStatusHtml = `<span style="color:var(--text-muted); font-size:11px;">Standard</span>`;
+    }
+
     return `
       <tr class="screener-row" data-idx="${allData.indexOf(d)}" style="cursor:pointer">
         <td><button class="${starClass}" data-symbol="${d.symbol}">${starIcon}</button></td>
@@ -642,6 +667,14 @@ function renderScreener() {
         <td class="td-mktcap" style="font-family:'JetBrains Mono',monospace;font-size:11.5px">${fmt.mktcap(d.marketCap)}</td>
         <td class="td-score" style="font-family:'JetBrains Mono',monospace;font-weight:600">${sc.totalScore}</td>
         <td>${renderGradeBadge(sc.grade)}</td>
+        
+        <!-- Standard Mode Metrics -->
+        <td class="standard-metric" style="font-family:'JetBrains Mono',monospace">${divYieldStr}</td>
+        <td class="standard-metric" style="font-family:'JetBrains Mono',monospace">${taxDragHtml}</td>
+        <td class="standard-metric" style="font-family:'JetBrains Mono',monospace">${expRatioStr}</td>
+        <td class="standard-metric">${taxStatusHtml}</td>
+
+        <!-- Options Mode Metrics -->
         <td class="td-ivr options-metric">${ivrStr}</td>
         <td class="td-ivhv options-metric">${ivhvStr}</td>
         <td class="td-yield-mo options-metric">${fmt.pct(d.monthlyYield)}</td>
