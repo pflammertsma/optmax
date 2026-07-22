@@ -33,6 +33,7 @@ let screenerFilters = {
   minMarketCap: 0,
   grade:     'all',
   cleanOnly: false,
+  starredOnly: false,
 };
 
 let screenerSort = { col: 'score', dir: 'desc' };
@@ -342,7 +343,6 @@ function buildTableRows(items, tbodyId, sortState) {
     }
     return `
       <tr>
-        <td class="td-rank">${i + 1}</td>
         <td class="td-symbol">${d.symbol}</td>
         <td class="td-score">${scoreTd}</td>
         <td class="td-price">${fmt.currency(d.currentPrice)}</td>
@@ -367,12 +367,10 @@ function renderTables(data) {
   const active = data.filter(d => d._score && d._score.totalScore > 0);
   const under10k = active.filter(d => d.currentPrice <= 100);
   const megacaps = data.filter(d => d.marketCap != null && d.marketCap >= 200e9);
-  const favorites = data.filter(d => starredList.includes(d.symbol));
 
   buildTableRows(active,    'tbody-top25',    tableSortState['table-top25']);
   buildTableRows(under10k,  'tbody-under10k', tableSortState['table-under10k']);
   buildTableRows(megacaps,  'tbody-megacaps',  tableSortState['table-megacaps']);
-  buildTableRows(favorites, 'tbody-favorites', tableSortState['table-favorites']);
 }
 
 function initSortableTable(tableId, getItems) {
@@ -554,6 +552,7 @@ function getScreenerData() {
   // Option Scanner → Discover table, not here.
   let items = allData.filter(d => d._score);
   if (screenerFilters.cleanOnly) items = items.filter(d => d._score.killSwitches.length === 0);
+  if (screenerFilters.starredOnly) items = items.filter(d => starredList.includes(d.symbol));
   if (screenerFilters.grade !== 'all') items = items.filter(d => d._score.grade === screenerFilters.grade);
   items = items.filter(d => d._score.totalScore >= screenerFilters.minScore);
   
@@ -616,14 +615,13 @@ function renderScreener() {
     .filter(s => !renderedSyms.has(s))
     .map(s => `
       <tr class="pending-row">
-        <td class="td-rank"><span class="mini-spinner"></span></td>
         <td></td>
         <td class="td-symbol">${s}</td>
         <td colspan="9" style="color:var(--text-muted); font-size:12px;">Fetching data…</td>
       </tr>`).join('');
 
   if (!items.length && !pendingHtml) {
-    tbody.innerHTML = `<tr><td colspan="12" class="empty-row">${
+    tbody.innerHTML = `<tr><td colspan="11" class="empty-row">${
       allData.length > 0 ? 'No stocks match the current filters.' : 'Add a stock above to build your watchlist and populate the screener.'
     }</td></tr>`;
     return;
@@ -638,7 +636,6 @@ function renderScreener() {
     const starClass = isStarred ? 'star-btn starred' : 'star-btn';
     return `
       <tr class="screener-row" data-idx="${allData.indexOf(d)}" style="cursor:pointer">
-        <td class="td-rank">${i + 1}</td>
         <td><button class="${starClass}" data-symbol="${d.symbol}">${starIcon}</button></td>
         <td class="td-symbol">${d.symbol}</td>
         <td class="td-price">${fmt.currency(d.currentPrice)}</td>
@@ -763,6 +760,14 @@ function initScreenerFilters() {
     });
   }
 
+  const starredToggle = el('filter-starred-only');
+  if (starredToggle) {
+    starredToggle.addEventListener('change', () => {
+      screenerFilters.starredOnly = starredToggle.checked;
+      renderScreener();
+    });
+  }
+
   const screenerShowOptions = el('screener-show-options');
   if (screenerShowOptions) {
     screenerShowOptions.addEventListener('change', () => {
@@ -845,7 +850,6 @@ function renderDiscoverUnified(results) {
     const ivhvStr = d.ivHvRatio > 0 ? d.ivHvRatio.toFixed(2) + 'x' : '—';
     return `
       <tr>
-        <td class="td-rank">${i + 1}</td>
         <td class="td-symbol">${d.symbol}<div class="discover-company">${d.companyName || ''}</div></td>
         <td class="td-score" style="font-family:'JetBrains Mono',monospace;font-weight:600">${sc ? sc.totalScore : '—'}</td>
         <td>${sc ? renderGradeBadge(sc.grade) : '—'}</td>
@@ -3454,7 +3458,6 @@ initOptionsScannerView();
 initSortableTable('table-top25',    () => allData.filter(d => d._score && d._score.totalScore > 0));
 initSortableTable('table-under10k', () => allData.filter(d => d._score && d._score.totalScore > 0 && d.currentPrice <= 100));
 initSortableTable('table-megacaps', () => allData.filter(d => d.marketCap != null && d.marketCap >= 200e9));
-initSortableTable('table-favorites', () => allData.filter(d => starredList.includes(d.symbol)));
 loadInitialData();
 loadScreenerData();
 

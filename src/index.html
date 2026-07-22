@@ -90,17 +90,6 @@
           Progress
         </a>
 
-        <div class="nav-sep"></div>
-
-        <a class="nav-link" data-view="favorites">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <polygon
-              points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
-            </polygon>
-          </svg>
-          Starred Stocks
-        </a>
         <a class="nav-link" data-view="screener">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="8" y1="6" x2="21" y2="6" />
@@ -296,13 +285,16 @@
             <input type="checkbox" id="filter-clean-only" />
             <span>Only clean</span>
           </label>
+          <label class="filter-toggle" style="margin-left: 8px;">
+            <input type="checkbox" id="filter-starred-only" />
+            <span style="color: #fbbf24">★ Starred only</span>
+          </label>
         </div>
 
         <div class="table-wrapper">
           <table class="data-table hide-options-metrics" id="table-screener">
             <thead>
               <tr>
-                <th>#</th>
                 <th style="width: 40px"></th>
                 <th data-col="symbol">Symbol</th>
                 <th data-col="currentPrice">Price</th>
@@ -324,7 +316,7 @@
             </thead>
             <tbody id="tbody-screener">
               <tr>
-                <td colspan="12" class="empty-row">Add stocks to your watchlist to get started.</td>
+                <td colspan="11" class="empty-row">Add stocks to your watchlist to get started.</td>
               </tr>
             </tbody>
           </table>
@@ -359,7 +351,6 @@
             <table class="data-table" id="table-top25">
               <thead>
                 <tr>
-                  <th data-col="rank">#</th>
                   <th data-col="symbol">Symbol</th>
                   <th data-col="score">Score</th>
                   <th data-col="currentPrice">Stock Price</th>
@@ -375,7 +366,7 @@
               </thead>
               <tbody id="tbody-top25">
                 <tr>
-                  <td colspan="12" class="empty-row">No data yet — click Refresh.</td>
+                  <td colspan="11" class="empty-row">No data yet — click Refresh.</td>
                 </tr>
               </tbody>
             </table>
@@ -388,7 +379,6 @@
             <table class="data-table" id="table-under10k">
               <thead>
                 <tr>
-                  <th data-col="rank">#</th>
                   <th data-col="symbol">Symbol</th>
                   <th data-col="score">Score</th>
                   <th data-col="currentPrice">Stock Price</th>
@@ -404,7 +394,7 @@
               </thead>
               <tbody id="tbody-under10k">
                 <tr>
-                  <td colspan="12" class="empty-row">No data yet — click Refresh.</td>
+                  <td colspan="11" class="empty-row">No data yet — click Refresh.</td>
                 </tr>
               </tbody>
             </table>
@@ -417,7 +407,6 @@
             <table class="data-table" id="table-megacaps">
               <thead>
                 <tr>
-                  <th data-col="rank">#</th>
                   <th data-col="symbol">Symbol</th>
                   <th data-col="score">Score</th>
                   <th data-col="currentPrice">Stock Price</th>
@@ -433,7 +422,7 @@
               </thead>
               <tbody id="tbody-megacaps">
                 <tr>
-                  <td colspan="12" class="empty-row">No data yet — click Refresh.</td>
+                  <td colspan="11" class="empty-row">No data yet — click Refresh.</td>
                 </tr>
               </tbody>
             </table>
@@ -500,7 +489,6 @@
                 <table class="data-table">
                   <thead>
                     <tr>
-                      <th>#</th>
                       <th>Symbol</th>
                       <th>Score</th>
                       <th>Grade</th>
@@ -513,7 +501,7 @@
                   </thead>
                   <tbody id="discover-tbody-unified">
                     <tr>
-                      <td colspan="9" class="empty-row">Run a scan to see candidates.</td>
+                      <td colspan="8" class="empty-row">Run a scan to see candidates.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -545,68 +533,6 @@
         </div>
       </section>
 
-      <!-- Starred Favorites View -->
-      <section class="view" id="view-favorites">
-        <div class="view-header" style="display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
-              <h1 class="view-title" style="margin-bottom: 0;">Starred Stocks</h1>
-              <span class="preview-badge"
-                style="background:rgba(251,191,36,0.1); border-color:rgba(251,191,36,0.2); color:#fbbf24; margin: 0;">favorites</span>
-            </div>
-            <span class="view-subtitle">Your favorite watchlisted opportunities</span>
-          </div>
-          <div class="toggle-container" title="Reveal option-writing metrics like IVR and Yield">
-            <span class="toggle-label">Options Writing Mode</span>
-            <label class="switch">
-              <input type="checkbox" id="favorites-show-options">
-              <span class="slider round"></span>
-            </label>
-          </div>
-        </div>
-
-        <div class="table-wrapper">
-          <table class="data-table hide-options-metrics" id="table-favorites">
-            <thead>
-              <tr>
-                <th data-col="rank">#</th>
-                <th data-col="symbol">Symbol</th>
-                <th data-col="currentPrice">Stock Price</th>
-                <th data-col="marketCap">Mkt Cap</th>
-                <th data-col="grade">Grade</th>
-                <th data-col="score">Score</th>
-                <th data-col="strike" class="options-metric"
-                  title="Strike Price: the target price at which you agree to buy the stock.">Strike</th>
-                <th data-col="dte" class="options-metric"
-                  title="Days to Expiration: the number of calendar days remaining until the options contract expires.">
-                  DTE</th>
-                <th data-col="premium" class="options-metric"
-                  title="Premium: the cash income paid to you by the option buyer for taking on the contract.">Premium
-                </th>
-                <th data-col="capitalRequired" class="options-metric"
-                  title="Capital Required: the cash buffer you must hold in your account to collateralize the options contract (usually Strike × 100).">
-                  Capital Req.</th>
-                <th data-col="monthlyYield" class="options-metric"
-                  title="Monthly Yield: estimated monthly return on your required capital.">Mo. Yield</th>
-                <th data-col="annualizedYield" class="options-metric"
-                  title="Annualized Yield: the monthly return compounded/projected over a full 12-month period.">Ann.
-                  Yield</th>
-                <th data-col="monthlyIncome" class="options-metric"
-                  title="Monthly Income: estimated cash cashflow per month based on premium and contract size.">Mo.
-                  Income</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="tbody-favorites">
-              <tr>
-                <td colspan="14" class="empty-row">No starred stocks yet.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- Settings View -->
       <!-- Portfolio View (long-term module) -->
       <section class="view" id="view-portfolio">
         <div class="view-header">
