@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getWatchlists:        ()               => ipcRenderer.invoke('get-watchlists'),
   addToWatchlist:       (payload)        => ipcRenderer.invoke('add-to-watchlist', payload),
   removeFromWatchlist:  (payload)        => ipcRenderer.invoke('remove-from-watchlist', payload),
+  scanSingleSymbol:     (symbol)         => ipcRenderer.invoke('scan-single-symbol', symbol),
 
   // Starred management
   getStarred:           ()               => ipcRenderer.invoke('get-starred'),

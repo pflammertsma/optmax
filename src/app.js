@@ -466,15 +466,18 @@ async function addToWatchlist(symbol) {
       flashScreenerRow(symbol, okEl);
 
       // Then fetch its data in the background; the placeholder is replaced by
-      // the real row once the scan results land.
+      // the real row once the single-symbol scan lands in ~1-2 seconds.
       setStatus('loading', `Fetching ${symbol} data…`);
       try {
         await window.electronAPI.fetchHistory(symbol);
-        await refreshData();
-        await updatePrices();
+        const scanRes = await window.electronAPI.scanSingleSymbol(symbol);
+        if (scanRes && scanRes.success && scanRes.data) {
+          renderAll(scanRes.data);
+        }
       } finally {
         pendingSymbols.delete(symbol);
         renderScreener();
+        setStatus('live', 'Live');
       }
     } else {
       if (errEl) errEl.textContent = result.error || 'Invalid symbol';

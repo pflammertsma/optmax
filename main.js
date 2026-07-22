@@ -1020,6 +1020,24 @@ app.whenReady().then(() => {
     return { success: true, watchlist };
   });
 
+  ipcMain.handle('scan-single-symbol', async (_event, symbol) => {
+    const sym = (symbol || '').toUpperCase().trim();
+    if (!sym) return { success: false, error: 'Symbol is required' };
+    try {
+      const { opportunities, ivHistory } = await fetchOptionsData([sym]);
+      const cache = loadCache() || {};
+      const existing = cache.data || [];
+      const updatedData = [
+        ...existing.filter(o => o.symbol !== sym),
+        ...opportunities
+      ];
+      saveCache(updatedData, { ...(cache.ivHistory || {}), ...ivHistory });
+      return { success: true, data: updatedData };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('get-starred', () => {
     return loadSettings().starred || [];
   });
