@@ -985,7 +985,7 @@
         <div class="settings-grid">
 
           <!-- Opportunity Data Scan Card -->
-          <div class="settings-card">
+          <div class="settings-card settings-card-scan">
             <div class="settings-card-title">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="23 4 23 10 17 10" />
@@ -999,7 +999,7 @@
               <div class="settings-field">
                 <label class="settings-field-label" for="interval-select">
                   Scan Interval
-                  <span class="info-icon" title="Frequency for automatic full options watchlist scanning.">i</span>
+                  <span class="info-icon" data-glossary="scan-interval" title="Frequency for automatic full options watchlist scanning. Click for glossary.">i</span>
                 </label>
                 <select class="schedule-select" id="interval-select">
                   <option value="1" selected>1 day</option>
@@ -1014,7 +1014,7 @@
               <div class="settings-field">
                 <label class="settings-field-label" for="margin-select">
                   Min. Margin (OTM)
-                  <span class="info-icon" title="Filter for put options where strike is at least X% below current stock price for downside protection.">i</span>
+                  <span class="info-icon" data-glossary="min-otm-margin" title="Filter for put options where strike is at least X% below current stock price for downside protection. Click for glossary.">i</span>
                 </label>
                 <select class="schedule-select" id="margin-select">
                   <option value="0">0% — nearest strike</option>
@@ -1077,7 +1077,7 @@
             <div class="settings-field">
               <label class="settings-field-label" for="price-interval-select">
                 Update Frequency
-                <span class="info-icon" title="Frequency for automatic underlying stock price updates.">i</span>
+                <span class="info-icon" data-glossary="price-refresh-frequency" title="Frequency for automatic underlying stock price updates. Click for glossary.">i</span>
               </label>
               <select class="schedule-select" id="price-interval-select">
                 <option value="1">1 hour</option>
@@ -1137,7 +1137,7 @@
             <div class="settings-field">
               <label class="settings-field-label">
                 Grade Thresholds
-                <span class="info-icon" title="Minimum total score out of 100 required for options candidates to receive grades A through E.">i</span>
+                <span class="info-icon" data-glossary="options-scoring" title="Minimum total score out of 100 required for options candidates to receive grades A through E. Click for glossary.">i</span>
               </label>
               <div class="score-thresholds-strip">
                 <div class="threshold-col">
@@ -1187,7 +1187,7 @@
               <div class="settings-field">
                 <label class="settings-field-label">
                   Kill Switches
-                  <span class="info-icon" title="Hard filters that automatically disqualify options candidates regardless of total score.">i</span>
+                  <span class="info-icon" data-glossary="kill-switches" title="Hard filters that automatically disqualify options candidates regardless of total score. Click for glossary.">i</span>
                 </label>
                 <div class="kill-switches">
                   <label class="kill-switch-row">
@@ -1208,7 +1208,7 @@
               <div class="settings-field">
                 <label class="settings-field-label">
                   Yield Targets
-                  <span class="info-icon" title="Monthly premium yield target relative to cash risk and calculated annual auto rate.">i</span>
+                  <span class="info-icon" data-glossary="yield-targets" title="Monthly premium yield target relative to cash risk and calculated annual auto rate. Click for glossary.">i</span>
                 </label>
                 <div style="display:flex; flex-direction:column; gap:8px;">
                   <div class="threshold-row">
@@ -1228,7 +1228,7 @@
             <div class="settings-field" style="margin-top: 8px;">
               <label class="settings-field-label">
                 Preferred Delta Range
-                <span class="info-icon" title="Target put option delta range (typically 0.25 to 0.35).">i</span>
+                <span class="info-icon" data-glossary="delta-range" title="Target put option delta range (typically 0.25 to 0.35). Click for glossary.">i</span>
               </label>
               <div class="threshold-row" style="gap:8px">
                 <label style="font-size:11.5px; color:var(--text-secondary)">Min</label>
@@ -1253,7 +1253,7 @@
               <div class="settings-field">
                 <label class="settings-field-label" for="settings-birth-year">
                   Birth Year
-                  <span class="info-icon" title="Used to calculate your current age for retirement glidepath recommendations.">i</span>
+                  <span class="info-icon" data-glossary="glidepath" title="Used to calculate your current age for retirement glidepath recommendations. Click for glossary.">i</span>
                 </label>
                 <input type="number" class="threshold-input" id="settings-birth-year" min="1900" max="2100" step="1" value="1984" style="width: 100%" />
               </div>
@@ -1261,7 +1261,7 @@
               <div class="settings-field">
                 <label class="settings-field-label" for="settings-glidepath-base">
                   Glidepath Base
-                  <span class="info-icon" title="Formula: target_equity % = Base - Age. Standard base is 110. Automatically shifts asset mix from equities to defensive assets as you age.">i</span>
+                  <span class="info-icon" data-glossary="glidepath" title="Formula: target_equity % = Base - Age. Standard base is 110. Automatically shifts asset mix from equities to defensive assets as you age. Click for glossary.">i</span>
                 </label>
                 <input type="number" class="threshold-input" id="settings-glidepath-base" min="80" max="150" step="1" value="110" style="width: 100%" />
               </div>
@@ -1271,7 +1271,7 @@
               <div class="settings-field">
                 <label class="settings-field-label" for="settings-cash-drag-threshold">
                   Cash Drag Buffer ($)
-                  <span class="info-icon" title="Fires alert if uninvested cash exceeds this buffer and represents >10% of portfolio value.">i</span>
+                  <span class="info-icon" data-glossary="cash-drag" title="Fires alert if uninvested cash exceeds this buffer and represents >10% of portfolio value. Click for glossary.">i</span>
                 </label>
                 <input type="number" class="threshold-input" id="settings-cash-drag-threshold" min="0" max="100000" step="500" value="5000" style="width: 100%" />
               </div>
@@ -1279,7 +1279,7 @@
               <div class="settings-field">
                 <label class="settings-field-label" for="settings-concentration-limit">
                   Concentration Limit (%)
-                  <span class="info-icon" title="Maximum single-stock holding percentage before triggering concentration warnings and Trim recommendations. Critical alert triggers at 1.5x.">i</span>
+                  <span class="info-icon" data-glossary="concentration-limit" title="Maximum single-stock holding percentage before triggering concentration warnings and Trim recommendations. Critical alert triggers at 1.5x. Click for glossary.">i</span>
                 </label>
                 <input type="number" class="threshold-input" id="settings-concentration-limit" min="1" max="100" step="1" value="10" style="width: 100%" />
               </div>
@@ -1289,7 +1289,7 @@
               <div class="settings-field">
                 <label class="settings-field-label" for="settings-employer-symbols">
                   Employer Tickers
-                  <span class="info-icon" title="Comma-separated list of stock tickers received from your employer, used to track total employer exposure.">i</span>
+                  <span class="info-icon" data-glossary="employer-tickers" title="Comma-separated list of stock tickers received from your employer, used to track total employer exposure. Click for glossary.">i</span>
                 </label>
                 <input type="text" class="threshold-input" id="settings-employer-symbols" placeholder="e.g. AAPL, MSFT" style="width: 100%" />
               </div>
@@ -1297,7 +1297,7 @@
               <div class="settings-field">
                 <label class="settings-field-label" for="settings-dividend-tax-rate">
                   Eff. Dividend Tax (%)
-                  <span class="info-icon" title="Your combined effective rate on dividend income (Swiss tax + US qualified rate interplay). Ranks buy ideas by annual tax drag.">i</span>
+                  <span class="info-icon" data-glossary="dividend-tax" title="Your combined effective rate on dividend income (Swiss tax + US qualified rate interplay). Ranks buy ideas by annual tax drag. Click for glossary.">i</span>
                 </label>
                 <input type="number" class="threshold-input" id="settings-dividend-tax-rate" min="0" max="60" step="1" value="30" style="width: 100%" />
               </div>
@@ -1320,7 +1320,7 @@
               <div class="settings-field">
                 <label class="settings-field-label" for="settings-ibkr-gateway-url">
                   Gateway URL
-                  <span class="info-icon" title="Address of local IBKR Client Portal Gateway (default: https://localhost:5000).">i</span>
+                  <span class="info-icon" data-glossary="ibkr-gateway" title="Address of local IBKR Client Portal Gateway (default: https://localhost:5000). Click for glossary.">i</span>
                 </label>
                 <input type="text" class="threshold-input" id="settings-ibkr-gateway-url" placeholder="https://localhost:5000" style="width: 100%" />
               </div>
@@ -1338,7 +1338,7 @@
               <label class="settings-field-label" for="settings-ibkr-autostart" style="display:flex; align-items:center; gap:8px; cursor:pointer; text-transform:none">
                 <input type="checkbox" id="settings-ibkr-autostart" style="width:14px; height:14px; accent-color:var(--cyan);" />
                 <span>Auto-start gateway when PortMax opens</span>
-                <span class="info-icon" title="PortMax automatically launches the gateway background process. Interactive 2FA login is completed in browser.">i</span>
+                <span class="info-icon" data-glossary="ibkr-gateway" title="PortMax automatically launches the gateway background process. Interactive 2FA login is completed in browser. Click for glossary.">i</span>
               </label>
             </div>
 
@@ -1346,7 +1346,7 @@
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
                 <label class="settings-field-label" style="margin:0">
                   Credentials Vault
-                  <span class="info-icon" title="Credentials stored securely in OS Vault (Windows Credential Manager / macOS Keychain). Manually typing password is recommended.">i</span>
+                  <span class="info-icon" data-glossary="ibkr-gateway" title="Credentials stored securely in OS Vault (Windows Credential Manager / macOS Keychain). Manually typing password is recommended. Click for glossary.">i</span>
                 </label>
                 <span style="font-size:10px; font-weight:600; color:#f59e0b; background:rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); padding: 2px 6px; border-radius: 4px;">
                   Not recommended
@@ -1384,15 +1384,17 @@
             </div>
             <p class="settings-card-desc">
               Residency and citizenship drive tax guidance and whether US
-              <span class="help-tooltip" title="Passive Foreign Investment Company. Any fund registered outside the United States. Only US persons are hit by these punitive rules.">PFIC</span>
+              <span class="help-tooltip" data-glossary="pfic" title="Passive Foreign Investment Company. Any fund registered outside the United States. Only US persons are hit by these punitive rules. Click for glossary.">PFIC</span>
               rules apply.
             </p>
 
             <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:var(--radius-sm); margin-bottom:6px; gap:8px;">
-              <div style="min-width:0; flex:1;">
-                <span style="font-size:10px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; display:block;">Active Tax Profile</span>
-                <div id="tax-profile-summary-text" style="font-size:12px; color:var(--text-primary); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                  Resident: Switzerland • Passports: United States
+              <div style="min-width:0; flex:1; display:flex; flex-direction:column; gap:2px;">
+                <div id="tax-profile-residence-text" style="font-size:12px; color:var(--text-primary); font-weight:500;">
+                  Resident: Switzerland • Employed: Switzerland
+                </div>
+                <div id="tax-profile-citizenship-text" style="font-size:11.5px; color:var(--text-secondary);">
+                  Passports: United States, Netherlands
                 </div>
               </div>
               <button class="settings-action-btn" id="open-tax-profile-modal-btn" style="margin:0; width:auto; padding:5px 10px; font-size:11.5px; flex-shrink:0;">
@@ -1405,7 +1407,7 @@
             <div id="pfic-estimator-fields" style="margin-top: 6px;">
               <p class="setting-desc" style="margin-bottom:6px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; font-size:10.5px; letter-spacing:0.5px;">
                 PFIC Exit-Cost Estimator
-                <span class="info-icon" title="Estimates §1291 punitive tax and compound interest on non-US domiciled funds for US taxpayers.">i</span>
+                <span class="info-icon" data-glossary="pfic-estimator" title="Estimates §1291 punitive tax and compound interest on non-US domiciled funds for US taxpayers. Click for glossary.">i</span>
               </p>
 
               <div class="settings-field-group">
@@ -1421,7 +1423,7 @@
                 <div class="settings-field">
                   <label class="settings-field-label" for="settings-us-marginal-rate">
                     US Marginal Rate (%)
-                    <span class="info-icon" title="Top US ordinary income rate affecting current-year slice of PFIC gain (prior-year slices are taxed at 37%).">i</span>
+                    <span class="info-icon" data-glossary="pfic-estimator" title="Top US ordinary income rate affecting current-year slice of PFIC gain (prior-year slices are taxed at 37%). Click for glossary.">i</span>
                   </label>
                   <input type="number" class="threshold-input" id="settings-us-marginal-rate" min="0" max="50" step="1" value="32" style="width: 100%" />
                 </div>
@@ -1431,14 +1433,14 @@
                 <div class="settings-field">
                   <label class="settings-field-label" for="settings-pfic-interest-rate">
                     IRS Interest (%/yr)
-                    <span class="info-icon" title="The IRS underpayment rate at which compound interest accrues (typically 7–8%).">i</span>
+                    <span class="info-icon" data-glossary="pfic-estimator" title="The IRS underpayment rate at which compound interest accrues (typically 7–8%). Click for glossary.">i</span>
                   </label>
                   <input type="number" class="threshold-input" id="settings-pfic-interest-rate" min="0" max="15" step="0.5" value="8" style="width: 100%" />
                 </div>
                 <div class="settings-field">
                   <label class="settings-field-label" for="settings-pfic-years-held">
                     Assumed Years Held
-                    <span class="info-icon" title="Fallback holding period used when imported positions lack exact lot purchase dates.">i</span>
+                    <span class="info-icon" data-glossary="pfic-estimator" title="Fallback holding period used when imported positions lack exact lot purchase dates. Click for glossary.">i</span>
                   </label>
                   <input type="number" class="threshold-input" id="settings-pfic-years-held" min="1" max="30" step="1" value="3" style="width: 100%" />
                 </div>
@@ -1778,7 +1780,7 @@
           <label class="settings-field-label" for="settings-us-green-card" style="display:flex; align-items:center; gap:8px; cursor:pointer; text-transform:none">
             <input type="checkbox" id="settings-us-green-card" style="width:14px; height:14px; accent-color:var(--cyan);" />
             <span>US Green-card Holder</span>
-            <span class="info-icon" title="Green-card holders are taxed like US citizens even while residing abroad.">i</span>
+            <span class="info-icon" data-glossary="us-tax-person" title="Green-card holders are taxed like US citizens even while residing abroad. Click for glossary.">i</span>
           </label>
         </div>
       </div>
@@ -1791,6 +1793,50 @@
     </div>
   </div>
 
+  <!-- Glossary Modal -->
+  <div class="modal-overlay hidden" id="glossary-modal-overlay">
+    <div class="modal glossary-modal-container">
+      <button class="modal-close" id="glossary-modal-close">✕</button>
+
+      <div class="glossary-modal-header">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+          <h2 style="font-size:16px; font-weight:600; color:var(--text-primary); margin:0">PortMax Financial &amp; Technical Glossary</h2>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div class="guidance-tabs" id="glossary-categories" style="margin:0; border:none;">
+            <button class="tab-btn active" data-category="ALL">All Terms</button>
+            <button class="tab-btn" data-category="Options &amp; Scoring">Options &amp; Scoring</button>
+            <button class="tab-btn" data-category="Tax &amp; Expat Rules">Tax &amp; Expat Rules</button>
+            <button class="tab-btn" data-category="Portfolio Architecture">Portfolio Architecture</button>
+            <button class="tab-btn" data-category="IBKR &amp; Gateway">IBKR &amp; Gateway</button>
+          </div>
+
+          <div style="position:relative; width:220px;">
+            <input type="text" class="threshold-input" id="glossary-search-input" placeholder="Search terms…" style="width:100%; padding-left:28px;" />
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2.5" style="position:absolute; left:9px; top:8px;">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="glossary-modal-body">
+        <!-- Sidebar Term List -->
+        <div class="glossary-sidebar" id="glossary-term-list"></div>
+
+        <!-- Term Detail Pane -->
+        <div class="glossary-detail-pane" id="glossary-detail-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="glossary.js"></script>
   <script src="scoring.js"></script>
   <script src="app.js"></script>
 </body>

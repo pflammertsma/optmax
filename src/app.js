@@ -1588,8 +1588,10 @@ function taxProfileIsUSPersonFromUI() {
 }
 
 function updateTaxProfileSummaryText() {
-  const summaryEl = el('tax-profile-summary-text');
-  if (!summaryEl) return;
+  const resEl = el('tax-profile-residence-text');
+  const citEl = el('tax-profile-citizenship-text');
+  if (!resEl && !citEl) return;
+
   const res = el('settings-residence-country')?.value || 'CH';
   const emp = el('settings-employment-country')?.value;
   const c1 = el('settings-citizenship-1')?.value || 'US';
@@ -1602,15 +1604,16 @@ function updateTaxProfileSummaryText() {
   const c2Name = countryNames[c2] || c2;
   const empName = countryNames[emp] || (emp === 'NONE' ? 'Not employed' : emp);
 
-  const parts = [];
-  parts.push(`Resident: ${resName}`);
-  if (emp && emp !== 'NONE') parts.push(`Employed: ${empName}`);
+  const resParts = [];
+  resParts.push(`Resident: ${resName}`);
+  if (emp && emp !== 'NONE') resParts.push(`Employed: ${empName}`);
+  if (resEl) resEl.textContent = resParts.join(' • ');
 
+  const citParts = [];
   const cits = [c1Name, c2Name].filter(Boolean);
-  if (cits.length) parts.push(`Passport${cits.length > 1 ? 's' : ''}: ${cits.join(', ')}`);
-  if (gc) parts.push('US Green Card');
-
-  summaryEl.textContent = parts.join(' • ');
+  if (cits.length) citParts.push(`Passport${cits.length > 1 ? 's' : ''}: ${cits.join(', ')}`);
+  if (gc) citParts.push('US Green Card');
+  if (citEl) citEl.textContent = citParts.join(' • ') || 'No passports specified';
 }
 
 function updateTaxProfileStatus() {
@@ -2418,7 +2421,7 @@ async function renderPficCosts() {
 
 // ─── Employer-stock sell-down plan (Phase 4) ─────────────────────────────────
 const SELLDOWN_TAX_NOTE =
-  `As a US citizen you owe US <span class="help-tooltip" style="border-bottom:1px dotted var(--text-secondary); cursor:help;" title="Tax on the profit when you sell shares. Shares held over one year qualify for the lower long-term rate (0/15/20%). Switzerland doesn't tax private capital gains at all.">capital-gains tax</span> on sales — prefer lots held over a year, and among those the ones you paid the most for (smallest taxable gain). Reinvest the proceeds using the Tax-Smart Buy Ideas below.`;
+  `As a US citizen you owe US <span class="help-tooltip" data-glossary="capital-gains" style="border-bottom:1px dotted var(--text-secondary); cursor:pointer;" title="Tax on the profit when you sell shares. Shares held over one year qualify for the lower long-term rate (0/15/20%). Switzerland doesn't tax private capital gains at all. Click for glossary.">capital-gains tax</span> on sales — prefer lots held over a year, and among those the ones you paid the most for (smallest taxable gain). Reinvest the proceeds using the Tax-Smart Buy Ideas below.`;
 
 const selldownDate = iso => new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 

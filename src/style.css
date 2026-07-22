@@ -2421,3 +2421,185 @@ input:checked + .slider:before {
   min-width: 0;
   height: 100%;
 }
+
+/* ─── Clickable Glossary Tooltips & Modal ─── */
+[data-glossary] {
+  cursor: pointer !important;
+}
+
+.info-icon[data-glossary]:hover {
+  background: rgba(0, 240, 255, 0.2) !important;
+  color: var(--cyan) !important;
+  box-shadow: 0 0 6px rgba(0, 240, 255, 0.4);
+}
+
+.help-tooltip[data-glossary]:hover,
+.glossary-link:hover {
+  color: var(--cyan) !important;
+  border-bottom: 1px dashed var(--cyan) !important;
+}
+
+.glossary-modal-container {
+  width: 780px;
+  max-width: 95vw;
+  height: 560px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.glossary-modal-header {
+  padding: 20px 24px 12px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.glossary-modal-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.glossary-sidebar {
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 8px;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.glossary-item-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.glossary-item-btn:hover {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+}
+
+.glossary-item-btn.active {
+  background: rgba(0, 240, 255, 0.08);
+  border-color: rgba(0, 240, 255, 0.3);
+  color: var(--cyan);
+}
+
+.glossary-item-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.glossary-item-cat {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.glossary-detail-pane {
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.glossary-cat-badge {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--cyan);
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-bottom: 6px;
+}
+
+.glossary-detail-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.glossary-detail-body {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-main);
+}
+
+.glossary-detail-body p {
+  margin-bottom: 12px;
+}
+
+.glossary-detail-body ul {
+  padding-left: 20px;
+  margin-bottom: 12px;
+}
+
+.glossary-detail-body li {
+  margin-bottom: 6px;
+}
+
+.glossary-related-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.glossary-related-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.glossary-related-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.related-term-pill {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cyan);
+  background: rgba(0, 240, 255, 0.05);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  padding: 4px 10px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.related-term-pill:hover {
+  background: rgba(0, 240, 255, 0.15);
+  border-color: var(--cyan);
+  transform: translateY(-1px);
+}
