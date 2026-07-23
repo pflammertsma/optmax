@@ -163,10 +163,16 @@ function setStatus(state, text) {
   if (state === 'live' && text === 'Live') {
     if (ibkrState === 'connected') {
       dot.className = 'status-dot live';
-      label.textContent = 'Live';
+      label.textContent = ibkrCompeting ? 'IBKR (competing session)' : 'Live';
+      label.title = ibkrCompeting ? (ibkrReason || '') : '';
     } else if (ibkrState === 'needs-login') {
       dot.className = 'status-dot warning';
-      label.textContent = 'IBKR disconnected';
+      // A drop straight after a successful connect is the signature of a
+      // competing IBKR session — name it instead of a bare "disconnected".
+      label.textContent = ibkrCompeting ? 'IBKR: session conflict'
+        : ibkrSawConnected ? 'IBKR dropped — session conflict?'
+        : 'IBKR disconnected';
+      label.title = ibkrReason || '';
     } else {
       dot.className = 'status-dot offline';
       label.textContent = 'IBKR Offline';
@@ -2032,6 +2038,27 @@ async function initSettingsUI() {
     });
   }
 
+  const stopGwBtn = el('pf-stop-gateways');
+  if (stopGwBtn) {
+    stopGwBtn.addEventListener('click', async () => {
+      const statusEl = el('pf-stop-gateways-status');
+      stopGwBtn.disabled = true;
+      if (statusEl) statusEl.textContent = 'Stopping…';
+      try {
+        const r = await window.electronAPI.ibkrGatewayStop();
+        ibkrSawConnected = false; // reset the bounce heuristic after a clean slate
+        if (statusEl) statusEl.textContent = r.stopped > 0
+          ? `Stopped ${r.stopped} gateway${r.stopped === 1 ? '' : 's'}.`
+          : 'No gateways were running.';
+        await refreshIbkrStatus({ quiet: true });
+      } catch {
+        if (statusEl) statusEl.textContent = 'Could not stop gateways.';
+      } finally {
+        stopGwBtn.disabled = false;
+      }
+    });
+  }
+
   const resetBtn = el('reset-all-data-btn');
   if (resetBtn) {
     resetBtn.addEventListener('click', async () => {
@@ -2236,6 +2263,13 @@ const PF_BUCKETS = ['core', 'satellite', 'cash', 'unassigned'];
 let portfolio = null;
 let pfSort = { col: 'marketValue', dir: 'desc' };
 let ibkrState = 'unreachable';
+// The gateway's own explanation for the current state (competing session,
+// pending 2FA, an IBKR fail message), surfaced so a silent revert to "Login"
+// becomes a readable reason. Module-level so setStatus can show it even after
+// the login modal has closed.
+let ibkrReason = null;
+let ibkrCompeting = false;
+let ibkrSawConnected = false; // did this session ever authenticate? (a drop after = a bounce)
 // Assigned in initPortfolioView; re-run when navigating to the Portfolio view
 // so the gateway pill reflects a gateway that came online after boot.
 let refreshIbkrStatus = () => {};

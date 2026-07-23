@@ -118,7 +118,10 @@ const { analyzeTicker, generatePortfolioGuidance, calculateHoldingRecommendation
 const { generateBuyRecommendations, CURATED_CANDIDATES } = require('./lib/recommendations');
 const { scanInvestments } = require('./lib/investments');
 const { computePortfolioHealth, projectAnnualDividends } = require('./lib/health');
-const { createIbkrClient, isLoopbackGatewayUrl, gatewayLaunchSpec, treeKillSpec } = require('./lib/ibkr');
+const { createIbkrClient, isLoopbackGatewayUrl, gatewayLaunchSpec, treeKillSpec,
+  gatewayHostPort, listGatewayPidsSpec, parsePids } = require('./lib/ibkr');
+const net = require('net');
+const { execFile } = require('child_process');
 const { computeFundOverlap, computeIndexImpliedEmployer } = require('./lib/funds');
 const { buildPlan, computePlanStatus } = require('./lib/selldown');
 const { buildActionPlan } = require('./lib/actions');
@@ -899,8 +902,30 @@ function gatewayLogTail(lines = 15) {
   }
 }
 
-function startGateway() {
+// Is something already listening on the gateway's port? A fast TCP probe — this
+// is how we recognize a gateway from a previous (possibly crashed) run, or one
+// the user started by hand, and reuse it instead of spawning a duplicate.
+function probeGatewayPort(url, timeoutMs = 700) {
+  const { host, port } = gatewayHostPort(url);
+  return new Promise(resolve => {
+    const sock = new net.Socket();
+    let done = false;
+    const finish = (up) => { if (done) return; done = true; try { sock.destroy(); } catch {} resolve(up); };
+    sock.setTimeout(timeoutMs);
+    sock.once('connect', () => finish(true));
+    sock.once('timeout', () => finish(false));
+    sock.once('error', () => finish(false));
+    sock.connect(port, host);
+  });
+}
+
+async function startGateway() {
   if (gatewayProc) return { success: true, alreadyRunning: true };
+  // Reuse an already-running gateway (orphan from a crash, or a manual launch)
+  // rather than stacking a second one that would compete for the IBKR session.
+  if (await probeGatewayPort(loadSettings().ibkrGatewayUrl)) {
+    return { success: true, alreadyRunning: true, external: true };
+  }
   const dir = loadSettings().ibkrGatewayDir;
   if (!dir || !fs.existsSync(dir)) {
     return { success: false, error: 'Gateway folder is not set (or missing). Point it at your unzipped clientportal.gw folder in Settings.' };
@@ -938,17 +963,42 @@ function startGateway() {
   }
 }
 
+// Kill the gateway we launched (tree-kill so the Java child dies too).
 function stopGateway() {
   if (!gatewayProc) return;
   const { command, args } = treeKillSpec(process.platform, gatewayProc.pid);
   try {
-    if (process.platform === 'win32') {
-      spawn(command, args, { windowsHide: true });
-    } else {
-      gatewayProc.kill('SIGTERM');
-    }
+    if (process.platform === 'win32') spawn(command, args, { windowsHide: true });
+    else gatewayProc.kill('SIGTERM');
   } catch {}
   gatewayProc = null;
+}
+
+// List every Client Portal gateway PID currently running — ours, orphans from a
+// crashed run, and manually-started ones alike.
+function listGatewayPids() {
+  return new Promise(resolve => {
+    const { command, args } = listGatewayPidsSpec(process.platform);
+    execFile(command, args, { windowsHide: true, timeout: 5000 }, (err, stdout) => {
+      // pgrep exits non-zero when nothing matches — that's "no gateways", not an error.
+      resolve(parsePids(stdout));
+    });
+  });
+}
+
+// Stop ALL gateways, however many and however they were started. This is the
+// clean-slate the login flow needs when orphans are competing for the session.
+async function stopAllGateways() {
+  const pids = await listGatewayPids();
+  for (const pid of pids) {
+    try {
+      const { command, args } = treeKillSpec(process.platform, pid);
+      spawn(command, args, { windowsHide: true });
+    } catch {}
+  }
+  // Best-effort: also drop our tracked handle so state is consistent.
+  stopGateway();
+  return { stopped: pids.length, pids };
 }
 
 // ── IPC ───────────────────────────────────────────────────────────────────────
@@ -1390,9 +1440,16 @@ app.whenReady().then(() => {
 
   // Gateway process lifecycle
   ipcMain.handle('ibkr-gateway-start', () => startGateway());
-  ipcMain.handle('ibkr-gateway-stop', () => { stopGateway(); return { success: true }; });
-  ipcMain.handle('ibkr-gateway-running', () => ({
-    running: isGatewayRunning(),
+  // Stop ALL gateways (ours + any orphans) so a fresh login starts clean.
+  ipcMain.handle('ibkr-gateway-stop', async () => {
+    const res = await stopAllGateways();
+    return { success: true, ...res };
+  });
+  // "Running" now reflects reality: our tracked process OR any gateway already
+  // answering on the port (an orphan or a manual launch).
+  ipcMain.handle('ibkr-gateway-running', async () => ({
+    running: isGatewayRunning() || await probeGatewayPort(loadSettings().ibkrGatewayUrl),
+    external: !isGatewayRunning() && await probeGatewayPort(loadSettings().ibkrGatewayUrl),
     lastExit: gatewayLastExit,
   }));
   ipcMain.handle('ibkr-gateway-log', (_event, lines) => ({

@@ -9,6 +9,9 @@ const {
   isLoopbackGatewayUrl,
   gatewayLaunchSpec,
   treeKillSpec,
+  gatewayHostPort,
+  listGatewayPidsSpec,
+  parsePids,
 } = require('../lib/ibkr');
 
 // ─── Minimal test runner ──────────────────────────────────────────────────────
@@ -176,6 +179,41 @@ test('an IBKR fail message is passed through as the reason', () => {
 test('connected-but-not-authenticated explains the pending brokerage handshake', () => {
   const s = interpretAuthStatus(200, { authenticated: false, connected: true });
   assert.ok(/not finished authenticating|phone prompt/i.test(s.reason));
+});
+
+// ─── Gateway discovery (reuse + stop-all) ────────────────────────────────────
+section('gatewayHostPort');
+
+test('parses host and port from the gateway url', () => {
+  assert.deepStrictEqual(gatewayHostPort('https://localhost:5000'), { host: 'localhost', port: 5000 });
+  assert.deepStrictEqual(gatewayHostPort('https://127.0.0.1:5001/'), { host: '127.0.0.1', port: 5001 });
+});
+
+test('falls back to localhost:5000 for junk input', () => {
+  assert.deepStrictEqual(gatewayHostPort(''), { host: 'localhost', port: 5000 });
+  assert.deepStrictEqual(gatewayHostPort('not a url'), { host: 'localhost', port: 5000 });
+});
+
+section('listGatewayPidsSpec / parsePids');
+
+test('windows lists gateway pids via a CIM command-line filter', () => {
+  const spec = listGatewayPidsSpec('win32');
+  assert.strictEqual(spec.command, 'powershell');
+  assert.ok(spec.args.join(' ').includes('clientportal.gw'));
+  assert.ok(spec.args.join(' ').includes('ProcessId'));
+});
+
+test('unix lists gateway pids via pgrep on the command line', () => {
+  const spec = listGatewayPidsSpec('linux');
+  assert.strictEqual(spec.command, 'pgrep');
+  assert.deepStrictEqual(spec.args, ['-f', 'clientportal.gw']);
+});
+
+test('parsePids reads whitespace-separated pids and ignores noise', () => {
+  assert.deepStrictEqual(parsePids('14328\r\n30436\n'), [14328, 30436]);
+  assert.deepStrictEqual(parsePids('  42  \n abc \n 7'), [42, 7]);
+  assert.deepStrictEqual(parsePids(''), []);
+  assert.deepStrictEqual(parsePids(undefined), []);
 });
 
 // ─── isLoopbackGatewayUrl (TLS bypass guard) ─────────────────────────────────
