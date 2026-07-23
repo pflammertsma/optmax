@@ -23,6 +23,13 @@ const STMT = [
   'Net Asset Value,Data,Total,1802112.85,1824899.55,0,1824899.55,22786.70',
   'Net Asset Value,Header,Time Weighted Rate of Return',
   'Net Asset Value,Data,1.264443666%',
+  'Cash Report,Header,Currency Summary,Currency,Total,Securities,Futures,Month to Date,Year to Date',
+  'Cash Report,Data,Dividends,Base Currency Summary,0,0,0,978.92,8234.15',
+  'Cash Report,Data,Dividends,EUR,0,0,0,0,100',
+  'Cash Report,Data,Dividends,USD,0,0,0,978.92,8116.91',
+  'Cash Report,Data,Withholding Tax,Base Currency Summary,0,0,0,-3.04,-271.512',
+  'Cash Report,Data,Withholding Tax,EUR,0,0,0,0,-30',
+  'Cash Report,Data,Withholding Tax,USD,0,0,0,-3.04,-236.34',
 ].join('\n');
 
 test('extracts the statement date as local YYYY-MM-DD', () => {
@@ -47,6 +54,34 @@ test('returns nulls for a non-statement text', () => {
   const m = parseStatementMeta('hello,world');
   assert.strictEqual(m.statementDate, null);
   assert.strictEqual(m.nav, null);
+  assert.strictEqual(m.dividendsPaid, null);
+});
+
+test('extracts dividends actually paid (gross + withholding, MTD + YTD)', () => {
+  const { dividendsPaid } = parseStatementMeta(STMT);
+  assert.strictEqual(dividendsPaid.grossYtd, 8234.15);
+  assert.strictEqual(dividendsPaid.grossMtd, 978.92);
+  assert.strictEqual(dividendsPaid.whYtd, -271.512);
+  assert.strictEqual(dividendsPaid.whMtd, -3.04);
+});
+
+test('breaks dividends down by currency', () => {
+  const { dividendsPaid } = parseStatementMeta(STMT);
+  assert.strictEqual(dividendsPaid.byCurrency.USD.grossYtd, 8116.91);
+  assert.strictEqual(dividendsPaid.byCurrency.EUR.grossYtd, 100);
+  assert.strictEqual(dividendsPaid.byCurrency.USD.whYtd, -236.34);
+});
+
+test('snapshot carries net-of-withholding dividends paid', () => {
+  const { dividendsPaid } = parseStatementMeta(STMT);
+  const snap = buildProfileSnapshot({
+    date: '2026-07-14',
+    holdings: [{ symbol: 'VTI', quantity: 10, marketValue: 1000 }],
+    cash: 1000, dividendsPaid,
+  });
+  assert.strictEqual(snap.dividendsPaidYtd, 8234.15);
+  assert.strictEqual(snap.dividendsWithheldYtd, -271.51);
+  assert.strictEqual(snap.dividendsPaidNetYtd, 7962.64); // 8234.15 - 271.51
 });
 
 section('buildProfileSnapshot');

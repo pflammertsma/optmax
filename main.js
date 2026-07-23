@@ -348,7 +348,7 @@ function snapshotEnrichments(holdings, cash, quotes, settings) {
 }
 
 // Build + persist one snapshot. Dedupes to one point per date.
-function captureProfileSnapshot({ p, settings, health = null, dividends = null, quotes = {}, employerViaFundsPct = null, nav = null, date, source = 'live' }) {
+function captureProfileSnapshot({ p, settings, health = null, dividends = null, quotes = {}, employerViaFundsPct = null, nav = null, dividendsPaid = null, date, source = 'live' }) {
   const enr = snapshotEnrichments(p.holdings || [], p.cash || 0, quotes || {}, settings);
   // The health SCORE degrades gracefully without live quotes (ETF/PFIC
   // detection falls back to static classification; dividends aren't part of
@@ -374,7 +374,7 @@ function captureProfileSnapshot({ p, settings, health = null, dividends = null, 
     age: ageFromSettings(settings),
     glidepathBase: settings.glidepathBase ?? 110,
     health, dividends, employerViaFundsPct,
-    equityValue: enr.equityValue, pfic: enr.pfic, nav,
+    equityValue: enr.equityValue, pfic: enr.pfic, nav, dividendsPaid,
   });
   const history = appendSnapshot(loadProfileHistory(), snap);
   saveProfileHistory(history);
@@ -1554,7 +1554,20 @@ app.whenReady().then(() => {
     await Promise.all(p.holdings.map(async h => {
       try {
         const q = await fetchQuoteForHolding(h);
-        if (q) quotes[h.symbol.toUpperCase()] = q;
+        if (!q) return;
+        // Attach the fund expense ratio (the Cost health dimension needs it).
+        // The plain quote() rarely carries it; the 7-day-cached quoteSummary
+        // does, under fundProfile. Stocks simply won't have one. Copy rather
+        // than mutate the shared quote-cache object.
+        let enriched = q;
+        if (q.annualReportExpenseRatio == null && q.expenseRatio == null) {
+          try {
+            const summary = await fetchCachedQuoteSummary(h.symbol);
+            const er = summary?.fundProfile?.feesExpensesInvestment?.annualReportExpenseRatio;
+            if (er != null) enriched = { ...q, annualReportExpenseRatio: er };
+          } catch {}
+        }
+        quotes[h.symbol.toUpperCase()] = enriched;
       } catch (err) {
         console.warn(`Health quote fetch failed for ${h.symbol}:`, err.message);
       }
@@ -1807,7 +1820,7 @@ app.whenReady().then(() => {
 
     try {
       const text = fs.readFileSync(filePaths[0], 'utf8');
-      const { statementDate, nav } = parseStatementMeta(text);
+      const { statementDate, nav, dividendsPaid } = parseStatementMeta(text);
       if (!statementDate) {
         return { success: false, error: 'No statement date found. This needs an IBKR Activity Statement (which carries a "Period" date), not a plain positions export.' };
       }
@@ -1830,7 +1843,7 @@ app.whenReady().then(() => {
 
       const history = captureProfileSnapshot({
         p: { holdings, cash, targets: prev.targets },
-        settings, quotes: {}, nav,
+        settings, quotes: {}, nav, dividendsPaid,
         date: statementDate, source: 'statement',
       });
       return { success: true, statementDate, history, warnings: errors };

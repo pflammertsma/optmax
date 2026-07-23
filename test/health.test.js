@@ -76,13 +76,34 @@ test('healthy diversified portfolio grades A', () => {
   assert.strictEqual(h.caps.length, 0);
 });
 
-test('breakdown has five dimensions summing to totalScore', () => {
+test('breakdown has seven dimensions, each score within its max', () => {
   const h = computePortfolioHealth(healthy);
-  assert.strictEqual(h.breakdown.length, 5);
-  const sum = h.breakdown.reduce((s, b) => s + b.score, 0);
-  assert.strictEqual(sum, h.totalScore);
-  const max = h.breakdown.reduce((s, b) => s + b.max, 0);
-  assert.strictEqual(max, 100);
+  assert.strictEqual(h.breakdown.length, 7);
+  for (const b of h.breakdown) {
+    assert.ok(b.score >= 0 && b.score <= b.max, `${b.key}: ${b.score}/${b.max}`);
+    assert.ok('applicable' in b, `${b.key} missing applicable flag`);
+  }
+});
+
+test('totalScore normalizes over applicable dimensions only (0–100)', () => {
+  const h = computePortfolioHealth(healthy);
+  assert.ok(h.totalScore >= 0 && h.totalScore <= 100);
+  const app = h.breakdown.filter(b => b.applicable);
+  const earned = app.reduce((s, b) => s + b.score, 0);
+  const possible = app.reduce((s, b) => s + b.max, 0);
+  assert.strictEqual(h.totalScore, Math.round((earned / possible) * 100));
+});
+
+test('a not-applicable dimension is excluded, never scored as a failure', () => {
+  // No birth year and no targets → allocation + drift are N/A, not 0-drags.
+  const h = computePortfolioHealth(concentrated);
+  const alloc = h.breakdown.find(b => b.key === 'allocation');
+  const drift = h.breakdown.find(b => b.key === 'drift');
+  assert.strictEqual(alloc.applicable, false);
+  assert.strictEqual(drift.applicable, false);
+  const possible = h.breakdown.filter(b => b.applicable).reduce((s, b) => s + b.max, 0);
+  assert.ok(!h.breakdown.filter(b => b.applicable).some(b => b.key === 'allocation'));
+  assert.ok(possible < 100, 'N/A dims should shrink the denominator');
 });
 
 test('employer stock >25% caps the grade at C', () => {
@@ -106,7 +127,42 @@ test('ETF-only portfolio maxes diversification', () => {
     quotes: { VTI: etfQuote('VTI') },
   });
   const div = h.breakdown.find(b => b.key === 'diversification');
-  assert.strictEqual(div.score, 25);
+  assert.strictEqual(div.score, 15);
+});
+
+test('diversification ignores employer stock (no double-count with concentration)', () => {
+  // Employer 40% + one broad ETF 60%. Excluding the employer position, the
+  // remaining equity is 100% fund → diversification should be full marks even
+  // though concentration is already penalising the employer stake.
+  const h = computePortfolioHealth({
+    holdings: [
+      { symbol: 'EMPL', marketValue: 40000, quantity: 100 },
+      { symbol: 'VTI', marketValue: 60000, quantity: 200, bucket: 'core' },
+    ],
+    cash: 0,
+    quotes: { EMPL: stockQuote('EMPL'), VTI: etfQuote('VTI') },
+    settings: { employerSymbols: 'EMPL' },
+  });
+  const conc = h.breakdown.find(b => b.key === 'concentration');
+  const div = h.breakdown.find(b => b.key === 'diversification');
+  assert.ok(conc.score < conc.max, 'concentration should be penalised');
+  assert.strictEqual(div.score, 15, 'diversification measured on non-employer equity');
+});
+
+test('age-appropriate mix scores the stock/bond split against a glidepath', () => {
+  const h = computePortfolioHealth({
+    holdings: [
+      { symbol: 'VTI', marketValue: 70000, quantity: 200, bucket: 'core' },
+      { symbol: 'BND', marketValue: 30000, quantity: 300, bucket: 'core' },
+    ],
+    cash: 0,
+    quotes: { VTI: etfQuote('VTI'), BND: etfQuote('BND') },
+    settings: { birthYear: 1970, glidepathBase: 110 }, // age ~56 → ~54% equity target
+  });
+  const alloc = h.breakdown.find(b => b.key === 'allocation');
+  assert.strictEqual(alloc.applicable, true);
+  // 70% equity vs ~54% target → over-weight, partial credit, not full.
+  assert.ok(alloc.score < alloc.max && alloc.score > 0, `got ${alloc.score}`);
 });
 
 test('no targets set scores drift 0 with a set-targets action', () => {
@@ -116,20 +172,61 @@ test('no targets set scores drift 0 with a set-targets action', () => {
   assert.ok(drift.action.toLowerCase().includes('target'));
 });
 
-test('PFIC holding zeroes tax hygiene and caps at B', () => {
+test('a large PFIC position zeroes tax hygiene and caps at B', () => {
   const h = computePortfolioHealth({
     holdings: [
-      { symbol: 'VTI', marketValue: 90000, quantity: 300, bucket: 'core' },
-      { symbol: 'IWDA', marketValue: 10000, quantity: 100, currency: 'CHF' },
+      { symbol: 'VTI', marketValue: 82000, quantity: 300, bucket: 'core' },
+      { symbol: 'IWDA', marketValue: 18000, quantity: 100, currency: 'CHF' },
     ],
     cash: 0,
     targets: [{ bucket: 'core', targetPct: 100 }],
     quotes: { VTI: etfQuote('VTI') },  // IWDA unresolved → static fallback flags PFIC
   });
   const tax = h.breakdown.find(b => b.key === 'taxHygiene');
-  assert.strictEqual(tax.score, 0);
+  assert.strictEqual(tax.score, 0);           // 18% > 15% band → 0
   assert.ok(tax.detail.includes('IWDA'));
-  assert.ok(h.caps.some(c => c.grade === 'B'));
+  assert.ok(h.caps.some(c => c.grade === 'B')); // 18% > 10% → material, caps grade
+});
+
+test('a small PFIC position is a scored deduction, not a grade cap', () => {
+  const h = computePortfolioHealth({
+    holdings: [
+      { symbol: 'VTI', marketValue: 98000, quantity: 300, bucket: 'core' },
+      { symbol: 'IWDA', marketValue: 2000, quantity: 20, currency: 'CHF' },
+    ],
+    cash: 0,
+    targets: [{ bucket: 'core', targetPct: 100 }],
+    quotes: { VTI: etfQuote('VTI') },
+  });
+  const tax = h.breakdown.find(b => b.key === 'taxHygiene');
+  assert.ok(tax.score > 0 && tax.score < 15, `expected partial, got ${tax.score}`); // 2% → 11
+  assert.ok(!h.caps.some(c => c.grade === 'B'), 'a 2% PFIC should not cap the grade');
+});
+
+test('fund costs dimension scores a weighted expense ratio', () => {
+  const h = computePortfolioHealth({
+    holdings: [
+      { symbol: 'PRICEY', marketValue: 100000, quantity: 100, bucket: 'core' },
+    ],
+    cash: 0,
+    targets: [{ bucket: 'core', targetPct: 100 }],
+    quotes: { PRICEY: { ...etfQuote('PRICEY'), annualReportExpenseRatio: 0.0095 } }, // 0.95%
+  });
+  const cost = h.breakdown.find(b => b.key === 'cost');
+  assert.strictEqual(cost.applicable, true);
+  assert.strictEqual(cost.score, 0); // 0.95% > 0.75% band
+  assert.ok(cost.detail.includes('0.95%'));
+});
+
+test('fund costs are N/A when no expense data is present (backfilled point)', () => {
+  const h = computePortfolioHealth({
+    holdings: [{ symbol: 'VTI', marketValue: 100000, quantity: 300, bucket: 'core' }],
+    cash: 0,
+    targets: [{ bucket: 'core', targetPct: 100 }],
+    quotes: {}, // no quotes at all → no TER known
+  });
+  const cost = h.breakdown.find(b => b.key === 'cost');
+  assert.strictEqual(cost.applicable, false);
 });
 
 test('excess cash reduces the cash dimension', () => {
@@ -154,7 +251,7 @@ test('fund detection falls back to static lists without quotes', () => {
     quotes: {},
   });
   const div = h.breakdown.find(b => b.key === 'diversification');
-  assert.strictEqual(div.score, 25); // VTI recognized as fund statically: 80% share
+  assert.strictEqual(div.score, 15); // VTI recognized as fund statically: 80% share
 });
 
 // ─── projectAnnualDividends ──────────────────────────────────────────────────

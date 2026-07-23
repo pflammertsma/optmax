@@ -18,6 +18,12 @@ let currentGuidanceItems = [];
 // render paths can colour/threshold without an extra IPC. Critical = 1.5×.
 let concentrationLimit = 10;
 
+// Inputs to the per-security lens scores (buy-hold / dividend / trading),
+// mirrored from settings so applyScore can run without a DOM/IPC round-trip.
+// usPerson drives the PFIC penalty; the tax rate drives after-tax dividend yield.
+let lensUsPerson = true;
+let lensDividendTaxRate = 30;
+
 // Symbols just added to the watchlist whose options data is still being
 // fetched — shown as placeholder rows in the screener so the ticker appears
 // immediately instead of after the full watchlist re-scan completes.
@@ -91,8 +97,16 @@ function renderScoreBar(score, grade) {
 
 // ─── Scoring ──────────────────────────────────────────────────────────────────
 function applyScore(d) {
-  if (!window.scoreStock) return;
-  d._score = window.scoreStock(d, scoringConfig);
+  if (window.scoreStock) d._score = window.scoreStock(d, scoringConfig);
+  // Purpose-specific lenses: the same security graded as a long-term hold, an
+  // income holding, and a short-term trade — because one letter can't mean all
+  // three (VTI is an A to hold, an F to write calls on).
+  if (window.lensScores) {
+    d._lenses = window.lensScores.scoreLenses(d, {
+      usPerson: lensUsPerson,
+      dividendTaxRatePct: d.dividendTaxRatePct ?? lensDividendTaxRate,
+    });
+  }
 }
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
@@ -257,8 +271,42 @@ function renderDashboardStarred() {
   });
 }
 
+// Compact "options income ideas" strip on the dashboard — a small, clearly
+// flagged taste of the Option Scanner. Each chip shows the ticker, its
+// options-INCOME grade (labeled, so an F on a low-vol name reads as "poor
+// premium", not "bad company"), and the monthly yield. Full detail lives in
+// the Option Scanner.
+function renderDashboardIncomeStrip(active) {
+  const wrap = el('dashboard-income-chips');
+  if (!wrap) return;
+  const items = [...active]
+    .sort((a, b) => (b.monthlyYield ?? 0) - (a.monthlyYield ?? 0))
+    .slice(0, 8);
+  if (!items.length) {
+    wrap.innerHTML = '<span style="font-size:12px; color:var(--text-muted); padding:8px 2px;">No income ideas yet — run a scan in the Screener.</span>';
+    return;
+  }
+  wrap.innerHTML = items.map(d => `
+    <div class="income-chip" data-idx="${allData.indexOf(d)}"
+      style="flex:0 0 auto; min-width:150px; padding:10px 12px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; cursor:pointer;">
+      <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+        <span style="font-size:13px; font-weight:600; color:var(--cyan);">${d.symbol}</span>
+        <span class="privacy-amount" style="font-size:12px; color:var(--text-secondary);">$${(d.currentPrice ?? 0).toFixed(2)}</span>
+        ${d._score ? `<span title="Options-income grade" style="margin-left:auto;">${renderGradeBadge(d._score.grade)}</span>` : ''}
+      </div>
+      <div style="display:flex; align-items:baseline; justify-content:space-between;">
+        <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em;">Income</span>
+        <span class="preview-yield" style="font-size:14px;">${fmt.pct(d.monthlyYield)}/mo</span>
+      </div>
+    </div>`).join('');
+  wrap.querySelectorAll('.income-chip').forEach(chip => {
+    chip.addEventListener('click', () => openModal(allData[+chip.dataset.idx]));
+  });
+}
+
 function renderPreviewList(containerId, items) {
   const container = el(containerId);
+  if (!container) return;
   if (!items.length) {
     container.innerHTML = '<p class="preview-empty">No data available.</p>';
     return;
@@ -399,30 +447,22 @@ function renderAll(data) {
   allData.forEach(d => applyScore(d));
 
   const isEmpty = data.length === 0;
-  el('empty-state').style.display  = isEmpty ? 'flex' : 'none';
-  el('preview-grid').style.display = isEmpty ? 'none' : 'flex';
+  el('empty-state').style.display = isEmpty ? 'flex' : 'none';
+  const strip = el('dashboard-income-strip');
+  if (strip) strip.style.display = isEmpty ? 'none' : '';
 
+  // Scanner counts still feed the Screener subtitle (the dashboard itself is now
+  // about the portfolio, not the scanner universe).
   const total = data.length;
   const above0 = data.filter(d => d._score && d._score.totalScore > 0).length;
   const graded = data.filter(d => d._score && d._score.totalScore > 0 && d._score.grade !== 'F').length;
-
   const subtitleEl = el('dashboard-stats-subtitle');
   if (subtitleEl) {
     subtitleEl.textContent = `${total} opportunities · ${above0} with score > 0 · ${graded} with passing grades (A-D)`;
   }
 
-  renderMetricCards(data);
   renderTables(data);
-  
-  const active = data.filter(d => d._score && d._score.totalScore > 0);
-  renderPreviewList('preview-overall', active);
-  renderPreviewList('preview-under10k', active.filter(d => d.currentPrice <= 100));
-  
-  // Render Top 5 Mega Caps (including those with 0 score)
-  const megaCaps = data.filter(d => d.marketCap != null && d.marketCap >= 200e9);
-  renderPreviewList('preview-megacaps', megaCaps);
-
-  renderDashboardStarred();
+  renderDashboardIncomeStrip(data.filter(d => d._score && d._score.totalScore > 0));
   renderScreener();
   if (portfolio) {
     renderPortfolio(portfolio);
@@ -1209,6 +1249,36 @@ async function openSymbolDetails(symbolOrData, defaultTab = 'compliance') {
       </div>`;
   } else compEl.innerHTML = '';
 
+  // Lens scores — the same security through three goals. Computed here so it
+  // always reflects the current tax profile, even for a name not in a scan.
+  const lensEl = el('si-lens-scores');
+  if (lensEl) {
+    const lenses = d._lenses || (window.lensScores && window.lensScores.scoreLenses(d, {
+      usPerson: lensUsPerson, dividendTaxRatePct: d.dividendTaxRatePct ?? lensDividendTaxRate,
+    }));
+    if (lenses && window.lensScores) {
+      const meta = window.lensScores.LENS_META;
+      const order = ['buyHold', 'dividend', 'trading'];
+      lensEl.innerHTML = `
+        <div style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">How it scores for your goal</div>
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px;">
+          ${order.map(k => {
+            const s = lenses[k], m = meta[k];
+            const top = s.factors[0] ? s.factors[0].detail : '';
+            return `
+              <div title="${m.blurb}${top ? ' — ' + top.replace(/"/g, '&quot;') : ''}"
+                style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; padding:9px 10px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px;">
+                  <span style="font-size:11px; color:var(--text-secondary);">${m.label}${m.advanced ? ' <span style="color:#a855f7; font-size:9px; text-transform:uppercase;">adv</span>' : ''}</span>
+                  ${renderGradeBadge(s.grade)}
+                </div>
+                <div style="font-size:11px; color:var(--text-muted); line-height:1.35;">${m.blurb}</div>
+              </div>`;
+          }).join('')}
+        </div>`;
+    } else lensEl.innerHTML = '';
+  }
+
   const range52 = (d.fiftyTwoWeekLow != null && d.fiftyTwoWeekHigh != null && d.price != null && d.fiftyTwoWeekHigh > d.fiftyTwoWeekLow)
     ? `${(((d.price - d.fiftyTwoWeekLow) / (d.fiftyTwoWeekHigh - d.fiftyTwoWeekLow)) * 100).toFixed(0)}% of 52w range`
     : null;
@@ -1739,6 +1809,7 @@ async function initSettingsUI() {
     setIfEl('settings-employer-symbols', settings.employerSymbols ?? '');
     setIfEl('settings-concentration-limit', settings.concentrationLimitPct ?? 10);
     concentrationLimit = settings.concentrationLimitPct ?? 10;
+    lensDividendTaxRate = settings.dividendTaxRatePct ?? 30;
 
     // Tax profile
     populateCountrySelects();
@@ -1753,6 +1824,7 @@ async function initSettingsUI() {
     setIfEl('settings-pfic-interest-rate', settings.pficInterestRatePct ?? 8);
     setIfEl('settings-pfic-years-held', settings.pficAssumedYears ?? 3);
     updateTaxProfileStatus();
+    lensUsPerson = taxProfileIsUSPersonFromUI(); // now that the tax fields are populated
     setIfEl('settings-ibkr-gateway-url', settings.ibkrGatewayUrl ?? 'https://localhost:5000');
     setIfEl('settings-ibkr-username', settings.ibkrUsername ?? '');
     const dirLabel = el('pf-gateway-dir-label');
@@ -1847,6 +1919,16 @@ async function initSettingsUI() {
       await window.electronAPI.saveSettings({ [key]: val });
       updateTaxProfileStatus();
       if (key === 'concentrationLimitPct' && Number.isFinite(val)) concentrationLimit = val;
+
+      // Keep the lens-score inputs in sync, and re-score if they moved so the
+      // buy-hold/dividend grades reflect the new tax profile without a refresh.
+      const prevUs = lensUsPerson, prevRate = lensDividendTaxRate;
+      if (key === 'dividendTaxRatePct' && Number.isFinite(val)) lensDividendTaxRate = val;
+      lensUsPerson = taxProfileIsUSPersonFromUI();
+      if (lensUsPerson !== prevUs || lensDividendTaxRate !== prevRate) {
+        (window.allData || allData || []).forEach(applyScore);
+        (window.screenerData || screenerData || []).forEach(applyScore);
+      }
 
       // Trigger portfolio render to update alerts immediately on settings changes
       const p = await window.electronAPI.getPortfolio();
@@ -2358,16 +2440,19 @@ async function renderProgressView() {
   };
 
   // ── Employer concentration vs. target ────────────────────────────────────
-  // Use the user's own sell-down goal as the target line when a plan exists;
-  // otherwise the configurable single-stock concentration limit.
+  // The target line is the Concentration Limit from Settings — one number the
+  // user controls, not the sell-down plan's own goal (that lives on the plan
+  // card). Read it from settings rather than the module mirror: this view can
+  // render before initSettingsUI() has populated it.
   let targetPct = concentrationLimit;
   try {
-    const sd = await window.electronAPI.getSellDownStatus();
-    if (sd?.plan?.targetWeightPct != null) targetPct = sd.plan.targetWeightPct;
+    const s = await window.electronAPI.getSettings();
+    const lim = Number(s?.concentrationLimitPct);
+    if (Number.isFinite(lim)) { concentrationLimit = lim; targetPct = lim; }
   } catch {}
   mkLine('progress-conc-chart', [
     { label: 'Employer %', data: history.map(h => h.employerPctDirect), borderColor: '#d95926', backgroundColor: 'rgba(217,89,38,0.10)', fill: true, borderWidth: 2, tension: 0.25, spanGaps: true, pointRadius: history.length > 30 ? 0 : 3, pointHoverRadius: 5 },
-    { label: `Target ${targetPct}%`, data: history.map(() => targetPct), borderColor: '#898781', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, fill: false },
+    { label: `Limit ${targetPct}%`, data: history.map(() => targetPct), borderColor: '#898781', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, fill: false },
   ], { scale: { beginAtZero: true, suggestedMax: Math.max(50, Math.ceil((empLast || 40) / 10) * 10) }, ticks: { callback: v => v + '%' } });
 
   // ── Health score ─────────────────────────────────────────────────────────
@@ -2789,6 +2874,9 @@ function renderPortfolio(p) {
   const top = d.topPositions[0];
   el('pf-largest').textContent = top ? `${top.symbol} · ${top.weightPct.toFixed(1)}%` : '—';
 
+  // Dashboard vitals row — your money right now, with the trend since last.
+  renderDashboardVitals(has ? { totalValue: d.totalValue, cash: p.cash || 0, employerPct: conc.pct } : null);
+
   // Fetch and render compliance guidance alerts
   const listEl = el('pf-guidance-list');
   if (listEl) {
@@ -3044,12 +3132,99 @@ async function renderDashboardActionPlan(watchlistData, hasHoldings) {
   }
 }
 
+// ─── Dashboard vitals row ───────────────────────────────────────────────────
+// The user's own numbers on landing: value, cash to deploy, employer
+// concentration vs limit, PFIC exposure — each with the trend since the first
+// recorded history point, so progress (or drift) is visible at a glance.
+async function renderDashboardVitals(live) {
+  const wrap = el('dashboard-vitals');
+  if (!wrap) return;
+  if (!live) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+
+  let history = [];
+  try { history = (await window.electronAPI.getProfileHistory())?.history || []; } catch {}
+  const pick = (key) => history.filter(h => h[key] != null);
+  const firstOf = (key) => { const a = pick(key); return a.length ? a[0][key] : null; };
+  const firstDate = (key) => { const a = pick(key); return a.length ? pgDate(a[0].date) : null; };
+  const delta = (a, b) => (a == null || b == null) ? null : Math.round((a - b) * 100) / 100;
+  const trend = (dv, goodIsDown, date) => {
+    if (dv == null || Math.abs(dv) < 0.01) return `<span style="color:var(--text-muted); font-size:12px;">${date ? 'no change' : 'baseline'}</span>`;
+    const good = goodIsDown ? dv < 0 : dv > 0;
+    const arrow = dv < 0 ? '▼' : '▲';
+    return `<span style="color:${good ? 'var(--green)' : 'var(--red)'}; font-size:12px;">${arrow} ${Math.abs(dv).toFixed(1)}${date ? ` since ${date}` : ''}</span>`;
+  };
+
+  const pficPts = pick('pficValue');
+  const pficLast = pficPts.length ? pficPts[pficPts.length - 1].pficValue : null;
+  const pficCount = pficPts.length ? pficPts[pficPts.length - 1].pficCount : null;
+
+  const cards = [];
+  cards.push({
+    label: 'Total value',
+    value: `<span class="privacy-amount">${fmt.currency(live.totalValue)}</span>`,
+    sub: `<span style="color:var(--text-muted); font-size:12px;">${history.length} data point${history.length === 1 ? '' : 's'}</span>`,
+  });
+  cards.push({
+    label: 'Cash to deploy',
+    value: `<span class="privacy-amount">${fmt.currency(live.cash)}</span>`,
+    sub: `<span style="color:var(--text-muted); font-size:12px;">${live.totalValue > 0 ? (live.cash / live.totalValue * 100).toFixed(1) : '0'}% of portfolio</span>`,
+  });
+  cards.push({
+    label: 'Employer concentration',
+    value: `<span style="color:${live.employerPct > concentrationLimit * 1.5 ? 'var(--red)' : live.employerPct > concentrationLimit ? '#f59e0b' : 'var(--green)'};">${live.employerPct.toFixed(1)}%</span>`,
+    sub: trend(delta(live.employerPct, firstOf('employerPctDirect')), true, firstDate('employerPctDirect')) + ` <span style="color:var(--text-muted); font-size:12px;">· limit ${concentrationLimit}%</span>`,
+  });
+  if (pficLast != null && pficLast > 0) {
+    cards.push({
+      label: 'PFIC exposure',
+      value: `<span class="privacy-amount">${fmt.currency(pficLast)}</span>`,
+      sub: `<span style="color:var(--text-muted); font-size:12px;">${pficCount} foreign fund(s)</span>`,
+    });
+  }
+  // Dividends actually received (from the most recent imported statement).
+  const divPts = pick('dividendsPaidYtd');
+  if (divPts.length) {
+    const latest = divPts[divPts.length - 1];
+    const net = latest.dividendsPaidNetYtd;
+    cards.push({
+      label: 'Dividends received (YTD)',
+      value: `<span class="privacy-amount">${fmt.currency(latest.dividendsPaidYtd)}</span>`,
+      sub: `<span style="color:var(--text-muted); font-size:12px;">${net != null ? `${fmt.currency(net)} after tax · ` : ''}as of ${pgDate(latest.date)}</span>`,
+    });
+  }
+
+  wrap.innerHTML = cards.map(c => `
+    <div class="metric-card" style="padding:14px 16px;">
+      <div class="metric-label">${c.label}</div>
+      <div class="metric-value" style="font-size:22px;">${c.value}</div>
+      <div style="margin-top:2px;">${c.sub}</div>
+    </div>`).join('');
+}
+
+// Actual dividends received (YTD) from the most recent imported statement,
+// shown under the forward projection on the Portfolio page.
+async function renderDividendsReceived() {
+  const elx = el('pf-dividends-received');
+  if (!elx) return;
+  let history = [];
+  try { history = (await window.electronAPI.getProfileHistory())?.history || []; } catch {}
+  const pts = history.filter(h => h.dividendsPaidYtd != null);
+  if (!pts.length) { elx.style.display = 'none'; return; }
+  const latest = pts[pts.length - 1];
+  const net = latest.dividendsPaidNetYtd;
+  elx.innerHTML = `Received YTD: <span class="privacy-amount" style="color:var(--green);">${fmt.currency(latest.dividendsPaidYtd)}</span>`
+    + (net != null ? ` <span style="color:var(--text-muted);">(${fmt.currency(net)} after tax)</span>` : '');
+  elx.style.display = '';
+}
+
 // ─── Portfolio health + dividends (async, quote-backed) ─────────────────────
 let pfHealthLoading = false;
 
 async function loadPortfolioHealth(hasHoldings) {
   const card = el('pf-health-card');
   const navBadge = el('nav-health-badge');
+  const dashPill = el('dashboard-health-pill');
   const emptyState = el('pf-health-empty-state');
   if (emptyState) emptyState.style.display = hasHoldings ? 'none' : '';
   if (!hasHoldings) {
@@ -3057,6 +3232,9 @@ async function loadPortfolioHealth(hasHoldings) {
     el('pf-dividends').textContent = '—';
     if (card) card.style.display = 'none';
     if (navBadge) navBadge.innerHTML = '';
+    if (dashPill) dashPill.style.display = 'none';
+    const summaryEl = el('dashboard-summary');
+    if (summaryEl) summaryEl.style.display = 'none';
     return;
   }
   if (pfHealthLoading) return;
@@ -3071,6 +3249,28 @@ async function loadPortfolioHealth(hasHoldings) {
       `${renderGradeBadge(health.grade)} <span style="font-size:0.6em; color:var(--text-secondary)">${health.totalScore}/100</span>`;
     el('pf-dividends').innerHTML = fmt.currency(dividends.annual);
     if (navBadge) navBadge.innerHTML = renderGradeBadge(health.grade);
+    renderDividendsReceived(); // actual YTD from the latest imported statement
+
+    // Dashboard header pill
+    if (dashPill) {
+      el('dashboard-health-pill-badge').innerHTML = renderGradeBadge(health.grade);
+      el('dashboard-health-pill-score').textContent = `${health.totalScore}/100`;
+      dashPill.style.display = 'inline-flex';
+    }
+
+    // Dashboard plain-English summary: grade + the single biggest lever, so a
+    // newbie reads the story before the numbers.
+    const summaryEl = el('dashboard-summary');
+    if (summaryEl) {
+      const scorable = health.breakdown.filter(b => b.applicable !== false && b.max > 0);
+      const worst = scorable.sort((a, b) => (a.score / a.max) - (b.score / b.max))[0];
+      const lever = worst ? worst.label.toLowerCase() : null;
+      summaryEl.innerHTML =
+        `Your portfolio scores <strong style="color:var(--text-primary)">${health.grade} · ${health.totalScore}/100</strong> (${health.gradeLabel}).`
+        + (lever ? ` The biggest lever right now is <strong style="color:var(--text-primary)">${lever}</strong>.` : '')
+        + ` Your prioritized to-dos are below — most important first.`;
+      summaryEl.style.display = '';
+    }
 
     // Breakdown card
     if (card) {
@@ -3081,6 +3281,19 @@ async function loadPortfolioHealth(hasHoldings) {
         : `${health.totalScore}/100 — ${health.gradeLabel}. Each dimension below explains its score and the one action that would most improve it.`;
 
       el('pf-health-breakdown').innerHTML = health.breakdown.map(b => {
+        // N/A dimensions (a missing input, not a failure) are shown greyed with
+        // no bar and don't count toward the score — mirror how they're scored.
+        if (b.applicable === false) {
+          return `
+            <div style="margin-bottom:14px; opacity:0.6">
+              <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px">
+                <span style="font-size:13px; font-weight:600">${b.label}</span>
+                <span style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em">Not scored</span>
+              </div>
+              <div style="font-size:12px; color:var(--text-secondary)">${b.detail}</div>
+              <div style="font-size:12px; color:var(--text-main); margin-top:2px">→ ${b.action}</div>
+            </div>`;
+        }
         const ratio = b.max > 0 ? b.score / b.max : 0;
         const color = ratio >= 0.8 ? 'var(--green)' : ratio >= 0.4 ? '#f59e0b' : 'var(--red)';
         return `
@@ -3101,6 +3314,15 @@ async function loadPortfolioHealth(hasHoldings) {
     pfHealthLoading = false;
   }
 }
+
+// Dashboard header pill → Health; income strip "see all" → Option Scanner.
+// Wire once at module load.
+(function wireDashboardNav() {
+  const pill = document.getElementById('dashboard-health-pill');
+  if (pill) pill.addEventListener('click', () => navigate('health'));
+  const seeAll = document.getElementById('dashboard-income-seeall');
+  if (seeAll) seeAll.addEventListener('click', () => navigate(seeAll.dataset.nav || 'options-scanner'));
+})();
 
 async function initPortfolioView() {  // Sortable holdings headers — same toggle behavior as the CSP tables
   el('pf-holdings-table').querySelectorAll('thead th[data-col]').forEach(th => {
@@ -3130,23 +3352,39 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
   });
 
   // ── IBKR gateway status + live sync ─────────────────────────────────────
-  refreshIbkrStatus = async function () {
+  // The button label is derived state: paint it from ibkrState in one place so
+  // it can never drift from reality. Skipped while a sync/start is in flight —
+  // that handler owns the button until it finishes.
+  let ibkrBusy = false;
+  function paintIbkrButton() {
     const btn = el('pf-ibkr-sync-btn');
-    if (!btn) return;
-    const s = await window.electronAPI.ibkrStatus();
-    ibkrState = s.state;
-
-    // Update consolidated sidebar status and dot
-    setStatus('live', 'Live');
-
-    if (s.state === 'connected') {
+    if (!btn || ibkrBusy) return;
+    if (ibkrState === 'connected') {
       btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>Sync IBKR`;
-    } else if (s.state === 'needs-login') {
+    } else if (ibkrState === 'needs-login') {
       btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>Login to IBKR`;
-    } else if (s.state === 'unreachable') {
+    } else {
       btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><polygon points="5 3 19 12 5 21 5 3"/></svg>Start Gateway`;
     }
+    btn.disabled = false;
+  }
+
+  // quiet: a background poll — don't stomp on a transient status message
+  // ("Synced 12 holdings…") unless the connection state actually changed.
+  refreshIbkrStatus = async function ({ quiet = false } = {}) {
+    if (!el('pf-ibkr-sync-btn')) return;
+    let s;
+    try { s = await window.electronAPI.ibkrStatus(); } catch { return; }
+    const changed = s.state !== ibkrState;
+    ibkrState = s.state;
+    if (!quiet || changed) setStatus('live', 'Live');
+    paintIbkrButton();
   };
+
+  // Poll while the app is open so the button reflects the session without a
+  // reload — the gateway can log in, drop, or expire at any time. The status
+  // call tickles the gateway too, which keeps a live session from timing out.
+  setInterval(() => refreshIbkrStatus({ quiet: true }), 60000);
 
   // After launching the gateway, poll until it answers (slow Java startup) —
   // and bail out immediately if the process dies instead of booting.
@@ -3156,7 +3394,7 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
       await new Promise(r => setTimeout(r, 2000));
       const running = await window.electronAPI.ibkrGatewayRunning();
       if (!running.running) return 'died';
-      await refreshIbkrStatus();
+      await refreshIbkrStatus({ quiet: true }); // keep the "Starting…" message on screen
       if (ibkrState === 'needs-login' || ibkrState === 'connected') return ibkrState;
     }
     return 'timeout';
@@ -3180,9 +3418,29 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     const wv = document.createElement('webview');
     wv.setAttribute('src', s.gatewayUrl || 'https://localhost:5000');
     wv.setAttribute('partition', 'persist:ibkr');
+    // Present as a plain desktop Chrome browser. IBKR's SSO sits behind Akamai,
+    // whose bot filter returns "Access Denied" for the default webview UA (it
+    // ends in "Electron/… portmax/…"). We're loading the user's own broker
+    // login through the official gateway — it just must not look automated.
+    wv.setAttribute('useragent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36');
     wv.style.width = '100%';
     wv.style.height = '100%';
     wv.addEventListener('did-stop-loading', () => { if (loading) loading.style.display = 'none'; });
+
+    // Footer address bar — show where the login flow currently is (gateway →
+    // IBKR SSO → back), and colour the lock by scheme so an http hop is visible.
+    const urlBar = el('ibkr-url-bar');
+    const urlLock = el('ibkr-url-lock');
+    const showUrl = (u) => {
+      if (!urlBar || !u) return;
+      urlBar.textContent = u;
+      const secure = /^https:/i.test(u);
+      urlBar.style.color = secure ? 'var(--text-muted)' : 'var(--red)';
+      if (urlLock) urlLock.style.stroke = secure ? 'var(--text-muted)' : 'var(--red)';
+    };
+    showUrl(s.gatewayUrl || 'https://localhost:5000');
+    wv.addEventListener('did-navigate', (e) => showUrl(e.url));
+    wv.addEventListener('did-navigate-in-page', (e) => showUrl(e.url));
 
     // The gateway's terminal page after auth is a bare "Client login succeeds"
     // body. Capture it the moment it renders: close the modal and sync
@@ -3191,9 +3449,15 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     // navigation), so `did-stop-loading` alone never fires again — poll the
     // body text on a short interval too, for as long as the modal is open.
     const checkForSuccess = () => {
-      wv.executeJavaScript(`(document.body?.innerText || '').slice(0, 200)`)
+      wv.executeJavaScript(`(document.body?.innerText || '').slice(0, 300)`)
         .then(text => {
-          if (/client login succeeds/i.test(text || '')) onIbkrLoginSuccess();
+          if (/client login succeeds/i.test(text || '')) { onIbkrLoginSuccess(); return; }
+          // IBKR's Akamai bot-shield serves an "Access Denied / errors.edgesuite.net"
+          // page to the embedded window. When we see it, surface the browser
+          // fallback instead of leaving the user staring at a dead page.
+          if (/access denied|don't have permission|edgesuite\.net/i.test(text || '')) {
+            showIbkrFallback();
+          }
         })
         .catch(() => {});
     };
@@ -3261,6 +3525,10 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
       });
     }
     host.appendChild(wv);
+    const fb = el('ibkr-login-fallback');
+    if (fb) fb.style.display = 'none'; // fresh attempt starts on the embedded view
+    const fbWaiting = el('ibkr-fallback-waiting');
+    if (fbWaiting) fbWaiting.style.display = 'none';
     overlay.classList.remove('hidden');
 
     // While the modal is open, poll for successful auth as a fallback to the
@@ -3288,9 +3556,28 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     // reads ibkrState synchronously, so a stale refresh here would reopen
     // this same login modal instead of syncing.
     ibkrState = 'connected';
+    paintIbkrButton(); // flip to "Sync IBKR" now, before the sync round-trip
     const syncBtn = el('pf-ibkr-sync-btn');
     if (syncBtn && !syncBtn.disabled) syncBtn.click();
-    refreshIbkrStatus(); // update the pill/button styling to match, in the background
+    settleIbkrStatusAfterLogin();
+  }
+
+  // For the same reason, one fire-and-forget refresh right after login is worse
+  // than none: a stale needs-login read would repaint the button back to
+  // "Login to IBKR" and leave it there until the next reload. Poll until the
+  // gateway agrees, and only fall back to whatever it reports if it never does.
+  async function settleIbkrStatusAfterLogin(attempts = 8, delayMs = 2000) {
+    for (let i = 0; i < attempts; i++) {
+      await new Promise(r => setTimeout(r, delayMs));
+      let s;
+      try { s = await window.electronAPI.ibkrStatus(); } catch { continue; }
+      if (s.state === 'connected') {
+        ibkrState = 'connected';
+        paintIbkrButton();
+        return;
+      }
+    }
+    refreshIbkrStatus({ quiet: true });
   }
 
   function closeIbkrLogin() {
@@ -3306,12 +3593,33 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
 
   el('ibkr-login-close')?.addEventListener('click', closeIbkrLogin);
 
+  // Reveal the "log in via your real browser" fallback over the embedded view.
+  function showIbkrFallback() {
+    const fb = el('ibkr-login-fallback');
+    const loading = el('ibkr-login-loading');
+    if (loading) loading.style.display = 'none';
+    if (fb) fb.style.display = 'flex';
+  }
+
+  el('ibkr-open-browser-btn')?.addEventListener('click', async () => {
+    try { await window.electronAPI.ibkrOpenLogin(); } catch {}
+    // The 3s ibkrLoginPoll keeps running while the modal is open, so an
+    // external-browser login is picked up automatically — just show we're waiting.
+    const waiting = el('ibkr-fallback-waiting');
+    if (waiting) waiting.style.display = 'inline-flex';
+  });
+
+  el('ibkr-retry-embedded-btn')?.addEventListener('click', () => {
+    closeIbkrLogin();
+    openIbkrLogin();
+  });
+
   el('pf-ibkr-sync-btn').addEventListener('click', async () => {
     const btn = el('pf-ibkr-sync-btn');
     
     if (ibkrState === 'connected') {
+      ibkrBusy = true;
       btn.disabled = true;
-      const prevLabel = btn.innerHTML;
       btn.textContent = 'Syncing…';
       try {
         const result = await window.electronAPI.ibkrSync();
@@ -3325,8 +3633,12 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
       } catch {
         setStatus('error', 'IBKR sync failed');
       } finally {
-        btn.innerHTML = prevLabel;
-        refreshIbkrStatus();
+        // Repaint from the live state, not from a saved label: the label we
+        // started with was "Login to IBKR" whenever this sync was triggered by
+        // a fresh login, and restoring it is what left the button stale.
+        ibkrBusy = false;
+        btn.disabled = false;
+        refreshIbkrStatus({ quiet: true });
       }
       return;
     }
@@ -3337,8 +3649,8 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     }
     
     if (ibkrState === 'unreachable') {
+      ibkrBusy = true;
       btn.disabled = true;
-      const prevLabel = btn.innerHTML;
       btn.textContent = 'Starting…';
       try {
         const running = await window.electronAPI.ibkrGatewayRunning();
@@ -3346,8 +3658,8 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
           const start = await window.electronAPI.ibkrGatewayStart();
           if (!start.success) {
             setStatus('error', start.error || 'Could not start gateway');
-            btn.innerHTML = prevLabel;
-            btn.disabled = false;
+            ibkrBusy = false;
+            paintIbkrButton();
             return;
           }
           setStatus('loading', 'Starting IBKR gateway… (Java takes ~15–30s)');
@@ -3368,9 +3680,9 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
       } catch (err) {
         setStatus('error', 'Failed to launch gateway: ' + err.message);
       } finally {
-        btn.innerHTML = prevLabel;
+        ibkrBusy = false;
         btn.disabled = false;
-        refreshIbkrStatus();
+        refreshIbkrStatus({ quiet: true });
       }
     }
   });
