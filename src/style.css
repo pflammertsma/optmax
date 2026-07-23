@@ -2603,3 +2603,74 @@ input:checked + .slider:before {
   border-color: var(--cyan);
   transform: translateY(-1px);
 }
+
+/* ── Shared scanner renderer (src/scanner.js) ─────────────────────────────────
+   Every scanner page (Option Scanner, Investment Scanner, …) renders through
+   these styles, so a change here carries over to all of them. */
+.scanner-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 16px;
+  align-self: flex-start;
+}
+.scanner-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  border-radius: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.scanner-tab-btn:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+.scanner-tab-btn.active {
+  background: var(--cyan-gradient);
+  color: var(--background);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+}
+.scanner-tab-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.scanner-tab-btn.active .scanner-tab-badge {
+  background: rgba(0, 0, 0, 0.18);
+}
+.scanner-intro {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.scanner-table th.scanner-sortable:hover {
+  color: var(--text-primary);
+}
+.scanner-table th.sorted {
+  color: var(--cyan);
+}
+.scanner-sort-arrow {
+  font-size: 9px;
+  opacity: 0.8;
+}
+.scanner-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}

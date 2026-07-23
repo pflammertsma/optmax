@@ -116,6 +116,7 @@ const {
 } = require('./lib/portfolio');
 const { analyzeTicker, generatePortfolioGuidance, calculateHoldingRecommendation } = require('./lib/guidance');
 const { generateBuyRecommendations, CURATED_CANDIDATES } = require('./lib/recommendations');
+const { scanInvestments } = require('./lib/investments');
 const { computePortfolioHealth, projectAnnualDividends } = require('./lib/health');
 const { createIbkrClient, isLoopbackGatewayUrl, gatewayLaunchSpec, treeKillSpec } = require('./lib/ibkr');
 const { computeFundOverlap, computeIndexImpliedEmployer } = require('./lib/funds');
@@ -1645,6 +1646,25 @@ app.whenReady().then(() => {
       settings,
       quotes,
       watchlistData: watchlistData || [],
+    });
+  });
+
+  // Investment Scanner: full per-category ranked "what to buy" lists (ETFs,
+  // bonds, stocks, dividend income). Same quote-gathering as buy-recs.
+  ipcMain.handle('scan-investments', async (_event, watchlistData) => {
+    const p = loadPortfolio();
+    const settings = loadSettings();
+    const quotes = {};
+    await Promise.all(p.holdings.map(async h => {
+      try { const q = await fetchQuoteForHolding(h); if (q) quotes[h.symbol.toUpperCase()] = q; } catch {}
+    }));
+    await Promise.all(CURATED_CANDIDATES.map(async c => {
+      if (quotes[c.symbol]) return;
+      try { const q = await fetchCachedQuote(c.symbol); if (q && (q.currency || 'USD').toUpperCase() === 'USD') quotes[c.symbol] = q; } catch {}
+    }));
+    return scanInvestments({
+      holdings: p.holdings, cash: p.cash, targets: p.targets,
+      settings, quotes, watchlistData: watchlistData || [],
     });
   });
 
