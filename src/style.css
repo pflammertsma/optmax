@@ -270,9 +270,22 @@ html, body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 4px 0;
-  border-top: 1px solid var(--border);
+  width: 100%;
+  padding: 10px 8px;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
 }
+.sidebar-footer:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+.sidebar-footer:hover .status-bar-chevron { opacity: 1; }
 
 .status-dot {
   width: 8px; height: 8px;

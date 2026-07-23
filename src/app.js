@@ -155,6 +155,58 @@ document.querySelectorAll('.nav-link').forEach(link => {
   });
 });
 
+// ─── Connection status detail dialog ────────────────────────────────────────
+// Opened from the status bar. Shows the real IBKR/gateway state, the gateway's
+// own reason, recent gateway-log errors, and a retry.
+function openStatusDetail() {
+  const overlay = el('status-detail-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('hidden');
+  renderStatusDetail();
+}
+function closeStatusDetail() {
+  el('status-detail-overlay')?.classList.add('hidden');
+}
+
+async function renderStatusDetail() {
+  const body = el('status-detail-body');
+  if (!body) return;
+  body.innerHTML = '<div style="color:var(--text-muted);">Checking…</div>';
+
+  let s = {}, gw = {}, logInfo = {};
+  try { s = await window.electronAPI.ibkrStatus(); } catch (e) { s = { state: 'unreachable', error: e.message }; }
+  try { gw = await window.electronAPI.ibkrGatewayRunning(); } catch {}
+  try { logInfo = await window.electronAPI.ibkrGatewayLog(12); } catch {}
+
+  const stateMeta = {
+    connected:     { label: 'Connected', color: 'var(--green)', dot: 'live' },
+    'needs-login': { label: 'Not logged in', color: '#f59e0b', dot: 'warning' },
+    unreachable:   { label: 'Gateway not reachable', color: 'var(--red)', dot: 'error' },
+  }[s.state] || { label: s.state || 'Unknown', color: 'var(--text-muted)', dot: 'offline' };
+
+  const row = (label, value) => `
+    <div style="display:flex; gap:12px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
+      <span style="min-width:130px; color:var(--text-muted); flex-shrink:0;">${label}</span>
+      <span style="color:var(--text-primary); word-break:break-word;">${value}</span>
+    </div>`;
+
+  const errorLines = (logInfo.tail || []).filter(l => /error|denied|competing|fail|exception|refused/i.test(l));
+  const lastExit = gw.lastExit || logInfo.lastExit;
+
+  body.innerHTML =
+    row('IBKR session', `<span style="color:${stateMeta.color}; font-weight:600;">${stateMeta.label}</span>`)
+    + (s.competing ? row('Session conflict', '<span style="color:var(--red);">Another IBKR session is competing.</span>') : '')
+    + (s.reason ? row('Details', s.reason) : '')
+    + row('Gateway process', gw.running ? (gw.external ? 'Running (started outside PortMax)' : 'Running') : 'Not running')
+    + row('Gateway URL', s.gatewayUrl || '—')
+    + (lastExit ? row('Last gateway exit', `code ${lastExit.code ?? '?'}${lastExit.error ? ' — ' + lastExit.error : ''}`) : '')
+    + (s.error ? row('Error', `<span style="color:var(--red);">${s.error}</span>`) : '')
+    + (errorLines.length
+        ? `<div style="margin-top:12px;"><div style="color:var(--text-muted); margin-bottom:6px;">Recent gateway log</div>`
+          + `<pre style="margin:0; padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:6px; font-size:11px; line-height:1.5; white-space:pre-wrap; word-break:break-word; color:#f8b4b4; max-height:150px; overflow-y:auto;">${errorLines.join('\n')}</pre></div>`
+        : '');
+}
+
 function setStatus(state, text) {
   const dot   = el('status-dot');
   const label = el('status-text');
@@ -1585,8 +1637,32 @@ document.addEventListener('keydown', e => {
 function openHelp()  { el('help-overlay').classList.remove('hidden'); }
 function closeHelp() { el('help-overlay').classList.add('hidden'); }
 
-el('help-btn').addEventListener('click', openHelp);
+el('help-nav')?.addEventListener('click', openHelp);
+el('help-nav')?.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openHelp(); } });
 el('help-close').addEventListener('click', closeHelp);
+
+// Status bar → connection detail dialog
+el('status-bar-btn')?.addEventListener('click', openStatusDetail);
+el('status-detail-close')?.addEventListener('click', closeStatusDetail);
+el('status-detail-overlay')?.addEventListener('click', e => { if (e.target === el('status-detail-overlay')) closeStatusDetail(); });
+el('status-detail-retry')?.addEventListener('click', async () => {
+  const note = el('status-detail-action-note');
+  if (note) note.textContent = 'Retrying…';
+  try {
+    if (typeof refreshIbkrStatus === 'function') await refreshIbkrStatus();
+  } catch {}
+  await renderStatusDetail();
+  if (note) note.textContent = 'Rechecked.';
+});
+el('status-detail-stopgw')?.addEventListener('click', async () => {
+  const note = el('status-detail-action-note');
+  if (note) note.textContent = 'Stopping gateways…';
+  try {
+    const r = await window.electronAPI.ibkrGatewayStop();
+    if (note) note.textContent = r.stopped > 0 ? `Stopped ${r.stopped}.` : 'None were running.';
+  } catch { if (note) note.textContent = 'Stop failed.'; }
+  await renderStatusDetail();
+});
 el('help-overlay').addEventListener('click', e => {
   if (e.target === el('help-overlay')) closeHelp();
 });
