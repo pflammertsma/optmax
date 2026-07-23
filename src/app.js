@@ -135,6 +135,7 @@ function navigate(viewId) {
   // boot-time restore of the last view, or a programmatic navigate. Wiring
   // this only to the nav-link click handler left Progress blank on refresh.
   if (finalViewId === 'progress' && typeof renderProgressView === 'function') renderProgressView();
+  if (finalViewId === 'investment-scanner' && typeof renderInvestmentScanner === 'function') renderInvestmentScanner();
 }
 
 document.querySelectorAll('.nav-link').forEach(link => {
@@ -2363,6 +2364,88 @@ function pgDate(iso) {
   return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+// ─── Investment Scanner (Buy Ideas) ─────────────────────────────────────────
+// Built on the shared scanner renderer (src/scanner.js) — same chrome as the
+// Option Scanner, so layout changes carry across both.
+let investmentScanner = null;
+let investmentScanLoading = false;
+
+function invGradeCell(grade, score) {
+  return `${renderGradeBadge(grade)} <span style="color:var(--text-muted); font-size:11px;">${score}</span>`;
+}
+function invSymbolCell(r) {
+  return `<div style="display:flex; flex-direction:column;">
+    <span style="font-weight:600; color:var(--cyan);">${r.symbol}</span>
+    <span style="font-size:11px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:220px;">${r.name || ''}</span>
+  </div>`;
+}
+function invPct(v) { return v == null ? '—' : `${v.toFixed(2)}%`; }
+
+async function renderInvestmentScanner() {
+  const root = el('inv-scan-root');
+  if (!root) return;
+  if (investmentScanLoading) return;
+  investmentScanLoading = true;
+  if (!investmentScanner) root.innerHTML = '<div style="padding:24px; color:var(--text-muted); font-size:13px;">Loading buy ideas…</div>';
+
+  let data;
+  try {
+    const watchlistData = (window.allData || allData || [])
+      .filter(d => d._score)
+      .map(d => ({ symbol: d.symbol, grade: d._lenses?.buyHold?.grade || d._score?.grade, score: d._score?.totalScore ?? 0 }));
+    data = await window.electronAPI.scanInvestments(watchlistData);
+  } catch (err) {
+    root.innerHTML = `<div style="padding:24px; color:var(--red); font-size:13px;">Couldn't load buy ideas: ${err.message}</div>`;
+    investmentScanLoading = false;
+    return;
+  }
+  const cats = (data && data.categories) || { etf: [], bond: [], stock: [], dividend: [] };
+
+  // Column sets: the hold-oriented tabs share one set (Buy & Hold grade); the
+  // Dividend tab swaps in the income grade + after-tax yield.
+  const holdCols = [
+    { key: 'symbol', label: 'Symbol', sortable: true, render: invSymbolCell },
+    { key: 'buyHoldScore', label: 'Quality', align: 'center', sortable: true, render: r => invGradeCell(r.buyHoldGrade, r.buyHoldScore) },
+    { key: 'yieldPct', label: 'Yield', align: 'right', sortable: true, render: r => invPct(r.yieldPct) },
+    { key: 'taxDragPct', label: 'Tax drag/yr', align: 'right', sortable: true, render: r => `<span style="color:${r.taxDragPct >= 1.5 ? 'var(--red)' : r.taxDragPct >= 0.5 ? '#f59e0b' : 'var(--green)'}">${invPct(r.taxDragPct)}</span>` },
+    { key: 'expenseRatioPct', label: 'Expense', align: 'right', sortable: true, render: r => r.expenseRatioPct == null ? '—' : `${r.expenseRatioPct.toFixed(2)}%` },
+    { key: 'why', label: 'Why', render: r => `<span style="font-size:11.5px; color:var(--text-secondary);">${(r.reasons || []).join(' · ') || 'Fits your plan'}</span>` },
+    { key: 'suggestedUsd', label: 'Suggested', align: 'right', sortable: true, render: r => r.suggestedUsd > 0 ? `<span class="privacy-amount" style="color:var(--green);">${fmt.currency(r.suggestedUsd)}</span>` : '—' },
+  ];
+  const dividendCols = [
+    { key: 'symbol', label: 'Symbol', sortable: true, render: invSymbolCell },
+    { key: 'dividendScore', label: 'Income', align: 'center', sortable: true, render: r => invGradeCell(r.dividendGrade, r.dividendScore) },
+    { key: 'yieldPct', label: 'Yield', align: 'right', sortable: true, render: r => invPct(r.yieldPct) },
+    { key: 'afterTax', label: 'After-tax', align: 'right', sortable: true, sortValue: r => (r.yieldPct - r.taxDragPct), render: r => `<span style="color:var(--green)">${invPct(r.yieldPct - r.taxDragPct)}</span>` },
+    { key: 'taxDragPct', label: 'Tax drag/yr', align: 'right', sortable: true, render: r => invPct(r.taxDragPct) },
+    { key: 'why', label: 'Why', render: r => `<span style="font-size:11.5px; color:var(--text-secondary);">${(r.reasons || []).join(' · ') || 'Pays income'}</span>` },
+  ];
+
+  const intros = {
+    etf: 'Broad, low-cost, US-domiciled funds — the core of a long-term portfolio. Ranked by quality; lower tax drag wins ties (Switzerland taxes dividends, so low-yield broad funds are most efficient for you).',
+    bond: 'Fixed-income funds for glidepath risk control — held to steady the ride, not for yield (bond interest is fully taxed for you).' + (data.bondsFirst ? ' Your equity exposure is above your age target, so these come first right now.' : ''),
+    stock: 'Individual companies, ranked by buy-and-hold quality. Satellite only — keep each small; diversified funds should stay your core. Employer stock and over-concentrated names are excluded.',
+    dividend: 'Ranked by after-tax income (the Dividend lens). Remember every 1% of yield is a recurring tax cost at your rate.',
+  };
+
+  const config = {
+    tabs: [
+      { id: 'etf', label: 'ETFs', badge: cats.etf.length, intro: intros.etf },
+      { id: 'bond', label: 'Bonds', badge: cats.bond.length, intro: intros.bond },
+      { id: 'stock', label: 'Stocks', badge: cats.stock.length, intro: intros.stock },
+      { id: 'dividend', label: 'Dividend', badge: cats.dividend.length, intro: intros.dividend },
+    ],
+    columns: (tabId) => (tabId === 'dividend' ? dividendCols : holdCols),
+    getRows: (tabId) => cats[tabId] || [],
+    defaultSort: { col: 'buyHoldScore', dir: 'desc' },
+    emptyText: 'No candidates in this category right now.',
+    onRowClick: (r) => { const d = (window.allData || allData || []).find(x => x.symbol === r.symbol); if (d) openModal(d); },
+  };
+
+  investmentScanner = window.Scanner.create(root, config);
+  investmentScanLoading = false;
+}
+
 async function renderProgressView() {
   const emptyEl = el('progress-empty-state');
   const contentEl = el('progress-content');
@@ -3315,13 +3398,15 @@ async function loadPortfolioHealth(hasHoldings) {
   }
 }
 
-// Dashboard header pill → Health; income strip "see all" → Option Scanner.
-// Wire once at module load.
+// Dashboard header pill → Health; income strip "see all" → Option Scanner;
+// Buy Ideas refresh. Wire once at module load.
 (function wireDashboardNav() {
   const pill = document.getElementById('dashboard-health-pill');
   if (pill) pill.addEventListener('click', () => navigate('health'));
   const seeAll = document.getElementById('dashboard-income-seeall');
   if (seeAll) seeAll.addEventListener('click', () => navigate(seeAll.dataset.nav || 'options-scanner'));
+  const invRefresh = document.getElementById('inv-scan-refresh');
+  if (invRefresh) invRefresh.addEventListener('click', () => { investmentScanner = null; renderInvestmentScanner(); });
 })();
 
 async function initPortfolioView() {  // Sortable holdings headers — same toggle behavior as the CSP tables
@@ -3401,6 +3486,9 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     try { s = await window.electronAPI.ibkrStatus(); } catch { return; }
     const changed = s.state !== ibkrState;
     ibkrState = s.state;
+    ibkrReason = s.reason || null;
+    ibkrCompeting = !!s.competing;
+    if (s.state === 'connected') ibkrSawConnected = true;
     if (!quiet || changed) setStatus('live', 'Live');
     paintIbkrButton();
     updateIbkrReasonUI(s);

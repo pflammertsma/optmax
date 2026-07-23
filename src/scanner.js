@@ -29,7 +29,9 @@
   function createScanner(rootEl, config) {
     if (!rootEl) return null;
     const tabs = config.tabs || [];
-    const columns = config.columns || [];
+    // Columns may be a single array (shared by all tabs) or a function of the
+    // active tab id — so e.g. a Dividend tab can show a different grade column.
+    const colsFor = (tabId) => (typeof config.columns === 'function' ? (config.columns(tabId) || []) : (config.columns || []));
     const state = {
       activeTab: (tabs[0] && tabs[0].id) || null,
       sort: config.defaultSort ? { ...config.defaultSort } : null,
@@ -56,7 +58,7 @@
     // ── Sorting ──────────────────────────────────────────────────────────────
     function sortRows(rows) {
       if (!state.sort || !state.sort.col) return rows;
-      const col = columns.find(c => c.key === state.sort.col);
+      const col = colsFor(state.activeTab).find(c => c.key === state.sort.col);
       if (!col) return rows;
       const val = row => (col.sortValue ? col.sortValue(row) : row[col.key]);
       const dir = state.sort.dir === 'asc' ? 1 : -1;
@@ -84,6 +86,7 @@
 
     // ── Table ─────────────────────────────────────────────────────────────────
     function buildTable(rows) {
+      const columns = colsFor(state.activeTab);
       const wrap = el('div', 'table-wrapper scanner-table-wrapper');
       const table = el('table', 'data-table scanner-table');
       const thead = el('thead');
