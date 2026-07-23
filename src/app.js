@@ -3369,6 +3369,30 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     btn.disabled = false;
   }
 
+  // Surface the gateway's own explanation (competing session, pending 2FA, an
+  // IBKR fail message) instead of a silent revert to "Login". Shown in the login
+  // modal while it's open, and as the sidebar status tooltip.
+  let ibkrLastReason = null;
+  function updateIbkrReasonUI(s) {
+    ibkrLastReason = s && s.reason ? s.reason : null;
+    const banner = el('ibkr-login-status');
+    const modalOpen = !el('ibkr-login-overlay')?.classList.contains('hidden');
+    if (banner) {
+      // Show it in the modal whenever we're not fully connected and have a reason.
+      if (modalOpen && s && s.state !== 'connected' && s.reason) {
+        banner.textContent = s.reason;
+        banner.style.display = '';
+      } else if (modalOpen && s && s.competing) {
+        banner.textContent = s.reason;
+        banner.style.display = '';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+    const label = el('status-text');
+    if (label) label.title = s && s.reason ? s.reason : '';
+  }
+
   // quiet: a background poll — don't stomp on a transient status message
   // ("Synced 12 holdings…") unless the connection state actually changed.
   refreshIbkrStatus = async function ({ quiet = false } = {}) {
@@ -3379,6 +3403,7 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     ibkrState = s.state;
     if (!quiet || changed) setStatus('live', 'Live');
     paintIbkrButton();
+    updateIbkrReasonUI(s);
   };
 
   // Poll while the app is open so the button reflects the session without a
@@ -3486,6 +3511,10 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
       wv.addEventListener('dom-ready', () => {
         wv.executeJavaScript(`
           (function fill(tries) {
+            // Never auto-submit twice on the same page instance: if a login
+            // fails and IBKR re-renders the form, a resubmit loop is exactly
+            // what gets an IP flagged/banned by their bot shield. One shot.
+            if (window.__pmAutoSubmitted) return;
             const userInput = document.querySelector('#user_name')
               || document.querySelector('#username')
               || document.querySelector('input[name="username"]')
@@ -3507,10 +3536,12 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
                 // Auto-submit only when BOTH fields are filled — never submit
                 // with just a username. Small delay lets IBKR's own JS validators run.
                 setTimeout(() => {
+                  if (window.__pmAutoSubmitted) return;
                   const btn = document.querySelector('#submitForm')
                     || document.querySelector('button[type="submit"]')
                     || document.querySelector('input[type="submit"]')
                     || [...document.querySelectorAll('button')].find(b => /log\\s*in/i.test(b.textContent || ''));
+                  window.__pmAutoSubmitted = true;
                   if (btn) btn.click();
                   else passInput.form?.requestSubmit?.();
                 }, 300);
@@ -3532,12 +3563,23 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     overlay.classList.remove('hidden');
 
     // While the modal is open, poll for successful auth as a fallback to the
-    // success-page capture above.
+    // success-page capture above. refreshIbkrStatus() promotes a
+    // connected-but-unauthenticated session via reauthenticate, so a phone
+    // approval that doesn't visually advance the webview still gets picked up.
     clearInterval(ibkrLoginPoll);
+    const openedAt = Date.now();
     ibkrLoginPoll = setInterval(async () => {
       await refreshIbkrStatus();
-      if (ibkrState === 'connected') onIbkrLoginSuccess();
-    }, 3000);
+      if (ibkrState === 'connected') { onIbkrLoginSuccess(); return; }
+      // Don't let the "waiting on your phone" screen hang silently. After a
+      // while, tell the user their login is safe in the gateway and what to do.
+      const waited = Date.now() - openedAt;
+      const banner = el('ibkr-login-status');
+      if (banner && banner.style.display === 'none' && waited > 30000) {
+        banner.innerHTML = 'Still waiting to authenticate. If you approved the prompt on your phone, your login is held by the gateway — you can safely close this and it will connect on its own, or refresh the app. If it never completes, the usual cause is another IBKR session (browser, TWS, mobile) competing with this one.';
+        banner.style.display = '';
+      }
+    }, 5000); // gentle cadence — repeated reauth spam is a ban-risk signal
   }
 
   // Idempotent: reachable from both the success-page capture and the status

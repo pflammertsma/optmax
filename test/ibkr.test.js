@@ -155,6 +155,29 @@ test('non-200 or empty body is unreachable', () => {
   assert.strictEqual(interpretAuthStatus(200, null).state, 'unreachable');
 });
 
+test('a competing session surfaces a clear, actionable reason', () => {
+  const s = interpretAuthStatus(200, { authenticated: false, connected: true, competing: true });
+  assert.strictEqual(s.state, 'needs-login');
+  assert.strictEqual(s.competing, true);
+  assert.ok(/only one session/i.test(s.reason), `reason was: ${s.reason}`);
+});
+
+test('competing while authenticated still flags the instability', () => {
+  const s = interpretAuthStatus(200, { authenticated: true, connected: true, competing: true });
+  assert.strictEqual(s.state, 'connected');
+  assert.ok(/competing/i.test(s.reason || ''));
+});
+
+test('an IBKR fail message is passed through as the reason', () => {
+  const s = interpretAuthStatus(200, { authenticated: false, connected: false, fail: 'Server error, please try again' });
+  assert.ok(/Server error/i.test(s.reason));
+});
+
+test('connected-but-not-authenticated explains the pending brokerage handshake', () => {
+  const s = interpretAuthStatus(200, { authenticated: false, connected: true });
+  assert.ok(/not finished authenticating|phone prompt/i.test(s.reason));
+});
+
 // ─── isLoopbackGatewayUrl (TLS bypass guard) ─────────────────────────────────
 section('isLoopbackGatewayUrl');
 

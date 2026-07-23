@@ -1687,6 +1687,9 @@
             <div style="color:var(--text-muted); font-size:12px; margin-top:3px;">Approve the prompt on your phone when it appears.</div>
           </div>
         </div>
+        <!-- Live reason from the gateway (competing session, pending 2FA, …) so a
+             stuck login explains itself instead of silently reverting. -->
+        <div id="ibkr-login-status" style="display:none; position:absolute; left:0; right:0; top:0; z-index:2; padding:9px 14px; font-size:12px; line-height:1.45; background:rgba(245,158,11,0.12); border-bottom:1px solid rgba(245,158,11,0.3); color:#f8d7a0;"></div>
         <!-- webview injected here at open time so it always loads the current gateway URL -->
         <div id="ibkr-webview-host" style="width:100%; height:100%;"></div>
         <!-- Shown when IBKR's Akamai bot-shield blocks the embedded window -->
