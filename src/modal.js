@@ -516,6 +516,17 @@ el('status-detail-stopgw')?.addEventListener('click', async () => {
   if (typeof renderStatusDetail === 'function') await renderStatusDetail();
 });
 
+// ─── Symbol dialog: close + tab switching ────────────────────────────────────
+// (Lost in the app.js modularization — without these the dialog can't be closed
+// and the Compliance/Options tabs don't respond.)
+el('modal-close')?.addEventListener('click', closeModal);
+el('modal-overlay')?.addEventListener('click', e => {
+  if (e.target === el('modal-overlay')) closeModal();
+});
+el('modal-tab-recommendation')?.addEventListener('click', () => switchSymbolTab('recommendation'));
+el('modal-tab-compliance')?.addEventListener('click', () => switchSymbolTab('compliance'));
+el('modal-tab-options')?.addEventListener('click', () => switchSymbolTab('options'));
+
 // ─── Global Keyboard Shortcuts ───────────────────────────────────────────────
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {

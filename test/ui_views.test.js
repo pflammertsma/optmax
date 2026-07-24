@@ -178,7 +178,13 @@ function createDOM() {
     'status-detail-subtitle', 'wc-privacy', 'status-dot', 'status-text',
     'tbody-top25', 'tbody-under10k', 'tbody-megacaps', 'table-top25', 'table-under10k', 'table-megacaps',
     'empty-state', 'dashboard-stats-subtitle', 'screener-tbody', 'screener-total-count',
-    'ibkr-gateway-settings', 'ibkr-flex-settings', 'ibkr-mode-desc'
+    'ibkr-gateway-settings', 'ibkr-flex-settings', 'ibkr-mode-desc',
+    // Symbol details dialog — needed so its close/tab listeners actually bind.
+    'modal-overlay', 'modal-close', 'modal-live', 'modal-details-body',
+    'modal-tab-recommendation', 'modal-tab-compliance', 'modal-tab-options',
+    'modal-content-recommendation', 'modal-content-compliance', 'modal-content-options',
+    'si-recommendation', 'si-goal-scores', 'si-essentials', 'si-compliance',
+    'modal-options-wrap', 'modal-sidebar-no-options'
   ];
 
   knownIds.forEach(id => getOrCreate(id));
@@ -445,19 +451,20 @@ test('renderProgressView unhides content, calculates KPIs, and generates date la
   assert.ok(kpis.innerHTML.includes('100,000'));
 });
 
-section('Buy Ideas (Investment Scanner) Unit Tests');
+section('Opportunities (Investment Scanner) Unit Tests');
 
 test('renderInvestmentScanner configures category tabs and column definitions', async () => {
   await sandbox.renderInvestmentScanner();
 
-  const root = getEl('inv-scan-root');
   assert.ok(sandbox.window.investmentScanner != null);
   const cfg = sandbox.window.investmentScanner.config;
-  assert.strictEqual(cfg.tabs.length, 4);
-  assert.strictEqual(cfg.tabs[0].id, 'etf');
-  assert.strictEqual(cfg.tabs[1].id, 'bond');
-  assert.strictEqual(cfg.tabs[2].id, 'stock');
-  assert.strictEqual(cfg.tabs[3].id, 'dividend');
+  // Recommendation leads — it holds the actionable buys.
+  assert.strictEqual(cfg.tabs.length, 5);
+  assert.strictEqual(cfg.tabs[0].id, 'recommendation');
+  assert.strictEqual(cfg.tabs[1].id, 'etf');
+  assert.strictEqual(cfg.tabs[2].id, 'bond');
+  assert.strictEqual(cfg.tabs[3].id, 'stock');
+  assert.strictEqual(cfg.tabs[4].id, 'dividend');
 });
 
 section('Help & Status Modals Unit Tests');
@@ -555,5 +562,133 @@ test('Status dialog Sync now button triggers Flex sync when clicked in flex mode
   assert.strictEqual(syncCalled, true);
 });
 
-console.log(`\nUI Views Test Suite Summary: ${passed} passed, ${failed} failed`);
-if (failed > 0) process.exit(1);
+// ─────────────────────────────────────────────────────────────────────────────
+// Regression guards for wiring lost during the app.js modularization. Each of
+// these shipped broken once: the dialog could not be closed, its tabs did not
+// respond, the Opportunities "Recommendation" tab vanished, and rows for symbols
+// with no option-scanner data silently did nothing when clicked.
+// ─────────────────────────────────────────────────────────────────────────────
+section('Regression Guards — modular wiring');
+
+test('symbol dialog close button + overlay are wired', () => {
+  const closeBtn = getEl('modal-close');
+  assert.ok(closeBtn, 'modal-close element missing');
+  assert.ok((closeBtn.listeners['click'] || []).length > 0,
+    'modal-close has no click listener — the dialog would be unclosable');
+
+  const overlay = getEl('modal-overlay');
+  assert.ok((overlay.listeners['click'] || []).length > 0,
+    'modal-overlay has no click listener — click-outside-to-close is broken');
+});
+
+test('all three symbol dialog tabs are wired and switch content', () => {
+  ['recommendation', 'compliance', 'options'].forEach(tab => {
+    const btn = getEl(`modal-tab-${tab}`);
+    assert.ok(btn, `modal-tab-${tab} element missing`);
+    assert.ok((btn.listeners['click'] || []).length > 0,
+      `modal-tab-${tab} has no click listener — that tab would be unclickable`);
+  });
+
+  // Clicking a tab must actually reveal its panel and hide the others.
+  getEl('modal-tab-compliance').click();
+  assert.strictEqual(getEl('modal-content-compliance').style.display, 'block');
+  assert.strictEqual(getEl('modal-content-recommendation').style.display, 'none');
+  assert.strictEqual(getEl('modal-content-options').style.display, 'none');
+
+  getEl('modal-tab-options').click();
+  assert.strictEqual(getEl('modal-content-options').style.display, 'block');
+  assert.strictEqual(getEl('modal-content-compliance').style.display, 'none');
+
+  getEl('modal-tab-recommendation').click();
+  assert.strictEqual(getEl('modal-content-recommendation').style.display, 'block');
+});
+
+test('closing the dialog hides the overlay', () => {
+  const overlay = getEl('modal-overlay');
+  overlay.classList.remove('hidden');
+  getEl('modal-close').click();
+  assert.ok(overlay.classList.contains('hidden'), 'close button did not hide the dialog');
+});
+
+// The Opportunities scanner renders asynchronously, so these need awaiting —
+// the plain `test()` helper is fire-and-forget.
+// Queued and run SEQUENTIALLY — they share the mocked window.Scanner, so
+// running them concurrently would let one test clobber another's capture.
+const pendingAsync = [];
+function testAsync(name, fn) { pendingAsync.push({ name, fn }); }
+async function runAsyncTests() {
+  for (const { name, fn } of pendingAsync) {
+    try { await fn(); console.log(`  ✓  ${name}`); passed++; }
+    catch (err) { console.error(`  ✗  ${name}`); console.error(`     ${err.stack || err.message}`); failed++; }
+  }
+}
+
+// Render the scanner once and hand back the config the shared renderer got.
+// The mock + state reset are injected via runInContext because the view's
+// `let` bindings live in the sandbox's lexical scope, not on the global object.
+async function captureScannerConfig() {
+  let captured = null;
+  sandbox.window.Scanner = { create: (root, config) => { captured = config; return { root, config }; } };
+  const payload = {
+    categories: {
+      recommendation: [{ symbol: 'BNDX', suggestedUsd: 75000, estFeeUsd: 2.63, buyHoldGrade: 'A', buyHoldScore: 90, reasons: [] }],
+      etf: [], bond: [], stock: [], dividend: [],
+    },
+    deployableCash: 75000, bondsFirst: false, glidepathNote: null,
+  };
+  vm.runInContext(`window.electronAPI.scanInvestments = async () => (${JSON.stringify(payload)});`, sandbox);
+
+  // An earlier fire-and-forget test can leave a render in flight; let it settle
+  // and discard its capture so we measure only our own render.
+  await new Promise(r => setTimeout(r, 0));
+  captured = null;
+  vm.runInContext('investmentScanner = null; investmentScanLoading = false;', sandbox);
+
+  await sandbox.renderInvestmentScanner();
+  if (!captured) throw new Error('Scanner.create was never called');
+  return captured;
+}
+
+testAsync('Opportunities scanner exposes all five tabs, Recommendation first', async () => {
+  const cfg = await captureScannerConfig();
+  // Joined rather than deepStrictEqual: arrays built inside the vm sandbox have
+  // a different Array prototype and would fail a strict deep comparison.
+  const ids = cfg.tabs.map(t => t.id).join(',');
+  assert.strictEqual(ids, 'recommendation,etf,bond,stock,dividend', `unexpected tab set: ${ids}`);
+  assert.strictEqual(cfg.tabs[0].label, 'Recommendation');
+  assert.strictEqual(cfg.tabs[0].badge, 1);
+});
+
+testAsync('Recommendation tab renders an actionable Buy amount + estimated fee', async () => {
+  const cfg = await captureScannerConfig();
+  const cols = cfg.columns('recommendation');
+  assert.ok(cols.some(c => c.key === 'action'), 'Recommendation tab is missing its Action column');
+
+  const html = cols.find(c => c.key === 'action')
+    .render({ symbol: 'BNDX', suggestedUsd: 75000, estFeeUsd: 2.63 });
+  assert.ok(/Buy/.test(html), 'Action cell does not show a Buy amount');
+  assert.ok(/Est\. fee/.test(html), 'Action cell does not show the estimated IBKR fee');
+
+  // The sizing hint moved into the Recommendation tab — it must not linger on
+  // the hold-oriented tabs.
+  assert.ok(!cfg.columns('etf').some(c => c.key === 'suggestedUsd'),
+    'stale "Suggested" column is still on the ETF tab');
+});
+
+testAsync('every scanner row opens the dialog, even without option-scanner data', async () => {
+  const cfg = await captureScannerConfig();
+  let openedWith = null;
+  sandbox.openSymbolDetails = (arg, tab) => { openedWith = { arg, tab }; };
+
+  // A symbol absent from the option-scanner dataset (the INTR case).
+  sandbox.allData = [];
+  cfg.onRowClick({ symbol: 'INTR' });
+  assert.ok(openedWith, 'clicking a non-option-scanned row did nothing');
+  assert.strictEqual(openedWith.arg, 'INTR', 'should fall back to opening by ticker');
+  assert.strictEqual(openedWith.tab, 'recommendation', 'should land on the Recommendation tab');
+});
+
+runAsyncTests().then(() => {
+  console.log(`\nUI Views Test Suite Summary: ${passed} passed, ${failed} failed`);
+  if (failed > 0) process.exit(1);
+});

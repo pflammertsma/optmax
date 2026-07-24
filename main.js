@@ -190,6 +190,7 @@ const {
 const { analyzeTicker, generatePortfolioGuidance, calculateHoldingRecommendation } = require('./lib/guidance');
 const { generateBuyRecommendations, CURATED_CANDIDATES } = require('./lib/recommendations');
 const { scanInvestments, EXTRA_SEEDS } = require('./lib/investments');
+const { dividendYieldPct } = require('./lib/yield');
 const { computePortfolioHealth, projectAnnualDividends } = require('./lib/health');
 const { createIbkrClient, isLoopbackGatewayUrl, gatewayLaunchSpec, treeKillSpec,
   gatewayHostPort, listGatewayPidsSpec, parsePids, gatewayRequest } = require('./lib/ibkr');
@@ -653,11 +654,10 @@ async function analyzeSingleSymbol(symbol, minMarginMultiplier, ivHistory) {
   const annualizedYield = monthlyYield * 12;
   const monthlyIncome   = premium * 100 * (30 / dte);
 
-  const yieldPct = quote?.trailingAnnualDividendYield > 0
-    ? Math.round(quote.trailingAnnualDividendYield * 10000) / 100
-    : (quote?.trailingAnnualDividendRate > 0 && currentPrice > 0
-      ? Math.round((quote.trailingAnnualDividendRate / currentPrice) * 10000) / 100
-      : (quote?.dividendYield > 0 ? Math.round(quote.dividendYield * 100) / 100 : (quote?.trailingAnnualDividendRate === 0 || quote?.dividendYield === 0 ? 0 : null)));
+  const rawYield = dividendYieldPct(
+    quote ? { ...quote, regularMarketPrice: quote.regularMarketPrice ?? currentPrice } : quote,
+    (quote?.trailingAnnualDividendRate === 0 || quote?.dividendYield === 0) ? 0 : null);
+  const yieldPct = rawYield == null ? null : Math.round(rawYield * 100) / 100;
 
   const dividendTaxRatePct = settings.dividendTaxRatePct ?? 30;
   const taxDragPct = yieldPct != null ? Math.round(yieldPct * dividendTaxRatePct) / 100 : null;
@@ -769,11 +769,9 @@ async function enrichOpportunitiesWithQuotes(opportunities, settings) {
         const q = quoteMap.get((d.symbol || '').toUpperCase());
         if (q) {
           const price = q.regularMarketPrice || d.currentPrice;
-          const yieldPct = q.trailingAnnualDividendYield > 0
-            ? Math.round(q.trailingAnnualDividendYield * 10000) / 100
-            : (q.trailingAnnualDividendRate > 0 && price > 0
-              ? Math.round((q.trailingAnnualDividendRate / price) * 10000) / 100
-              : (q.dividendYield > 0 ? Math.round(q.dividendYield * 100) / 100 : (q.trailingAnnualDividendRate === 0 || q.dividendYield === 0 ? 0 : null)));
+          const rawY = dividendYieldPct({ ...q, regularMarketPrice: price },
+            (q.trailingAnnualDividendRate === 0 || q.dividendYield === 0) ? 0 : null);
+          const yieldPct = rawY == null ? null : Math.round(rawY * 100) / 100;
 
           d.quoteType = q.quoteType;
           d.yieldPct = yieldPct;
@@ -2503,13 +2501,10 @@ app.whenReady().then(() => {
       ? Math.round(summary.fundProfile.feesExpensesInvestment.annualReportExpenseRatio * 10000) / 100
       : null;
 
-    // Yahoo zeroes trailingAnnualDividendYield for many ETFs but still fills
-    // dividendYield (already in percent) — same quirk handled in lib/recommendations.
-    const yieldPct = quote?.trailingAnnualDividendYield > 0
-      ? Math.round(quote.trailingAnnualDividendYield * 10000) / 100
-      : (quote?.trailingAnnualDividendRate > 0 && quote?.regularMarketPrice > 0
-        ? Math.round((quote.trailingAnnualDividendRate / quote.regularMarketPrice) * 10000) / 100
-        : (quote?.dividendYield > 0 ? Math.round(quote.dividendYield * 100) / 100 : null));
+    // Yahoo's dividend fields disagree and are wrong for some ADRs — resolved
+    // centrally in lib/yield.js. null = unknown (rendered as "—").
+    const rawYieldPct = dividendYieldPct(quote, null);
+    const yieldPct = rawYieldPct == null ? null : Math.round(rawYieldPct * 100) / 100;
     const dividendTaxRatePct = settings.dividendTaxRatePct ?? 30;
 
     const held = p.holdings.find(h => (h.symbol || '').toUpperCase() === sym);

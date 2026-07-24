@@ -556,7 +556,7 @@ function initOptionsScannerView() {
   }
 }
 
-// ─── Investment Scanner (Buy Ideas View) ───────────────────────────────────
+// ─── Investment Scanner (Opportunities View) ───────────────────────────────
 let investmentScanner = null;
 let investmentScanLoading = false;
 
@@ -576,7 +576,7 @@ async function renderInvestmentScanner() {
   if (!root) return;
   if (investmentScanLoading) return;
   investmentScanLoading = true;
-  if (!investmentScanner) root.innerHTML = '<div style="padding:24px; color:var(--text-muted); font-size:13px;">Loading buy ideas…</div>';
+  if (!investmentScanner) root.innerHTML = '<div style="padding:24px; color:var(--text-muted); font-size:13px;">Loading opportunities…</div>';
 
   let data;
   try {
@@ -585,12 +585,15 @@ async function renderInvestmentScanner() {
       .map(d => ({ symbol: d.symbol, grade: d._lenses?.buyHold?.grade || d._score?.grade, score: d._score?.totalScore ?? 0 }));
     data = await window.electronAPI.scanInvestments(watchlistData);
   } catch (err) {
-    root.innerHTML = `<div style="padding:24px; color:var(--red); font-size:13px;">Couldn't load buy ideas: ${err.message}</div>`;
+    root.innerHTML = `<div style="padding:24px; color:var(--red); font-size:13px;">Couldn't load opportunities: ${err.message}</div>`;
     investmentScanLoading = false;
     return;
   }
-  const cats = (data && data.categories) || { etf: [], bond: [], stock: [], dividend: [] };
+  const cats = (data && data.categories) || { recommendation: [], etf: [], bond: [], stock: [], dividend: [] };
 
+  // Column sets: the hold-oriented tabs share one set (Buy & Hold grade); the
+  // Dividend tab swaps in the income grade + after-tax yield; the Recommendation
+  // tab turns the sizing hint into an actionable trade (amount + est. fee).
   const holdCols = [
     { key: 'symbol', label: 'Symbol', sortable: true, render: invSymbolCell },
     { key: 'buyHoldScore', label: 'Quality', align: 'center', sortable: true, render: r => invGradeCell(r.buyHoldGrade, r.buyHoldScore) },
@@ -598,7 +601,16 @@ async function renderInvestmentScanner() {
     { key: 'taxDragPct', label: 'Tax drag/yr', align: 'right', sortable: true, render: r => `<span style="color:${r.taxDragPct >= 1.5 ? 'var(--red)' : r.taxDragPct >= 0.5 ? '#f59e0b' : 'var(--green)'}">${invPct(r.taxDragPct)}</span>` },
     { key: 'expenseRatioPct', label: 'Expense', align: 'right', sortable: true, render: r => r.expenseRatioPct == null ? '—' : `${r.expenseRatioPct.toFixed(2)}%` },
     { key: 'why', label: 'Why', render: r => `<span style="font-size:11.5px; color:var(--text-secondary);">${(r.reasons || []).join(' · ') || 'Fits your plan'}</span>` },
-    { key: 'suggestedUsd', label: 'Suggested', align: 'right', sortable: true, render: r => r.suggestedUsd > 0 ? `<span class="privacy-amount" style="color:var(--green);">${fmt.currency(r.suggestedUsd)}</span>` : '—' },
+  ];
+  const recommendationCols = [
+    { key: 'symbol', label: 'Symbol', sortable: true, render: invSymbolCell },
+    { key: 'action', label: 'Action', sortable: true, sortValue: r => r.suggestedUsd || 0, render: r => r.suggestedUsd > 0
+      ? `<div style="display:flex; flex-direction:column;"><span style="font-family:'JetBrains Mono', monospace; font-weight:700; color:var(--green);" class="privacy-amount">Buy ${fmt.currency(r.suggestedUsd)}</span><span style="font-size:10.5px; color:var(--text-muted); font-family:'JetBrains Mono', monospace;" title="Estimated IBKR order commission (Tiered pricing: $0.0035/share, min $0.35)">Est. fee ~$${(r.estFeeUsd || 0.35).toFixed(2)}</span></div>`
+      : `<span style="color:var(--cyan); font-weight:600;">Top pick</span>` },
+    { key: 'buyHoldScore', label: 'Quality', align: 'center', sortable: true, render: r => invGradeCell(r.buyHoldGrade, r.buyHoldScore) },
+    { key: 'yieldPct', label: 'Yield', align: 'right', sortable: true, render: r => invPct(r.yieldPct) },
+    { key: 'taxDragPct', label: 'Tax drag/yr', align: 'right', sortable: true, render: r => `<span style="color:${r.taxDragPct >= 1.5 ? 'var(--red)' : r.taxDragPct >= 0.5 ? '#f59e0b' : 'var(--green)'}">${invPct(r.taxDragPct)}</span>` },
+    { key: 'why', label: 'Explanation', render: r => `<span style="font-size:11.5px; color:var(--text-secondary);">${(r.reasons || []).join(' · ') || 'Fits your plan'}</span>` },
   ];
   const dividendCols = [
     { key: 'symbol', label: 'Symbol', sortable: true, render: invSymbolCell },
@@ -610,6 +622,7 @@ async function renderInvestmentScanner() {
   ];
 
   const intros = {
+    recommendation: 'Actionable buy suggestions for your portfolio allocation and glidepath. Shows recommended trade action, size, quality score, and explanation.',
     etf: 'Broad, low-cost, US-domiciled funds — the core of a long-term portfolio. Ranked by quality; lower tax drag wins ties (Switzerland taxes dividends, so low-yield broad funds are most efficient for you).',
     bond: 'Fixed-income funds for glidepath risk control — held to steady the ride, not for yield (bond interest is fully taxed for you).' + (data.bondsFirst ? ' Your equity exposure is above your age target, so these come first right now.' : ''),
     stock: 'Individual companies, ranked by buy-and-hold quality. Satellite only — keep each small; diversified funds should stay your core. Employer stock and over-concentrated names are excluded.',
@@ -618,16 +631,23 @@ async function renderInvestmentScanner() {
 
   const config = {
     tabs: [
-      { id: 'etf', label: 'ETFs', badge: cats.etf.length, intro: intros.etf },
-      { id: 'bond', label: 'Bonds', badge: cats.bond.length, intro: intros.bond },
-      { id: 'stock', label: 'Stocks', badge: cats.stock.length, intro: intros.stock },
-      { id: 'dividend', label: 'Dividend', badge: cats.dividend.length, intro: intros.dividend },
+      { id: 'recommendation', label: 'Recommendation', badge: (cats.recommendation || []).length, intro: intros.recommendation },
+      { id: 'etf', label: 'ETFs', badge: (cats.etf || []).length, intro: intros.etf },
+      { id: 'bond', label: 'Bonds', badge: (cats.bond || []).length, intro: intros.bond },
+      { id: 'stock', label: 'Stocks', badge: (cats.stock || []).length, intro: intros.stock },
+      { id: 'dividend', label: 'Dividend', badge: (cats.dividend || []).length, intro: intros.dividend },
     ],
-    columns: (tabId) => (tabId === 'dividend' ? dividendCols : holdCols),
+    columns: (tabId) => (tabId === 'recommendation' ? recommendationCols : tabId === 'dividend' ? dividendCols : holdCols),
     getRows: (tabId) => cats[tabId] || [],
     defaultSort: { col: 'buyHoldScore', dir: 'desc' },
     emptyText: 'No candidates in this category right now.',
-    onRowClick: (r) => { const d = (window.allData || allData || []).find(x => x.symbol === r.symbol); if (d) openModal(d); },
+    // Any row opens the details dialog. If the symbol was also option-scanned,
+    // pass that richer object; otherwise open by ticker (rows like INTR aren't
+    // in the option-scanner data and would otherwise do nothing).
+    onRowClick: (r) => {
+      const d = (window.allData || allData || []).find(x => x.symbol === r.symbol);
+      openSymbolDetails(d || r.symbol, 'recommendation');
+    },
   };
 
   if (window.Scanner) {
