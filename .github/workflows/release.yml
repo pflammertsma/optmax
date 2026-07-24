@@ -19,8 +19,8 @@ jobs:
         run: |
           gh release create ${{ github.ref_name }} \
             --draft \
-            --title "OptMax ${{ github.ref_name }}" \
-            --notes "Release OptMax ${{ github.ref_name }}" \
+            --title "PortMax ${{ github.ref_name }}" \
+            --notes "Release PortMax ${{ github.ref_name }}" \
             --repo ${{ github.repository }} \
             || echo "Release already exists"
 
