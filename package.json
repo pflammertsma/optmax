@@ -7,7 +7,7 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
-    "test": "node test/strategies.test.js && node test/portfolio.test.js && node test/guidance.test.js && node test/health.test.js && node test/ibkr.test.js && node test/recommendations.test.js && node test/funds.test.js && node test/selldown.test.js && node test/actions.test.js && node test/pfic.test.js && node test/history.test.js && node test/lensscores.test.js && node test/investments.test.js && node test/flex.test.js"
+    "test": "node test/strategies.test.js && node test/portfolio.test.js && node test/guidance.test.js && node test/health.test.js && node test/ibkr.test.js && node test/recommendations.test.js && node test/funds.test.js && node test/selldown.test.js && node test/actions.test.js && node test/pfic.test.js && node test/history.test.js && node test/lensscores.test.js && node test/investments.test.js && node test/flex.test.js && node test/ui_views.test.js"
   },
   "keywords": [],
   "author": "",

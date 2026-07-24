@@ -1,0 +1,559 @@
+'use strict';
+
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+let passed = 0;
+let failed = 0;
+
+function test(name, fn) {
+  try {
+    fn();
+    console.log(`  ✓  ${name}`);
+    passed++;
+  } catch (err) {
+    console.error(`  ✗  ${name}`);
+    console.error(`     ${err.stack || err.message}`);
+    failed++;
+  }
+}
+
+function section(name) {
+  console.log(`\n${name}`);
+}
+
+// ── Lightweight Mock DOM Environment ──────────────────────────────────────────
+class MockElement {
+  constructor(tagName = 'div', id = '') {
+    this.tagName = tagName.toUpperCase();
+    this.id = id;
+    this.className = '';
+    this.style = {};
+    this.dataset = {};
+    this._innerHTML = '';
+    this._textContent = '';
+    this.value = '';
+    this.disabled = false;
+    this.children = [];
+    this.parentElement = null;
+    this.listeners = {};
+    this._attributes = {};
+
+    const self = this;
+    this.classList = {
+      _classes: new Set(),
+      add(...cls) { cls.forEach(c => self.classList._classes.add(c)); self.className = Array.from(self.classList._classes).join(' '); },
+      remove(...cls) { cls.forEach(c => self.classList._classes.delete(c)); self.className = Array.from(self.classList._classes).join(' '); },
+      toggle(cls, force) {
+        if (force === true) self.classList.add(cls);
+        else if (force === false) self.classList.remove(cls);
+        else if (self.classList.contains(cls)) self.classList.remove(cls);
+        else self.classList.add(cls);
+      },
+      contains(cls) { return self.classList._classes.has(cls); }
+    };
+  }
+
+  get innerHTML() { return this._innerHTML; }
+  set innerHTML(val) {
+    this._innerHTML = String(val);
+    this.children = [];
+    // Simple parser for data-col, data-subview, data-bucket, data-view, data-nav, class, id in innerHTML
+    const matches = String(val).matchAll(/<([a-z0-9]+)([^>]*)>/gi);
+    for (const match of matches) {
+      const child = new MockElement(match[1]);
+      child.parentElement = this;
+      const attrs = match[2].matchAll(/([a-z0-9-]+)=(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi);
+      for (const attr of attrs) {
+        const key = attr[1].toLowerCase();
+        const value = attr[2] ?? attr[3] ?? attr[4] ?? '';
+        if (key === 'id') child.id = value;
+        else if (key === 'class') child.classList.add(...value.split(/\s+/).filter(Boolean));
+        else if (key.startsWith('data-')) {
+          const prop = key.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+          child.dataset[prop] = value;
+        } else {
+          child._attributes[key] = value;
+        }
+      }
+      this.children.push(child);
+    }
+  }
+
+  get textContent() { return this._textContent || this._innerHTML.replace(/<[^>]*>/g, ''); }
+  set textContent(val) { this._textContent = String(val); this._innerHTML = String(val); }
+
+  setAttribute(k, v) { this._attributes[k] = String(v); }
+  getAttribute(k) { return this._attributes[k] || null; }
+  removeAttribute(k) { delete this._attributes[k]; }
+
+  addEventListener(event, fn) {
+    if (!this.listeners[event]) this.listeners[event] = [];
+    this.listeners[event].push(fn);
+  }
+
+  click() {
+    (this.listeners['click'] || []).forEach(fn => fn({ target: this, preventDefault: () => {} }));
+  }
+
+  trigger(event, eventObj = {}) {
+    (this.listeners[event] || []).forEach(fn => fn({ target: this, ...eventObj }));
+  }
+
+  closest(selector) {
+    let curr = this;
+    while (curr) {
+      if (selector.startsWith('.') && curr.classList.contains(selector.slice(1))) return curr;
+      if (selector.startsWith('#') && curr.id === selector.slice(1)) return curr;
+      if (curr.tagName === selector.toUpperCase()) return curr;
+      curr = curr.parentElement;
+    }
+    return null;
+  }
+
+  querySelector(selector) {
+    return this.querySelectorAll(selector)[0] || null;
+  }
+
+  querySelectorAll(selector) {
+    const results = [];
+    const check = (el) => {
+      let match = false;
+      if (selector.startsWith('.')) {
+        const cls = selector.slice(1);
+        match = el.classList.contains(cls);
+      } else if (selector.startsWith('#')) {
+        match = el.id === selector.slice(1);
+      } else if (selector.includes('[data-')) {
+        const m = selector.match(/\[data-([a-z0-9-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>\]]+)))?\]/i);
+        if (m) {
+          const prop = m[1].replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+          const val = m[2] ?? m[3] ?? m[4];
+          match = val !== undefined ? el.dataset[prop] === val : el.dataset[prop] !== undefined;
+        }
+      } else if (/^[a-z0-9]+$/i.test(selector)) {
+        match = el.tagName === selector.toUpperCase();
+      }
+      if (match) results.push(el);
+      el.children.forEach(check);
+    };
+    this.children.forEach(check);
+    return results;
+  }
+}
+
+function createDOM() {
+  const elements = new Map();
+  const getOrCreate = (id) => {
+    if (!elements.has(id)) {
+      elements.set(id, new MockElement('div', id));
+    }
+    return elements.get(id);
+  };
+
+  // Pre-seed known app element IDs from index.html
+  const knownIds = [
+    'view-dashboard', 'view-portfolio', 'view-targets', 'view-guidance',
+    'view-health', 'view-progress', 'view-screener', 'view-investment-scanner',
+    'view-options-scanner', 'view-settings', 'dashboard-vitals', 'dashboard-vitals-card',
+    'dashboard-actionable-steps-wrap', 'dashboard-actionable-steps-list',
+    'dashboard-action-plan-card', 'dashboard-action-plan-list', 'dashboard-ap-count',
+    'metric-cards', 'preview-starred', 'dashboard-income-chips', 'dashboard-income-strip',
+    'pf-holdings-table', 'pf-holdings-tbody', 'pf-empty-state', 'pf-content',
+    'pf-source-badge', 'pf-total-value', 'pf-cash', 'pf-cash-label', 'pf-employer-pct',
+    'pf-largest', 'pf-drift-count', 'pf-drift-tbody', 'pf-targets-fields', 'pf-tolerance-input',
+    'pf-recommendation-box', 'pf-rec-age-label', 'pf-rec-core', 'pf-rec-sat', 'pf-rec-cash',
+    'pf-apply-rec-btn', 'pf-autobucket-btn', 'pf-import-btn', 'pf-prices-btn', 'pf-ibkr-sync-btn',
+    'pf-lookup-input', 'pf-lookup-btn', 'pf-lookup-result', 'pf-guidance-list',
+    'badge-count-all', 'badge-count-tax', 'badge-count-rebalance', 'badge-count-options',
+    'pf-health-card', 'pf-health-empty-state', 'pf-health-grade', 'pf-health-badge',
+    'pf-health-caption', 'pf-health-breakdown', 'pf-dividends', 'nav-health-badge',
+    'progress-kpis', 'progress-empty-state', 'progress-content', 'progress-footnote',
+    'progress-import-btn', 'progress-conc-chart', 'progress-health-chart', 'progress-value-chart',
+    'inv-scan-root', 'inv-scan-refresh', 'help-overlay', 'help-nav', 'help-close',
+    'status-bar-btn', 'status-detail-overlay', 'status-detail-close', 'status-detail-body',
+    'status-detail-retry', 'status-detail-stopgw', 'status-detail-action-note',
+    'status-detail-subtitle', 'wc-privacy', 'status-dot', 'status-text',
+    'tbody-top25', 'tbody-under10k', 'tbody-megacaps', 'table-top25', 'table-under10k', 'table-megacaps',
+    'empty-state', 'dashboard-stats-subtitle', 'screener-tbody', 'screener-total-count',
+    'ibkr-gateway-settings', 'ibkr-flex-settings', 'ibkr-mode-desc'
+  ];
+
+  knownIds.forEach(id => getOrCreate(id));
+
+  const body = new MockElement('body');
+  knownIds.forEach(id => body.children.push(elements.get(id)));
+
+  const doc = {
+    body,
+    getElementById(id) { return elements.get(id) || null; },
+    querySelector(sel) {
+      if (sel.startsWith('#')) return elements.get(sel.slice(1)) || null;
+      return body.querySelector(sel);
+    },
+    querySelectorAll(sel) {
+      return body.querySelectorAll(sel);
+    },
+    createElement(tag) { return new MockElement(tag); },
+    addEventListener() {}
+  };
+
+  return { doc, elements };
+}
+
+// Setup VM Context
+const { doc, elements } = createDOM();
+
+const mockElectronAPIBase = {
+  getSettings: async () => ({ ibkrConnectMode: 'gateway', taxProfile: { birthYear: '1988' } }),
+  getWatchlists: async () => ['VTI', 'VXUS'],
+  getStarred: async () => ['AAPL'],
+  getPortfolio: async () => ({
+    holdings: [
+      { symbol: 'VTI', marketValue: 50000, costBasis: 40000, bucket: 'core' },
+      { symbol: 'AAPL', marketValue: 30000, costBasis: 20000, bucket: 'satellite' },
+    ],
+    cash: 20000,
+    targets: [{ bucket: 'core', targetPct: 60 }, { bucket: 'satellite', targetPct: 30 }, { bucket: 'cash', targetPct: 10 }],
+    tolerancePct: 5,
+    derived: {
+      totalValue: 100000,
+      concentration: { pct: 30 },
+      topPositions: [{ symbol: 'VTI', weightPct: 50 }],
+      drift: [
+        { bucket: 'core', targetPct: 60, actualPct: 50, driftPct: -10, deltaUsd: 10000, action: 'buy' },
+        { bucket: 'satellite', targetPct: 30, actualPct: 30, driftPct: 0, deltaUsd: 0, action: 'hold' },
+        { bucket: 'cash', targetPct: 10, actualPct: 20, driftPct: 10, deltaUsd: -10000, action: 'sell' },
+      ]
+    }
+  }),
+  getPortfolioHealth: async () => ({
+    health: {
+      grade: 'A',
+      totalScore: 92,
+      gradeLabel: 'Excellent portfolio hygiene',
+      caps: [],
+      breakdown: [
+        { label: 'Diversification', score: 20, max: 20, detail: 'Well diversified', action: 'Keep it up' },
+        { label: 'Tax Hygiene', score: 15, max: 15, detail: 'No PFIC funds', action: 'US funds only' }
+      ]
+    },
+    dividends: { annual: 1500 }
+  }),
+  getProfileHistory: async () => ({
+    history: [
+      { date: '2026-01-01', totalValue: 90000, employerPctDirect: 35, healthScore: 80, pficValue: 0 },
+      { date: '2026-06-01', totalValue: 100000, employerPctDirect: 30, healthScore: 92, pficValue: 0 }
+    ]
+  }),
+  scanInvestments: async () => ({
+    categories: {
+      etf: [{ symbol: 'VTI', buyHoldGrade: 'A', buyHoldScore: 95, yieldPct: 1.5, taxDragPct: 0.2, suggestedUsd: 5000 }],
+      bond: [{ symbol: 'BND', buyHoldGrade: 'B', buyHoldScore: 85, yieldPct: 4.0, taxDragPct: 1.0, suggestedUsd: 2000 }],
+      stock: [{ symbol: 'AAPL', buyHoldGrade: 'A', buyHoldScore: 90, yieldPct: 0.5, taxDragPct: 0.1, suggestedUsd: 0 }],
+      dividend: [{ symbol: 'SCHD', dividendGrade: 'A', dividendScore: 92, yieldPct: 3.5, taxDragPct: 0.5 }]
+    }
+  }),
+  getActionPlan: async () => ({
+    actions: [
+      { kind: 'sell', title: 'Trim GOOG', detail: 'Quarterly tranche', urgent: true, amountUsd: 5000, nav: 'portfolio' },
+      { kind: 'buy', title: 'Buy VTI', detail: 'Deploy cash', urgent: false, amountUsd: 5000, nav: 'guidance' }
+    ],
+    moreCount: 1
+  }),
+  savePortfolio: async (update) => ({ holdings: [], cash: 20000, targets: [], tolerancePct: 5, derived: { totalValue: 100000, concentration: { pct: 0 }, topPositions: [], drift: [] }, ...update }),
+  saveSellDownPlan: async () => ({ success: true }),
+  clearSellDownPlan: async () => ({ success: true }),
+  ibkrStatus: async () => ({ state: 'connected', reason: null }),
+  ibkrGatewayStop: async () => ({ stopped: 1 }),
+  getEmployerExposure: async () => ({ totalPct: 30, directPct: 30, impliedPct: 0, impliedUsd: 0, perFund: [] }),
+  getPortfolioGuidance: async () => [],
+  analyzeTicker: async () => ({ symbol: 'VTI', suitability: 'good', type: 'etf', domicile: 'US', isPfic: false, weightPct: 50, reason: 'Core broad ETF', details: 'Low tax drag' }),
+  loadInitialData: async () => ({ data: [{ symbol: 'VTI', currentPrice: 220, strike: 210, dte: 30, monthlyYield: 0.015, annualizedYield: 0.18, _score: { totalScore: 85, grade: 'A' } }] }),
+  saveSettings: async () => ({ success: true }),
+  refreshPrices: async () => ({ success: true })
+};
+
+const mockElectronAPI = new Proxy(mockElectronAPIBase, {
+  get(target, prop) {
+    if (prop in target) return target[prop];
+    if (typeof prop === 'string' && prop.startsWith('on')) return () => {};
+    return async () => ({});
+  }
+});
+
+const mockLocalStorage = {
+  _store: {},
+  getItem(k) { return this._store[k] || null; },
+  setItem(k, v) { this._store[k] = String(v); }
+};
+
+const mockGetComputedStyle = () => ({ getPropertyValue: () => '#888' });
+
+const sandbox = {
+  console,
+  document: doc,
+  fetch: async () => ({ text: async () => '<svg></svg>' }),
+  localStorage: mockLocalStorage,
+  getComputedStyle: mockGetComputedStyle,
+  window: {
+    electronAPI: mockElectronAPI,
+    Scanner: { create: (root, config) => ({ root, config }) },
+    Chart: function MockChart() {},
+    localStorage: mockLocalStorage,
+    getComputedStyle: mockGetComputedStyle
+  },
+  setTimeout,
+  clearTimeout,
+  setInterval,
+  clearInterval,
+  parseFloat,
+  parseInt,
+  Math,
+  Date,
+  Array,
+  Object,
+  Set,
+  Map,
+  Number,
+  String
+};
+
+vm.createContext(sandbox);
+
+// Load source files in order
+const srcFiles = [
+  'constants.js',
+  'utils.js',
+  'state.js',
+  'ibkr_connection.js',
+  'modal.js',
+  'portfolio_view.js',
+  'screener_view.js',
+  'settings_view.js',
+  'dashboard_view.js',
+  'app.js'
+];
+
+srcFiles.forEach(file => {
+  const code = fs.readFileSync(path.join(__dirname, '../src', file), 'utf8');
+  vm.runInContext(code, sandbox, { filename: file });
+});
+
+// Helper getter in sandbox context
+const getEl = id => elements.get(id);
+
+// ─── TESTS ───────────────────────────────────────────────────────────────────
+
+section('Dashboard View Unit Tests');
+
+test('renderDashboardVitals populates total, stock, cash, and position metrics', () => {
+  sandbox.renderDashboardVitals({ totalValue: 100000, cash: 20000, holdings: [{}, {}], employerPct: 30 });
+  const container = getEl('dashboard-vitals');
+  assert.strictEqual(container.style.display, '');
+  assert.ok(container.innerHTML.includes('100,000'));
+  assert.ok(container.innerHTML.includes('80,000'));
+  assert.ok(container.innerHTML.includes('20,000'));
+  assert.ok(container.innerHTML.includes('30.0%'));
+});
+
+test('renderDashboardActionPlan renders prioritized to-do steps', async () => {
+  await sandbox.renderDashboardActionPlan(['VTI'], true);
+  const wrap = getEl('dashboard-actionable-steps-wrap');
+  const list = getEl('dashboard-actionable-steps-list');
+  assert.strictEqual(wrap.classList.contains('hidden'), false);
+  assert.ok(list.innerHTML.includes('Trim GOOG'));
+  assert.ok(list.innerHTML.includes('Buy VTI'));
+  assert.ok(list.innerHTML.includes('+ 1 more on the Guidance page'));
+});
+
+test('renderDashboardIncomeStrip renders top options income chips', () => {
+  const mockData = [{ symbol: 'VTI', currentPrice: 220, monthlyYield: 2.0, _score: { grade: 'A' } }];
+  sandbox.renderDashboardIncomeStrip(mockData);
+  const container = getEl('dashboard-income-chips');
+  assert.ok(container.innerHTML.includes('VTI'));
+  assert.ok(container.innerHTML.includes('2.00%/mo'));
+});
+
+section('Portfolio & Targets View Unit Tests');
+
+test('renderPortfolio renders holdings table, totals, P&L, and drift table', async () => {
+  const p = await mockElectronAPI.getPortfolio();
+  sandbox.renderPortfolio(p);
+  await new Promise(r => setTimeout(r, 20));
+
+  const tbody = getEl('pf-holdings-tbody');
+  assert.ok(tbody.innerHTML.includes('VTI'));
+  assert.ok(tbody.innerHTML.includes('AAPL'));
+
+  const driftTbody = getEl('pf-drift-tbody');
+  assert.ok(driftTbody.innerHTML.includes('core'));
+  assert.ok(driftTbody.innerHTML.includes('60%'));
+  assert.ok(driftTbody.innerHTML.includes('50.0%'));
+  assert.ok(driftTbody.innerHTML.includes('-10.0%'));
+  assert.ok(driftTbody.innerHTML.includes('Buy'));
+  assert.ok(driftTbody.innerHTML.includes('10,000'));
+
+  const driftCount = getEl('pf-drift-count');
+  assert.strictEqual(driftCount.textContent, '2');
+});
+
+test('Age-Indexed Recommendation box calculates target allocation based on birth year', async () => {
+  const p = await mockElectronAPI.getPortfolio();
+  sandbox.renderPortfolio(p);
+  // Wait for internal async age calc block
+  await new Promise(r => setTimeout(r, 20));
+
+  const recBox = getEl('pf-recommendation-box');
+  assert.strictEqual(recBox.style.display, 'flex');
+  const coreEl = getEl('pf-rec-core');
+  assert.ok(parseInt(coreEl.textContent, 10) > 0);
+});
+
+section('Portfolio Health View Unit Tests');
+
+test('loadPortfolioHealth populates health grade, score breakdown bars, and unhides card', async () => {
+  await sandbox.loadPortfolioHealth(true);
+  const card = getEl('pf-health-card');
+  assert.strictEqual(card.style.display, '');
+  await new Promise(r => setTimeout(r, 20));
+
+  const caption = getEl('pf-health-caption');
+  assert.ok(caption.textContent.includes('92/100'));
+
+  const breakdown = getEl('pf-health-breakdown');
+  assert.ok(breakdown.innerHTML.includes('Diversification'));
+  assert.ok(breakdown.innerHTML.includes('Tax Hygiene'));
+  assert.ok(breakdown.innerHTML.includes('Keep it up'));
+});
+
+section('Progress Trajectory View Unit Tests');
+
+test('renderProgressView unhides content, calculates KPIs, and generates date labels', async () => {
+  await sandbox.renderProgressView();
+
+  const emptyEl = getEl('progress-empty-state');
+  const contentEl = getEl('progress-content');
+  assert.strictEqual(emptyEl.style.display, 'none');
+  assert.strictEqual(contentEl.style.display, '');
+
+  const kpis = getEl('progress-kpis');
+  assert.ok(kpis.innerHTML.includes('Employer concentration'));
+  assert.ok(kpis.innerHTML.includes('Health score'));
+  assert.ok(kpis.innerHTML.includes('100,000'));
+});
+
+section('Buy Ideas (Investment Scanner) Unit Tests');
+
+test('renderInvestmentScanner configures category tabs and column definitions', async () => {
+  await sandbox.renderInvestmentScanner();
+
+  const root = getEl('inv-scan-root');
+  assert.ok(sandbox.window.investmentScanner != null);
+  const cfg = sandbox.window.investmentScanner.config;
+  assert.strictEqual(cfg.tabs.length, 4);
+  assert.strictEqual(cfg.tabs[0].id, 'etf');
+  assert.strictEqual(cfg.tabs[1].id, 'bond');
+  assert.strictEqual(cfg.tabs[2].id, 'stock');
+  assert.strictEqual(cfg.tabs[3].id, 'dividend');
+});
+
+section('Help & Status Modals Unit Tests');
+
+test('openHelp and closeHelp toggle the help overlay visibility', () => {
+  const overlay = getEl('help-overlay');
+  overlay.classList.add('hidden');
+
+  sandbox.openHelp();
+  assert.strictEqual(overlay.classList.contains('hidden'), false);
+
+  sandbox.closeHelp();
+  assert.strictEqual(overlay.classList.contains('hidden'), true);
+});
+
+test('setIbkrModeUI updates connection mode and displays gateway vs flex settings', () => {
+  const gw = getEl('ibkr-gateway-settings');
+  const fx = getEl('ibkr-flex-settings');
+
+  sandbox.setIbkrModeUI('flex');
+  assert.strictEqual(gw.style.display, 'none');
+  assert.strictEqual(fx.style.display, '');
+
+  sandbox.setIbkrModeUI('gateway');
+  assert.strictEqual(gw.style.display, '');
+  assert.strictEqual(fx.style.display, 'none');
+});
+
+section('Regression Tests for Visual & Boot Fixes');
+
+test('loadInitialData updates status indicator from loading cache to live', async () => {
+  vm.runInContext('ibkrState = "connected";', sandbox);
+  await sandbox.loadInitialData();
+  const statusText = getEl('status-text');
+  assert.strictEqual(statusText.textContent, 'Live');
+});
+
+test('renderPortfolio triggers loadPortfolioHealth to display Health Grade in portfolio header', async () => {
+  const p = await mockElectronAPI.getPortfolio();
+  sandbox.renderPortfolio(p);
+  await new Promise(r => setTimeout(r, 20));
+
+  const pfGrade = getEl('pf-health-grade');
+  assert.ok(pfGrade.innerHTML.includes('92/100'));
+});
+
+test('privacy button renders eye SVG icon on startup without needing to be clicked', () => {
+  sandbox.updatePrivacyMode();
+  const privacyBtn = getEl('wc-privacy');
+  assert.ok(privacyBtn.innerHTML.includes('<svg'));
+});
+
+test('Sync IBKR button triggers sync handler when clicked', async () => {
+  let synced = false;
+  sandbox.window.electronAPI.ibkrFlexSync = async () => {
+    synced = true;
+    return { success: true, portfolio: { holdings: [], derived: { totalValue: 0, concentration: { pct: 0 }, topPositions: [], drift: [] } } };
+  };
+  sandbox.setIbkrModeUI('flex');
+
+  const btn = getEl('pf-ibkr-sync-btn');
+  btn.click();
+  await new Promise(r => setTimeout(r, 20));
+  assert.strictEqual(synced, true);
+});
+
+test('renderStatusDetail renders Recent Flex requests log entries in flex mode', async () => {
+  sandbox.window.electronAPI.ibkrHasFlex = async () => ({ hasToken: true, queryId: '1581403' });
+  sandbox.window.electronAPI.ibkrFlexLog = async () => ({
+    entries: [
+      { ts: Date.now(), kind: 'sync', step: 'SendRequest', outcome: 'error', errorCode: 1025, lockout: true }
+    ]
+  });
+  sandbox.setIbkrModeUI('flex');
+  await sandbox.renderStatusDetail();
+
+  const body = getEl('status-detail-body');
+  assert.ok(body.innerHTML.includes('Recent Flex requests'));
+  assert.ok(body.innerHTML.includes('error 1025 (lockout)'));
+});
+
+test('Status dialog Sync now button triggers Flex sync when clicked in flex mode', async () => {
+  let syncCalled = false;
+  sandbox.window.electronAPI.ibkrFlexSync = async () => {
+    syncCalled = true;
+    return { success: true, portfolio: { holdings: [], derived: { totalValue: 0, concentration: { pct: 0 }, topPositions: [], drift: [] } } };
+  };
+  sandbox.setIbkrModeUI('flex');
+
+  const retryBtn = getEl('status-detail-retry');
+  assert.strictEqual(retryBtn.textContent, 'Sync now');
+
+  retryBtn.click();
+  await new Promise(r => setTimeout(r, 20));
+  assert.strictEqual(syncCalled, true);
+});
+
+console.log(`\nUI Views Test Suite Summary: ${passed} passed, ${failed} failed`);
+if (failed > 0) process.exit(1);
