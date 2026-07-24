@@ -632,7 +632,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 16px;
 }
 .modal-overlay.hidden { display: none; }
 
@@ -648,6 +648,22 @@ html, body {
   flex-direction: column;
   position: relative;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(0, 240, 255, 0.05);
+}
+
+/* The symbol details dialog is a working surface, not a confirmation prompt —
+   it earns as much of the screen as it can get. Its own class so it isn't
+   fighting the generic .modal caps (max-width 900px) with inline overrides. */
+.modal-symbol {
+  width: min(1680px, calc(100vw - 32px));
+  max-width: min(1680px, calc(100vw - 32px));
+  height: min(1080px, calc(100vh - 32px));
+  max-height: calc(100vh - 32px);
+}
+/* Wide is good for charts, grids and tables — but a sentence stretched across
+   1600px is unreadable. Cap running prose at a comfortable measure; anything
+   laid out as a grid or row opts out. */
+.modal-symbol .prose {
+  max-width: 88ch;
 }
 
 .modal-close {

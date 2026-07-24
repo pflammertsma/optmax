@@ -502,6 +502,27 @@ test('loadInitialData updates status indicator from loading cache to live', asyn
   assert.strictEqual(statusText.textContent, 'Live');
 });
 
+test('age-indexed target box follows the glidepath base, not a hardcoded 110', () => {
+  // birthYear lives at the TOP LEVEL of settings, not under taxProfile (which
+  // was the read path, and is undefined). And the core % must track the
+  // configured glidepath base — it was pinned to 110 regardless of the setting.
+  const birthYear = 1984;
+  const age = new Date().getFullYear() - birthYear;   // derived, so the test survives the calendar
+  const clamp = c => Math.min(95, Math.max(20, c));
+  const at110 = sandbox.ageIndexedTargets({ birthYear, glidepathBase: 110 });
+  const at140 = sandbox.ageIndexedTargets({ birthYear, glidepathBase: 140 });
+  assert.ok(at110, 'top-level birthYear must be recognised');
+  assert.strictEqual(at110.coreRec, clamp(110 - age), 'base 110 must drive the core %');
+  assert.strictEqual(at140.coreRec, clamp(140 - age), 'base 140 must drive the core %');
+  assert.notStrictEqual(at110.coreRec, at140.coreRec, 'core % must move with the glidepath base');
+  assert.strictEqual(at110.coreRec + at110.satRec, 95); // 5% reserved for cash
+});
+
+test('age-indexed target box hides when no birth year is known', () => {
+  assert.strictEqual(sandbox.ageIndexedTargets({ glidepathBase: 110 }), null);
+  assert.strictEqual(sandbox.ageIndexedTargets({}), null);
+});
+
 test('renderPortfolio triggers loadPortfolioHealth to display Health Grade in portfolio header', async () => {
   const p = await mockElectronAPI.getPortfolio();
   sandbox.renderPortfolio(p);

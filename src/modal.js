@@ -64,13 +64,17 @@ function renderSymbolRecommendation(d, a, lenses, scannerHit) {
     const bits = [];
     if (best?.factor) bits.push(best.factor);
     if (a?.reason && a.reason !== headline) bits.push(a.reason);
-    detail = bits.join('. ') || (a?.details || 'No scoring data available for this symbol.');
+    // Some of these already end in a full stop — joining with '. ' produced
+    // "…many companies.. US-domiciled ETF."
+    detail = bits.map(b => String(b).trim().replace(/\.$/, '')).join('. ')
+      || (a?.details || 'No scoring data available for this symbol');
+    if (detail) detail += '.';
   }
   rEl.innerHTML = `
     <div style="padding:12px 14px; border-radius:8px; background:${bg}; border:1px solid ${border};">
       <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:4px;">Recommendation</div>
       <div style="font-weight:700; font-size:15px; color:${color}; margin-bottom:5px;">${headline}</div>
-      <div style="font-size:12px; color:var(--text-secondary); line-height:1.5;">${detail}</div>
+      <div class="prose" style="font-size:12px; color:var(--text-secondary); line-height:1.5;">${detail}</div>
     </div>
     ${renderVerdictAndCost(d, a, lenses)}`;
 }
@@ -115,11 +119,11 @@ function renderVerdictAndCost(d, a, lenses) {
         <span style="color:${vc}; background:color-mix(in srgb, ${vc} 12%, transparent); border:1px solid color-mix(in srgb, ${vc} 30%, transparent); border-radius:4px; padding:1px 8px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${q(v.role.label)}</span>
         <span style="font-size:12px; font-weight:600; color:${vc};">${q(v.rating.label)}</span>
       </div>
-      <div style="font-size:12.5px; color:var(--text-secondary); line-height:1.5;">${q(v.headline)} ${q(v.role.blurb)}</div>
+      <div class="prose" style="font-size:12.5px; color:var(--text-secondary); line-height:1.5;">${q(v.headline)} ${q(v.role.blurb)}</div>
       ${v.hold ? `<div style="margin-top:9px; padding-top:8px; border-top:1px solid var(--border);">
         <span style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Plan to hold</span>
         <span style="font-size:13px; font-weight:700; color:var(--cyan); margin-left:8px;">${q(v.hold.label)}</span>
-        <div style="font-size:11.5px; color:var(--text-secondary); line-height:1.5; margin-top:3px;">${q(v.hold.rationale)}</div>
+        <div class="prose" style="font-size:11.5px; color:var(--text-secondary); line-height:1.5; margin-top:3px;">${q(v.hold.rationale)}</div>
       </div>` : ''}
       ${(v.strengths || []).length ? `<div style="margin-top:9px; display:flex; flex-wrap:wrap; gap:5px;">${
         v.strengths.map(s => `<span style="font-size:10.5px; color:var(--green); background:rgba(16,185,129,0.10); border:1px solid rgba(16,185,129,0.25); border-radius:4px; padding:2px 7px;">${q(s)}</span>`).join('')
@@ -503,23 +507,37 @@ function renderChart(history, symbol) {
     return;
   }
 
-  const ctx      = canvas.getContext('2d');
-  const gradient = ctx.createLinearGradient(0, 0, 0, 140);
+  const ctx = canvas.getContext('2d');
+  const CA = window.chartAxis;
+  const series = CA ? CA.priceSeries(history) : {
+    values: history.map(h => h.close), labels: history.map(h => h.date),
+    decimals: 2, adjusted: false, changePct: null,
+  };
+  const dp = series.decimals;
+  const fmtDate = CA ? CA.formatDateLabel : (s => s);
+  const first = series.values[0];
+
+  // Gradient must span the drawing area, not a hardcoded 140px — the chart got
+  // taller in the dialog redesign and the fill stopped short of the axis.
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.clientHeight || canvas.height || 140);
   gradient.addColorStop(0, 'rgba(0, 240, 255, 0.3)');
   gradient.addColorStop(1, 'rgba(0, 240, 255, 0.0)');
 
   priceChart = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: history.map(h => h.date),
+      labels: series.labels,
       datasets: [{
-        label: symbol + ' Close',
-        data: history.map(h => h.close),
+        label: symbol,
+        data: series.values,
         borderColor: '#00f0ff',
         borderWidth: 2,
         backgroundColor: gradient,
         pointRadius: 0,
         pointHoverRadius: 4,
+        pointHoverBackgroundColor: '#00f0ff',
+        pointHoverBorderColor: '#0d1117',
+        pointHoverBorderWidth: 2,
         fill: true,
         tension: 0.35
       }]
@@ -527,6 +545,11 @@ function renderChart(history, symbol) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      // Without this the tooltip only fires when the cursor lands exactly on a
+      // datapoint — and pointRadius is 0, so there is nothing to land on and
+      // hovering appeared to do nothing at all.
+      interaction: { mode: 'index', intersect: false },
+      hover: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -535,17 +558,42 @@ function renderChart(history, symbol) {
           borderWidth: 1,
           titleColor: '#9ca3af',
           bodyColor: '#e8eaf0',
-          callbacks: { label: ctx => ' $' + ctx.parsed.y.toFixed(2) }
+          footerColor: '#9ca3af',
+          padding: 10,
+          displayColors: false,
+          callbacks: {
+            title: items => (items.length ? fmtDate(items[0].label) : ''),
+            label: (c) => {
+              const v = c.parsed.y;
+              const out = [` $${v.toFixed(Math.max(dp, 2))}`];
+              if (first != null && first !== 0) {
+                const chg = ((v - first) / first) * 100;
+                out.push(` ${chg >= 0 ? '+' : ''}${chg.toFixed(2)}% since ${fmtDate(series.labels[0])}`);
+              }
+              return out;
+            },
+            footer: () => (series.adjusted
+              ? 'Total return — adjusted for dividends paid in this window'
+              : ''),
+          }
         }
       },
       scales: {
         x: {
           grid: { color: 'rgba(255,255,255,0.04)', drawTicks: false },
-          ticks: { color: '#9ca3af', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 6 }
+          ticks: {
+            color: '#9ca3af', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 6,
+            callback(i) { return fmtDate(this.getLabelForValue(i)); },
+          }
         },
         y: {
           grid: { color: 'rgba(255,255,255,0.04)', drawTicks: false },
-          ticks: { color: '#9ca3af', font: { family: 'JetBrains Mono', size: 10 }, callback: v => '$' + v.toFixed(0) }
+          ticks: {
+            color: '#9ca3af', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 5,
+            // Precision from the SPAN of the data. A fund ranging $49.50–$50.30
+            // used to draw five identical "$50" labels.
+            callback: v => '$' + v.toFixed(dp),
+          }
         }
       }
     }

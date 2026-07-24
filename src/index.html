@@ -1493,8 +1493,7 @@
 
   <!-- Analysis Modal -->
   <div class="modal-overlay hidden" id="modal-overlay">
-    <div class="modal"
-      style="width: 1080px; height: 760px; max-height: calc(100vh - 48px); max-width: 95vw; display:flex; flex-direction:column; padding: 0;">
+    <div class="modal modal-symbol" style="display:flex; flex-direction:column; padding: 0;">
       <button class="modal-close" id="modal-close" style="top: 14px; right: 18px; z-index: 10;">✕</button>
 
       <div class="modal-header"
@@ -1528,10 +1527,11 @@
       <!-- Live region (hidden while loading): full-width chart, essentials, tabs, body -->
       <div id="modal-live" style="display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden;">
 
-        <!-- Full-width price chart -->
+        <!-- Full-width price chart. Grows with the dialog rather than staying a
+             fixed 150px strip in a 1000px-tall window. -->
         <div style="margin: 0 28px 12px 28px; flex-shrink:0;">
           <div class="chart-container"
-            style="height:150px; background: rgba(255,255,255,0.01); border: 1px solid var(--border); border-radius: 8px; padding: 10px;">
+            style="height: clamp(150px, 22vh, 260px); background: rgba(255,255,255,0.01); border: 1px solid var(--border); border-radius: 8px; padding: 10px;">
             <canvas id="price-chart"></canvas>
           </div>
         </div>
@@ -1925,6 +1925,7 @@
   <script src="../lib/lensscores.js"></script>
   <script src="../lib/verdict.js"></script>
   <script src="../lib/tradecost.js"></script>
+  <script src="../lib/chartaxis.js"></script>
   <script src="constants.js"></script>
   <script src="utils.js"></script>
   <script src="state.js"></script>

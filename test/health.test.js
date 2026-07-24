@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('assert');
-const { computePortfolioHealth, projectAnnualDividends } = require('../lib/health');
+const { computePortfolioHealth, projectAnnualDividends, healthInputMaterial } = require('../lib/health');
 
 // ─── Minimal test runner ──────────────────────────────────────────────────────
 let passed = 0;
@@ -281,6 +281,60 @@ test('holdings without rates or quantity contribute nothing', () => {
   );
   assert.strictEqual(r.annual, 0);
   assert.strictEqual(r.perHolding.length, 0);
+});
+
+// ─── Cache-invalidation inputs ───────────────────────────────────────────────
+// The health score is cached; the cache decides whether to recompute by hashing
+// healthInputMaterial. Anything the score reads but this omits leaves a stale
+// score after the user changes it — which is exactly what happened to
+// glidepathBase and birthYear.
+const serialize = m => JSON.stringify(m);
+
+test('changing the glidepath base changes the cache material', () => {
+  const p = { holdings: [{ symbol: 'VTI', marketValue: 100 }], cash: 0, targets: [] };
+  const before = serialize(healthInputMaterial(p, { glidepathBase: 110, birthYear: 1984 }));
+  const after  = serialize(healthInputMaterial(p, { glidepathBase: 140, birthYear: 1984 }));
+  assert.notStrictEqual(before, after, 'glidepathBase must be part of the fingerprint');
+});
+
+test('changing the birth year changes the cache material', () => {
+  const p = { holdings: [{ symbol: 'VTI', marketValue: 100 }], cash: 0, targets: [] };
+  assert.notStrictEqual(
+    serialize(healthInputMaterial(p, { birthYear: 1984 })),
+    serialize(healthInputMaterial(p, { birthYear: 1990 })),
+    'birthYear must be part of the fingerprint');
+});
+
+test('changing the dividend tax rate changes the cache material', () => {
+  const p = { holdings: [{ symbol: 'VTI', marketValue: 100 }], cash: 0, targets: [] };
+  assert.notStrictEqual(
+    serialize(healthInputMaterial(p, { dividendTaxRatePct: 30 })),
+    serialize(healthInputMaterial(p, { dividendTaxRatePct: 15 })),
+    'dividendTaxRatePct must be part of the fingerprint');
+});
+
+test('identical inputs produce identical material (cache stays warm)', () => {
+  const p = { holdings: [{ symbol: 'VTI', marketValue: 100 }], cash: 500, targets: [] };
+  const s = { glidepathBase: 110, birthYear: 1984, dividendTaxRatePct: 30 };
+  assert.strictEqual(serialize(healthInputMaterial(p, s)), serialize(healthInputMaterial(p, s)));
+});
+
+test('the material actually feeds the score it guards', () => {
+  // The whole point: every guarded setting must move the computed health score,
+  // or guarding it is pointless. glidepathBase drives Age-Appropriate Mix.
+  const holdings = [
+    { symbol: 'VTI', marketValue: 90000, quantity: 300, quoteType: 'ETF' },
+    { symbol: 'BND', marketValue: 10000, quantity: 120, quoteType: 'ETF' },
+  ];
+  const quotes = { VTI: etfQuote('VTI'), BND: { ...etfQuote('BND'), quoteType: 'ETF' } };
+  const base = { holdings, cash: 0, targets: [], quotes };
+  const a = computePortfolioHealth({ ...base, settings: { birthYear: 1984, glidepathBase: 110 } });
+  const b = computePortfolioHealth({ ...base, settings: { birthYear: 1984, glidepathBase: 140 } });
+  const alloc = h => (h.dimensions || h.breakdown || []).find(d => d.key === 'allocation');
+  if (alloc(a) && alloc(b)) {
+    assert.notStrictEqual(alloc(a).score, alloc(b).score,
+      'glidepathBase must move the Age-Appropriate Mix score');
+  }
 });
 
 // ─── Summary ─────────────────────────────────────────────────────────────────

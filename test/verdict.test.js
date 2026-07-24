@@ -201,6 +201,19 @@ test('the verdict carries a short label for what the instrument is', () => {
   for (const v of [vti, vb, vgt]) assert.ok(v.breadthLabel.length <= 16, v.breadthLabel);
 });
 
+test('a bond fund is recognised by symbol when the caller has no kind', () => {
+  // The scanner knows VTIP is a bond fund from its seed; the symbol dialog only
+  // has whatever analyzeTicker inferred, and inferred 'equity'. Both must agree.
+  const fromScanner = instrumentVerdict({ symbol: 'VTIP', isFund: true, kind: 'bond', expenseRatioPct: 0.04, yieldPct: 3.6, buyHoldScore: 100 }, CH);
+  const fromDialog  = instrumentVerdict({ symbol: 'VTIP', isFund: true, kind: 'equity', expenseRatioPct: 0.04, yieldPct: 3.6, buyHoldScore: 100 }, CH);
+  assert.strictEqual(fromDialog.role.key, 'diversifier', 'dialog called a bond fund something other than a Diversifier');
+  assert.strictEqual(fromDialog.role.key, fromScanner.role.key);
+  assert.strictEqual(fromDialog.breadthLabel, fromScanner.breadthLabel);
+  assert.strictEqual(fromDialog.hold.label, fromScanner.hold.label);
+  // And it must not be told to hold a short-duration bond fund like broad equity.
+  assert.ok(!/business cycle/i.test(fromDialog.hold.rationale), fromDialog.hold.rationale);
+});
+
 test('a T-bill fund is labelled as cash-like, not generic fixed income', () => {
   const v = instrumentVerdict({ symbol: 'SGOV', isFund: true, kind: 'bond', expenseRatioPct: 0.07, yieldPct: 3.9, buyHoldScore: 100 }, CH);
   assert.strictEqual(v.breadthLabel, 'Cash-like bonds');

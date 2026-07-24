@@ -611,23 +611,19 @@ function renderPortfolio(p) {
   // Age-indexed recommendation rendering
   (async () => {
     try {
-      const s = await window.electronAPI.getSettings();
-      const birthYear = s?.taxProfile?.birthYear ? parseInt(s.taxProfile.birthYear, 10) : null;
+      const rec = ageIndexedTargets(await window.electronAPI.getSettings());
       const recBox = el('pf-recommendation-box');
       if (!recBox) return;
-      if (birthYear && birthYear > 1900 && birthYear <= new Date().getFullYear()) {
-        const age = new Date().getFullYear() - birthYear;
-        const coreRec = Math.min(95, Math.max(20, 110 - age));
-        const satRec = Math.max(0, 95 - coreRec);
+      if (rec) {
         recBox.style.display = 'flex';
         const labelEl = el('pf-rec-age-label');
-        if (labelEl) labelEl.textContent = `(Age ${age})`;
+        if (labelEl) labelEl.textContent = `(Age ${rec.age}, glidepath ${rec.base})`;
         const coreEl = el('pf-rec-core');
-        if (coreEl) coreEl.textContent = `${coreRec}%`;
+        if (coreEl) coreEl.textContent = `${rec.coreRec}%`;
         const satEl = el('pf-rec-sat');
-        if (satEl) satEl.textContent = `${satRec}%`;
+        if (satEl) satEl.textContent = `${rec.satRec}%`;
         const cashEl = el('pf-rec-cash');
-        if (cashEl) cashEl.textContent = '5%';
+        if (cashEl) cashEl.textContent = `${rec.cashRec}%`;
       } else {
         recBox.style.display = 'none';
       }
@@ -635,20 +631,32 @@ function renderPortfolio(p) {
   })();
 }
 
+// The age-indexed target mix, from settings. One implementation so the display
+// and the Apply button can't disagree. Fixes two bugs: birthYear lives at the
+// top level of settings (not under taxProfile, which is undefined), and the
+// core % must follow the configured glidepath base — it was hardcoded to 110,
+// so changing the glidepath in Settings never reached this box.
+function ageIndexedTargets(settings) {
+  const raw = settings?.birthYear ?? settings?.taxProfile?.birthYear;
+  const birthYear = raw ? parseInt(raw, 10) : null;
+  if (!birthYear || birthYear <= 1900 || birthYear > new Date().getFullYear()) return null;
+  const age = new Date().getFullYear() - birthYear;
+  const base = Number(settings?.glidepathBase) || 110;
+  const coreRec = Math.min(95, Math.max(20, base - age));
+  const satRec = Math.max(0, 95 - coreRec);
+  return { age, base, coreRec, satRec, cashRec: 5 };
+}
+
 // ─── Portfolio View Initialization ──────────────────────────────────────────
 async function initPortfolioView() {
   el('pf-apply-rec-btn')?.addEventListener('click', async () => {
     try {
-      const s = await window.electronAPI.getSettings();
-      const birthYear = s?.taxProfile?.birthYear ? parseInt(s.taxProfile.birthYear, 10) : null;
-      if (!birthYear) return;
-      const age = new Date().getFullYear() - birthYear;
-      const coreRec = Math.min(95, Math.max(20, 110 - age));
-      const satRec = Math.max(0, 95 - coreRec);
+      const rec = ageIndexedTargets(await window.electronAPI.getSettings());
+      if (!rec) return;
       const newTargets = [
-        { bucket: 'core', targetPct: coreRec },
-        { bucket: 'satellite', targetPct: satRec },
-        { bucket: 'cash', targetPct: 5 },
+        { bucket: 'core', targetPct: rec.coreRec },
+        { bucket: 'satellite', targetPct: rec.satRec },
+        { bucket: 'cash', targetPct: rec.cashRec },
       ];
       renderPortfolio(await window.electronAPI.savePortfolio({ targets: newTargets }));
     } catch {}

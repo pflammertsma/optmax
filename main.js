@@ -191,7 +191,7 @@ const { analyzeTicker, generatePortfolioGuidance, calculateHoldingRecommendation
 const { generateBuyRecommendations, CURATED_CANDIDATES } = require('./lib/recommendations');
 const { scanInvestments, EXTRA_SEEDS } = require('./lib/investments');
 const { dividendYieldPct } = require('./lib/yield');
-const { computePortfolioHealth, projectAnnualDividends } = require('./lib/health');
+const { computePortfolioHealth, projectAnnualDividends, healthInputMaterial } = require('./lib/health');
 const { createIbkrClient, isLoopbackGatewayUrl, gatewayLaunchSpec, treeKillSpec,
   gatewayHostPort, listGatewayPidsSpec, parsePids, gatewayRequest } = require('./lib/ibkr');
 const net = require('net');
@@ -366,15 +366,9 @@ const HEALTH_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // quotes drift; refresh da
 
 function portfolioFingerprint(p, settings) {
   const crypto = require('crypto');
-  const material = JSON.stringify({
-    holdings: p.holdings,
-    cash: p.cash,
-    targets: p.targets,
-    tolerancePct: p.tolerancePct,
-    employerSymbols: p.employerSymbols,
-    cashDragThreshold: settings.cashDragThreshold ?? null,
-    concentrationLimitPct: settings.concentrationLimitPct ?? null,
-  });
+  // Input set is owned by lib/health.js so it stays in lockstep with what the
+  // health computation actually reads.
+  const material = JSON.stringify(healthInputMaterial(p, settings));
   return crypto.createHash('sha1').update(material).digest('hex');
 }
 
@@ -1230,9 +1224,17 @@ app.whenReady().then(() => {
       start.setDate(start.getDate() - 30);
       const chartResult = await yahooFinance.chart(symbol, { period1: start, period2: end, interval: '1d' });
       const result = chartResult.quotes || [];
+      // Return BOTH closes. `adjClose` is the total-return series the chart
+      // draws — on a dividend payer the raw close drops by the distribution on
+      // the ex-date, which reads as a crash rather than a payout. `close` stays
+      // available for anything that genuinely wants the traded price.
       return result
         .filter(d => d.date && d.close != null)
-        .map(d => ({ date: d.date.toISOString().split('T')[0], close: d.close }));
+        .map(d => ({
+          date: d.date.toISOString().split('T')[0],
+          close: d.close,
+          adjClose: d.adjclose != null ? d.adjclose : d.close,
+        }));
     } catch { return []; }
   });
 
