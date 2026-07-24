@@ -629,10 +629,37 @@ async function runAsyncTests() {
 async function captureScannerConfig() {
   let captured = null;
   sandbox.window.Scanner = { create: (root, config) => { captured = config; return { root, config }; } };
+  const coreVerdict = {
+    breadth: 'broad',
+    role: { key: 'core', label: 'Core', blurb: 'Portfolio bedrock.' },
+    rating: { key: 'strong', label: 'Strong buy-and-hold', tone: 'good' },
+    headline: 'Broad, cheap and tax-clean for you.',
+    watch: [],
+  };
+  const sectorVerdict = {
+    breadth: 'sector',
+    role: { key: 'satellite', label: 'Satellite', blurb: 'A side bet around the core.' },
+    rating: { key: 'careful', label: 'Only with care', tone: 'warn' },
+    headline: 'Usable, but the 0.60% fee is a permanent drag.',
+    watch: ['0.60%/yr fund fee — about $60 a year on every $10,000', 'One sector only'],
+  };
+  const cheapCost = { expenseRatioPct: 0.03, taxDragPct: 0.32, totalPct: 0.35, annualCostPer10kUsd: 35,
+    minOrderUsd: 700, trade: { roundTripUsd: 0.7, roundTripPct: 0.001 }, daysToCoverTradeCost: 0.05,
+    holdNote: 'Commission is negligible here — no minimum hold period for cost reasons.',
+    holdLevel: 'ok', dominantCost: 'holding' };
+  const dearCost = { ...cheapCost, expenseRatioPct: 0.60, totalPct: 0.92, annualCostPer10kUsd: 92 };
+
   const payload = {
     categories: {
-      recommendation: [{ symbol: 'BNDX', suggestedUsd: 75000, estFeeUsd: 2.63, buyHoldGrade: 'A', buyHoldScore: 90, reasons: [] }],
-      etf: [], bond: [], stock: [], dividend: [],
+      recommendation: [{ symbol: 'BNDX', suggestedUsd: 75000, estFeeUsd: 2.63, buyHoldGrade: 'A', buyHoldScore: 90,
+        reasons: [], bucket: 'core', bucketNeedUsd: 396616, verdict: coreVerdict, cost: cheapCost }],
+      etf: [
+        { symbol: 'VTI', buyHoldGrade: 'A', buyHoldScore: 100, yieldPct: 1.05, taxDragPct: 0.32, expenseRatioPct: 0.03,
+          reasons: [], bucket: 'core', bucketNeedUsd: 396616, verdict: coreVerdict, cost: cheapCost },
+        { symbol: 'NLR', buyHoldGrade: 'B', buyHoldScore: 77, yieldPct: 1.2, taxDragPct: 0.36, expenseRatioPct: 0.60,
+          reasons: [], bucket: 'satellite', bucketNeedUsd: 396616, verdict: sectorVerdict, cost: dearCost },
+      ],
+      bond: [], stock: [], dividend: [],
     },
     deployableCash: 75000, bondsFirst: false, glidepathNote: null,
   };
@@ -673,6 +700,66 @@ testAsync('Recommendation tab renders an actionable Buy amount + estimated fee',
   // the hold-oriented tabs.
   assert.ok(!cfg.columns('etf').some(c => c.key === 'suggestedUsd'),
     'stale "Suggested" column is still on the ETF tab');
+});
+
+// The scanner used to show five near-identical numeric columns, which answered
+// neither question a buyer has. These guard the two that do.
+testAsync('every tab leads with a plain-language verdict, not just numbers', async () => {
+  const cfg = await captureScannerConfig();
+  for (const tab of ['recommendation', 'etf', 'dividend']) {
+    const col = cfg.columns(tab).find(c => c.key === 'verdict');
+    assert.ok(col, `"${tab}" tab is missing the verdict column`);
+    const html = col.render(cfg.getRows('etf')[0]);
+    assert.ok(/Core/.test(html), `verdict cell on "${tab}" does not name the role`);
+    assert.ok(/Broad, cheap and tax-clean/.test(html), `verdict cell on "${tab}" does not show the headline`);
+  }
+});
+
+testAsync('cost to own is shown as a yearly percentage AND in dollars', async () => {
+  const cfg = await captureScannerConfig();
+  const col = cfg.columns('etf').find(c => c.key === 'costTotal');
+  assert.ok(col, 'ETF tab is missing the cost-to-own column');
+
+  const cheap = col.render(cfg.getRows('etf')[0]);
+  assert.ok(/0\.35%\/yr/.test(cheap), `cost cell missing the annual percentage: ${cheap}`);
+  assert.ok(/\$35\/yr per \$10k/.test(cheap), `cost cell missing the dollar figure: ${cheap}`);
+  // The commission answer ("do I need to hold it a while?") lives in the tooltip.
+  assert.ok(/\$700/.test(cheap), 'cost cell does not explain the minimum sensible order');
+
+  // An expensive fund must read differently — that is the whole point.
+  const dear = col.render(cfg.getRows('etf')[1]);
+  assert.ok(/0\.92%\/yr/.test(dear), `expensive fund shows the wrong cost: ${dear}`);
+  assert.notStrictEqual(cheap, dear);
+});
+
+testAsync('watch-outs list real caveats and stay silent when there are none', async () => {
+  const cfg = await captureScannerConfig();
+  const col = cfg.columns('etf').find(c => c.key === 'watch');
+  assert.ok(col, 'ETF tab is missing the watch-out column');
+  assert.ok(/Nothing notable/.test(col.render(cfg.getRows('etf')[0])));
+  assert.ok(/0\.60%\/yr fund fee/.test(col.render(cfg.getRows('etf')[1])));
+});
+
+testAsync('a fact shared by every row is stated once in the intro, not per row', async () => {
+  const cfg = await captureScannerConfig();
+  // The bucket-underweight figure was previously repeated verbatim down a "Why"
+  // column on every single row, where it carried no information.
+  const etfTab = cfg.tabs.find(t => t.id === 'etf');
+  assert.ok(/396,616/.test(etfTab.intro), `intro does not carry the allocation gap: ${etfTab.intro}`);
+  assert.ok(!cfg.columns('etf').some(c => c.key === 'why'),
+    'the repetitive "Why" column is back on the ETF tab');
+});
+
+testAsync('the Refresh button forces a fresh discovery pass', async () => {
+  let seenArg = null;
+  vm.runInContext(
+    'window.electronAPI.scanInvestments = async (arg) => { window.__scanArg = arg; return { categories: {} }; };',
+    sandbox);
+  vm.runInContext('investmentScanner = null; investmentScanLoading = false;', sandbox);
+  await sandbox.renderInvestmentScanner(true);
+  seenArg = sandbox.window.__scanArg;
+  assert.ok(seenArg && !Array.isArray(seenArg), 'scanInvestments was called with the legacy array signature');
+  assert.strictEqual(seenArg.force, true, 'Refresh did not request a forced discovery');
 });
 
 testAsync('every scanner row opens the dialog, even without option-scanner data', async () => {

@@ -71,6 +71,71 @@ function renderSymbolRecommendation(d, a, lenses, scannerHit) {
       <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:4px;">Recommendation</div>
       <div style="font-weight:700; font-size:15px; color:${color}; margin-bottom:5px;">${headline}</div>
       <div style="font-size:12px; color:var(--text-secondary); line-height:1.5;">${detail}</div>
+    </div>
+    ${renderVerdictAndCost(d, a, lenses)}`;
+}
+
+// "Is it worth owning, and what does owning it cost?" — the two questions the
+// score cards don't answer. Rendered directly under the recommendation banner.
+function renderVerdictAndCost(d, a, lenses) {
+  const V = window.verdict, T = window.tradeCost;
+  if (!V || !T) return '';
+
+  const isFund = !!(d.overlap || d.expenseRatioPct != null
+    || ['ETF', 'MUTUALFUND'].includes((d.quoteType || '').toUpperCase())
+    || ['etf', 'bond etf'].includes((a && a.type || '').toLowerCase()));
+  const kind = (a && a.type) === 'bond etf' ? 'bond' : 'equity';
+  const taxRate = d.dividendTaxRatePct ?? (typeof lensDividendTaxRate !== 'undefined' ? lensDividendTaxRate : 30);
+
+  const v = V.instrumentVerdict({
+    symbol: d.symbol, isFund, kind,
+    isPfic: !!(a && a.isPfic) || !!d.isPfic,
+    yieldPct: d.yieldPct, expenseRatioPct: d.expenseRatioPct, marketCap: d.marketCap,
+    buyHoldScore: lenses?.buyHold?.score, dividendScore: lenses?.dividend?.score,
+  }, { usPerson: typeof lensUsPerson !== 'undefined' ? lensUsPerson : true, dividendTaxRatePct: taxRate });
+
+  const c = T.costSummary({
+    price: d.price, expenseRatioPct: d.expenseRatioPct, yieldPct: d.yieldPct, dividendTaxRatePct: taxRate,
+  });
+
+  const tones = { good: 'var(--green)', ok: 'var(--cyan)', warn: '#f59e0b', bad: 'var(--red)' };
+  const vc = tones[v.rating.tone] || 'var(--text-secondary)';
+  const q = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+
+  const costRow = (label, value, note) => `
+    <div style="flex:1 1 130px; min-width:130px;">
+      <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">${label}</div>
+      <div style="font-size:14px; font-weight:700; margin-top:2px; font-family:'JetBrains Mono', monospace;">${value}</div>
+      <div style="font-size:10.5px; color:var(--text-muted); margin-top:2px; line-height:1.35;">${note}</div>
+    </div>`;
+
+  return `
+    <div style="margin-top:12px; padding:12px 14px; border-radius:8px; border:1px solid var(--border); background:rgba(255,255,255,0.02);">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+        <span style="color:${vc}; background:color-mix(in srgb, ${vc} 12%, transparent); border:1px solid color-mix(in srgb, ${vc} 30%, transparent); border-radius:4px; padding:1px 8px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${q(v.role.label)}</span>
+        <span style="font-size:12px; font-weight:600; color:${vc};">${q(v.rating.label)}</span>
+      </div>
+      <div style="font-size:12.5px; color:var(--text-secondary); line-height:1.5;">${q(v.headline)} ${q(v.role.blurb)}</div>
+      ${v.watch.length ? `<ul style="margin:8px 0 0; padding-left:16px; font-size:11.5px; color:var(--text-secondary); line-height:1.5;">${v.watch.map(w => `<li>${q(w)}</li>`).join('')}</ul>` : ''}
+    </div>
+
+    <div style="margin-top:10px; padding:12px 14px; border-radius:8px; border:1px solid var(--border); background:rgba(255,255,255,0.02);">
+      <div style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:9px;">What it costs to own</div>
+      <div style="display:flex; flex-wrap:wrap; gap:14px;">
+        ${costRow('Every year', `${c.totalPct.toFixed(2)}%`, `≈$${c.annualCostPer10kUsd} per $10,000 held`)}
+        ${costRow('Fund fee', d.expenseRatioPct == null ? 'None' : `${c.expenseRatioPct.toFixed(2)}%`, d.expenseRatioPct == null ? 'Individual stock — no fund fee' : 'Charged whether it rises or falls')}
+        ${costRow('Dividend tax', `${c.taxDragPct.toFixed(2)}%`, `${taxRate}% of a ${(d.yieldPct || 0).toFixed(2)}% yield`)}
+        ${costRow('To buy &amp; sell', '~$0.70', 'IBKR commission, round trip')}
+      </div>
+      <div style="margin-top:10px; padding-top:9px; border-top:1px solid var(--border); font-size:11.5px; color:${tones[c.holdLevel] || 'var(--text-secondary)'}; line-height:1.5;">
+        ${q(c.holdNote)}
+      </div>
+      <div style="margin-top:6px; font-size:10.5px; color:var(--text-muted); line-height:1.45;">
+        ${c.dominantCost === 'holding'
+          ? 'For a long-term holding the annual cost above is what matters — it recurs every year, while the commission is paid once.'
+          : 'Commission dominates at this size; the annual cost only overtakes it once the position is meaningful.'}
+        Planning estimate, not tax advice.
+      </div>
     </div>`;
 }
 
@@ -195,7 +260,16 @@ async function openSymbolDetails(symbolOrData, defaultTab = 'recommendation') {
       </div>`;
   } else compEl.innerHTML = '';
 
-  const lenses = d._lenses || (window.lensScores && window.lensScores.scoreLenses(d, {
+  // Fund breadth feeds the buy-and-hold score (a whole-market fund is steadier
+  // than a one-sector fund), so resolve it here rather than letting the lens
+  // fall back to "unknown" and grade every ETF identically.
+  const lensSubject = window.verdict
+    ? { ...d, breadth: window.verdict.fundBreadth(d.symbol, {
+        isFund: !!(d.overlap || d.expenseRatioPct != null || ['ETF', 'MUTUALFUND'].includes((d.quoteType || '').toUpperCase())),
+        kind: (a && a.type) === 'bond etf' ? 'bond' : 'equity',
+      }) }
+    : d;
+  const lenses = d._lenses || (window.lensScores && window.lensScores.scoreLenses(lensSubject, {
     usPerson: lensUsPerson, dividendTaxRatePct: d.dividendTaxRatePct ?? lensDividendTaxRate,
   })) || null;
 

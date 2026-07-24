@@ -571,7 +571,56 @@ function invSymbolCell(r) {
 }
 function invPct(v) { return v == null ? '—' : `${v.toFixed(2)}%`; }
 
-async function renderInvestmentScanner() {
+// ── "Is this worth buying?" / "What does it cost to own?" cells ──────────────
+// The scanner used to show five near-identical numeric columns (every broad US
+// ETF was A/91 with the same "core underweight by $…" note), which answers
+// neither question a buyer actually has. These two cells do.
+const INV_TONE = { good: 'var(--green)', ok: 'var(--cyan)', warn: '#f59e0b', bad: 'var(--red)' };
+
+function invVerdictCell(r) {
+  const v = r.verdict;
+  if (!v) return '—';
+  const color = INV_TONE[v.rating.tone] || 'var(--text-secondary)';
+  const title = `${v.role.label} — ${v.role.blurb}\n${v.rating.label}: ${v.headline}`;
+  return `<div style="display:flex; flex-direction:column; gap:2px;" title="${esc(title)}">
+    <span style="align-self:flex-start; color:${color}; background:color-mix(in srgb, ${color} 12%, transparent); border:1px solid color-mix(in srgb, ${color} 30%, transparent); border-radius:4px; padding:1px 7px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em;">${v.role.label}</span>
+    <span style="font-size:11.5px; color:var(--text-secondary); line-height:1.35; max-width:340px;">${esc(v.headline)}</span>
+  </div>`;
+}
+
+// Recurring cost of ownership (fee + dividend tax) is what matters to a holder;
+// the one-off commission only matters via the minimum order size it implies.
+function invCostCell(r) {
+  const c = r.cost;
+  if (!c) return '—';
+  const color = c.totalPct >= 1 ? 'var(--red)' : c.totalPct >= 0.4 ? '#f59e0b' : 'var(--green)';
+  const parts = [];
+  if (c.expenseRatioPct > 0) parts.push(`${c.expenseRatioPct.toFixed(2)}% fee`);
+  if (c.taxDragPct > 0) parts.push(`${c.taxDragPct.toFixed(2)}% tax`);
+  const minOrder = c.minOrderUsd
+    ? `Commission is ~$0.35 each way, so an order of $${c.minOrderUsd.toLocaleString('en-US')}+ keeps it under 0.1% — below that, hold longer to earn it back.`
+    : 'Low share price: IBKR\'s per-share fee stays a real percentage no matter the order size.';
+  const title = `About $${c.annualCostPer10kUsd} a year for every $10,000 held${parts.length ? ` (${parts.join(' + ')})` : ''}.\n\n${minOrder}`;
+  return `<div style="display:flex; flex-direction:column;" title="${esc(title)}">
+    <span style="font-family:'JetBrains Mono', monospace; font-weight:600; color:${color};">${c.totalPct.toFixed(2)}%/yr</span>
+    <span style="font-size:10.5px; color:var(--text-muted);">≈$${c.annualCostPer10kUsd}/yr per $10k</span>
+  </div>`;
+}
+
+function invWatchCell(r) {
+  const w = (r.verdict && r.verdict.watch) || [];
+  if (!w.length) return `<span style="font-size:11.5px; color:var(--green);">Nothing notable</span>`;
+  return `<ul style="margin:0; padding-left:14px; font-size:11.5px; color:var(--text-secondary); line-height:1.45;">${
+    w.slice(0, 2).map(t => `<li>${esc(t)}</li>`).join('')
+  }</ul>`;
+}
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+async function renderInvestmentScanner(force = false) {
   const root = el('inv-scan-root');
   if (!root) return;
   if (investmentScanLoading) return;
@@ -583,7 +632,9 @@ async function renderInvestmentScanner() {
     const watchlistData = (window.allData || allData || [])
       .filter(d => d._score)
       .map(d => ({ symbol: d.symbol, grade: d._lenses?.buyHold?.grade || d._score?.grade, score: d._score?.totalScore ?? 0 }));
-    data = await window.electronAPI.scanInvestments(watchlistData);
+    // Object form so Refresh can force a fresh market-discovery pass instead of
+    // re-reading the 12-hour cache.
+    data = await window.electronAPI.scanInvestments({ watchlistData, force });
   } catch (err) {
     root.innerHTML = `<div style="padding:24px; color:var(--red); font-size:13px;">Couldn't load opportunities: ${err.message}</div>`;
     investmentScanLoading = false;
@@ -596,37 +647,48 @@ async function renderInvestmentScanner() {
   // tab turns the sizing hint into an actionable trade (amount + est. fee).
   const holdCols = [
     { key: 'symbol', label: 'Symbol', sortable: true, render: invSymbolCell },
+    { key: 'verdict', label: 'What it\'s for', sortable: true, sortValue: r => r.buyHoldScore || 0, render: invVerdictCell },
     { key: 'buyHoldScore', label: 'Quality', align: 'center', sortable: true, render: r => invGradeCell(r.buyHoldGrade, r.buyHoldScore) },
+    { key: 'costTotal', label: 'Cost to own', align: 'right', sortable: true, sortValue: r => r.cost ? r.cost.totalPct : 0, render: invCostCell },
     { key: 'yieldPct', label: 'Yield', align: 'right', sortable: true, render: r => invPct(r.yieldPct) },
-    { key: 'taxDragPct', label: 'Tax drag/yr', align: 'right', sortable: true, render: r => `<span style="color:${r.taxDragPct >= 1.5 ? 'var(--red)' : r.taxDragPct >= 0.5 ? '#f59e0b' : 'var(--green)'}">${invPct(r.taxDragPct)}</span>` },
-    { key: 'expenseRatioPct', label: 'Expense', align: 'right', sortable: true, render: r => r.expenseRatioPct == null ? '—' : `${r.expenseRatioPct.toFixed(2)}%` },
-    { key: 'why', label: 'Why', render: r => `<span style="font-size:11.5px; color:var(--text-secondary);">${(r.reasons || []).join(' · ') || 'Fits your plan'}</span>` },
+    { key: 'watch', label: 'Watch out for', render: invWatchCell },
   ];
   const recommendationCols = [
     { key: 'symbol', label: 'Symbol', sortable: true, render: invSymbolCell },
     { key: 'action', label: 'Action', sortable: true, sortValue: r => r.suggestedUsd || 0, render: r => r.suggestedUsd > 0
-      ? `<div style="display:flex; flex-direction:column;"><span style="font-family:'JetBrains Mono', monospace; font-weight:700; color:var(--green);" class="privacy-amount">Buy ${fmt.currency(r.suggestedUsd)}</span><span style="font-size:10.5px; color:var(--text-muted); font-family:'JetBrains Mono', monospace;" title="Estimated IBKR order commission (Tiered pricing: $0.0035/share, min $0.35)">Est. fee ~$${(r.estFeeUsd || 0.35).toFixed(2)}</span></div>`
+      ? `<div style="display:flex; flex-direction:column;"><span style="font-family:'JetBrains Mono', monospace; font-weight:700; color:var(--green);" class="privacy-amount">Buy ${fmt.currency(r.suggestedUsd)}</span><span style="font-size:10.5px; color:var(--text-muted); font-family:'JetBrains Mono', monospace;" title="Estimated IBKR order commission (Tiered pricing: $0.0035/share, min $0.35)">Est. fee ~$${(r.estFeeUsd || 0.35).toFixed(2)}${r.cost && r.cost.trade ? ` · ${r.cost.trade.roundTripPct.toFixed(3)}% round trip` : ''}</span></div>`
       : `<span style="color:var(--cyan); font-weight:600;">Top pick</span>` },
+    { key: 'verdict', label: 'What it\'s for', sortable: true, sortValue: r => r.buyHoldScore || 0, render: invVerdictCell },
     { key: 'buyHoldScore', label: 'Quality', align: 'center', sortable: true, render: r => invGradeCell(r.buyHoldGrade, r.buyHoldScore) },
-    { key: 'yieldPct', label: 'Yield', align: 'right', sortable: true, render: r => invPct(r.yieldPct) },
-    { key: 'taxDragPct', label: 'Tax drag/yr', align: 'right', sortable: true, render: r => `<span style="color:${r.taxDragPct >= 1.5 ? 'var(--red)' : r.taxDragPct >= 0.5 ? '#f59e0b' : 'var(--green)'}">${invPct(r.taxDragPct)}</span>` },
-    { key: 'why', label: 'Explanation', render: r => `<span style="font-size:11.5px; color:var(--text-secondary);">${(r.reasons || []).join(' · ') || 'Fits your plan'}</span>` },
+    { key: 'costTotal', label: 'Cost to own', align: 'right', sortable: true, sortValue: r => r.cost ? r.cost.totalPct : 0, render: invCostCell },
+    { key: 'holdNote', label: 'Commission check', render: r => r.cost
+      ? `<span style="font-size:11.5px; color:${INV_TONE[r.cost.holdLevel] || 'var(--text-secondary)'}; line-height:1.4;">${esc(r.cost.holdNote)}</span>`
+      : '—' },
   ];
   const dividendCols = [
     { key: 'symbol', label: 'Symbol', sortable: true, render: invSymbolCell },
+    { key: 'verdict', label: 'What it\'s for', sortable: true, sortValue: r => r.dividendScore || 0, render: invVerdictCell },
     { key: 'dividendScore', label: 'Income', align: 'center', sortable: true, render: r => invGradeCell(r.dividendGrade, r.dividendScore) },
     { key: 'yieldPct', label: 'Yield', align: 'right', sortable: true, render: r => invPct(r.yieldPct) },
     { key: 'afterTax', label: 'After-tax', align: 'right', sortable: true, sortValue: r => (r.yieldPct - r.taxDragPct), render: r => `<span style="color:var(--green)">${invPct(r.yieldPct - r.taxDragPct)}</span>` },
-    { key: 'taxDragPct', label: 'Tax drag/yr', align: 'right', sortable: true, render: r => invPct(r.taxDragPct) },
-    { key: 'why', label: 'Why', render: r => `<span style="font-size:11.5px; color:var(--text-secondary);">${(r.reasons || []).join(' · ') || 'Pays income'}</span>` },
+    { key: 'watch', label: 'Watch out for', render: invWatchCell },
   ];
 
+  // Facts that are true of EVERY row belong here, said once — not repeated down
+  // a column where they carry no information (the old "Why" column showed the
+  // same bucket-underweight figure on every single row).
+  const gaps = [...new Set((cats.etf || []).concat(cats.bond || [])
+    .filter(r => r.bucketNeedUsd > 0)
+    .map(r => `${r.bucket} is underweight by $${r.bucketNeedUsd.toLocaleString('en-US')}`))].slice(0, 2);
+  const gapNote = gaps.length ? ` Right now ${gaps.join(' and ')}, which is why these are on the list.` : '';
+  const feeNote = ' IBKR charges about $0.35 per order, so any order above roughly $700 makes the commission a rounding error — the annual "cost to own" is what actually compounds against you.';
+
   const intros = {
-    recommendation: 'Actionable buy suggestions for your portfolio allocation and glidepath. Shows recommended trade action, size, quality score, and explanation.',
-    etf: 'Broad, low-cost, US-domiciled funds — the core of a long-term portfolio. Ranked by quality; lower tax drag wins ties (Switzerland taxes dividends, so low-yield broad funds are most efficient for you).',
+    recommendation: 'What to buy next, sized to the gaps in your allocation and glidepath.' + gapNote + feeNote,
+    etf: 'Broad, low-cost, US-domiciled funds — the core of a long-term portfolio. Ranked by quality: whole-market funds outrank single-sector ones, and lower cost wins ties.' + gapNote,
     bond: 'Fixed-income funds for glidepath risk control — held to steady the ride, not for yield (bond interest is fully taxed for you).' + (data.bondsFirst ? ' Your equity exposure is above your age target, so these come first right now.' : ''),
     stock: 'Individual companies, ranked by buy-and-hold quality. Satellite only — keep each small; diversified funds should stay your core. Employer stock and over-concentrated names are excluded.',
-    dividend: 'Ranked by after-tax income (the Dividend lens). Remember every 1% of yield is a recurring tax cost at your rate.',
+    dividend: 'Ranked by after-tax income. Every 1% of yield is a recurring tax cost at your rate, so a lower-yielding fund often leaves you with more.',
   };
 
   const config = {
@@ -659,5 +721,5 @@ async function renderInvestmentScanner() {
 
 el('inv-scan-refresh')?.addEventListener('click', () => {
   investmentScanner = null;
-  renderInvestmentScanner();
+  renderInvestmentScanner(true);
 });

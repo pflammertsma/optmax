@@ -1664,12 +1664,21 @@ app.whenReady().then(() => {
     } catch (e) { console.warn('Flex log write failed:', e.message); }
   }
 
-  // Our current *guess* at IBKR's cool-down after a rate-limit lockout, used
-  // only to decide when to warn the user. Evidence from flex-request-log.json
-  // (2026-07-24): a 1025 at 09:38 was still 1025 at 10:25 — 30 min after the
-  // prior attempt — so the window is >30 min (and each attempt likely re-arms
-  // it). Bumped to 60 min; refine further as the log reveals more.
-  const FLEX_GUESSED_COOLOFF_MS = 60 * 60 * 1000;
+  // Our current *guess* at IBKR's cool-down after a rate-limit lockout (1018 /
+  // 1025), used only to decide when to warn the user.
+  //
+  // Evidence from flex-request-log.json (all 2026-07-24, gap = time since the
+  // previous SendRequest):
+  //     09:38 →      1025      12:32 → +119m 1001
+  //     09:55 → +17m 1025      14:52 → +140m 1001
+  //     10:25 → +30m 1025
+  //     11:41 → +76m 1001   ← lockout had cleared
+  //     12:33 → +52m 1025   ← and came back
+  // So the 1025 window sits between 52 and 76 minutes, and every attempt inside
+  // it re-arms the clock. 75 min is the conservative read of that; refine as
+  // the log grows. Note 1001 is a DIFFERENT failure that a longer wait does not
+  // fix — see describeFlexError.
+  const FLEX_GUESSED_COOLOFF_MS = 75 * 60 * 1000;
   const FLEX_MIN_GAP_MS = 30 * 1000;
 
   // Advisory (never blocking) — derived from the persisted log so it survives
@@ -1703,6 +1712,10 @@ app.whenReady().then(() => {
   async function flexSendRequestLogged(token, queryId, kind) {
     const started = Date.now();
     const entry = { ts: new Date(started).toISOString(), kind, step: 'SendRequest' };
+    // Gap since the previous SendRequest — the variable we're actually trying to
+    // correlate against IBKR's error codes, recorded so the log is self-contained.
+    const prior = loadFlexLog().filter(e => e.step === 'SendRequest').pop();
+    entry.gapMinutes = prior ? Math.round((started - Date.parse(prior.ts)) / 60000) : null;
     let sr;
     try { sr = await httpsGetText(flex.sendRequestUrl(token, queryId)); }
     catch (e) {
@@ -1719,6 +1732,11 @@ app.whenReady().then(() => {
     }
     entry.status = control.status || null;
     entry.errorCode = control.errorCode || null;
+    // IBKR reuses code 1001 for several unrelated conditions, and the only thing
+    // that distinguishes them is the message text. Without it the log can tell
+    // us WHEN a failure happened but not WHY — record it (and the gap since the
+    // previous request, which is the variable we're actually studying).
+    entry.errorMessage = control.errorMessage || null;
     if (control.ok && control.referenceCode) { entry.outcome = 'accepted'; entry.referenceCode = control.referenceCode; }
     else { entry.outcome = 'error'; if (flex.isLockoutError(control)) entry.lockout = true; }
     entry.ms = Date.now() - started;
