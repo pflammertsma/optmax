@@ -577,15 +577,31 @@ function invPct(v) { return v == null ? '—' : `${v.toFixed(2)}%`; }
 // neither question a buyer actually has. These two cells do.
 const INV_TONE = { good: 'var(--green)', ok: 'var(--cyan)', warn: '#f59e0b', bad: 'var(--red)' };
 
+// Scannable, not chatty. Only the parts that DIFFER row to row earn table space:
+// the role, what the thing actually is, and how long to hold it. The prose
+// rationale is identical across every broad ETF, so it lives in the tooltip and
+// the symbol dialog — putting it in a column just repeats one sentence 39 times.
 function invVerdictCell(r) {
   const v = r.verdict;
   if (!v) return '—';
   const color = INV_TONE[v.rating.tone] || 'var(--text-secondary)';
-  const title = `${v.role.label} — ${v.role.blurb}\n${v.rating.label}: ${v.headline}`;
-  return `<div style="display:flex; flex-direction:column; gap:2px;" title="${esc(title)}">
-    <span style="align-self:flex-start; color:${color}; background:color-mix(in srgb, ${color} 12%, transparent); border:1px solid color-mix(in srgb, ${color} 30%, transparent); border-radius:4px; padding:1px 7px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em;">${v.role.label}</span>
-    <span style="font-size:11.5px; color:var(--text-secondary); line-height:1.35; max-width:340px;">${esc(v.headline)}</span>
+  const hold = v.hold;
+  const title = `${v.role.label} — ${v.role.blurb}\n${v.rating.label}: ${v.headline}`
+    + (hold ? `\n\nHold ${hold.label}: ${hold.rationale}` : '');
+  return `<div style="display:flex; align-items:center; gap:7px; white-space:nowrap;" title="${esc(title)}">
+    <span style="color:${color}; background:color-mix(in srgb, ${color} 12%, transparent); border:1px solid color-mix(in srgb, ${color} 30%, transparent); border-radius:4px; padding:1px 7px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em;">${esc(v.role.label)}</span>
+    ${v.breadthLabel ? `<span style="font-size:11.5px; color:var(--text-secondary);">${esc(v.breadthLabel)}</span>` : ''}
+    ${hold ? `<span style="font-size:11px; color:var(--text-muted);">· ${esc(hold.label)}</span>` : ''}
   </div>`;
+}
+
+// A column of identical "A 91" badges says nothing — but the full rationale is
+// three lines of text per row. Badge in the cell, reasons on hover.
+function invQualityCell(r) {
+  const badge = invGradeCell(r.buyHoldGrade, r.buyHoldScore);
+  const strengths = (r.verdict && r.verdict.strengths) || [];
+  if (!strengths.length) return badge;
+  return `<span title="${esc('Why this grade:\n· ' + strengths.join('\n· '))}" style="cursor:help; border-bottom:1px dotted var(--border);">${badge}</span>`;
 }
 
 // Recurring cost of ownership (fee + dividend tax) is what matters to a holder;
@@ -607,12 +623,13 @@ function invCostCell(r) {
   </div>`;
 }
 
+// Only speaks up when there IS something. A green "Nothing notable" on 30 rows
+// is as much noise as the caveats it was meant to contrast with.
 function invWatchCell(r) {
   const w = (r.verdict && r.verdict.watch) || [];
-  if (!w.length) return `<span style="font-size:11.5px; color:var(--green);">Nothing notable</span>`;
-  return `<ul style="margin:0; padding-left:14px; font-size:11.5px; color:var(--text-secondary); line-height:1.45;">${
-    w.slice(0, 2).map(t => `<li>${esc(t)}</li>`).join('')
-  }</ul>`;
+  if (!w.length) return `<span style="color:var(--text-muted);">—</span>`;
+  const rest = w.length > 1 ? ` <span style="color:var(--text-muted);">+${w.length - 1} more</span>` : '';
+  return `<span title="${esc(w.join('\n'))}" style="font-size:11.5px; color:#f59e0b; line-height:1.4; display:block; max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(w[0])}${rest}</span>`;
 }
 
 function esc(s) {
@@ -648,7 +665,7 @@ async function renderInvestmentScanner(force = false) {
   const holdCols = [
     { key: 'symbol', label: 'Symbol', sortable: true, render: invSymbolCell },
     { key: 'verdict', label: 'What it\'s for', sortable: true, sortValue: r => r.buyHoldScore || 0, render: invVerdictCell },
-    { key: 'buyHoldScore', label: 'Quality', align: 'center', sortable: true, render: r => invGradeCell(r.buyHoldGrade, r.buyHoldScore) },
+    { key: 'buyHoldScore', label: 'Quality', align: 'center', sortable: true, render: invQualityCell },
     { key: 'costTotal', label: 'Cost to own', align: 'right', sortable: true, sortValue: r => r.cost ? r.cost.totalPct : 0, render: invCostCell },
     { key: 'yieldPct', label: 'Yield', align: 'right', sortable: true, render: r => invPct(r.yieldPct) },
     { key: 'watch', label: 'Watch out for', render: invWatchCell },
@@ -656,13 +673,14 @@ async function renderInvestmentScanner(force = false) {
   const recommendationCols = [
     { key: 'symbol', label: 'Symbol', sortable: true, render: invSymbolCell },
     { key: 'action', label: 'Action', sortable: true, sortValue: r => r.suggestedUsd || 0, render: r => r.suggestedUsd > 0
-      ? `<div style="display:flex; flex-direction:column;"><span style="font-family:'JetBrains Mono', monospace; font-weight:700; color:var(--green);" class="privacy-amount">Buy ${fmt.currency(r.suggestedUsd)}</span><span style="font-size:10.5px; color:var(--text-muted); font-family:'JetBrains Mono', monospace;" title="Estimated IBKR order commission (Tiered pricing: $0.0035/share, min $0.35)">Est. fee ~$${(r.estFeeUsd || 0.35).toFixed(2)}${r.cost && r.cost.trade ? ` · ${r.cost.trade.roundTripPct.toFixed(3)}% round trip` : ''}</span></div>`
+      ? `<div style="display:flex; flex-direction:column;"><span style="font-weight:700; font-size:14px; color:var(--green);" class="privacy-amount">Buy ${fmt.currency(r.suggestedUsd)}</span><span style="font-size:11px; color:var(--text-muted);" title="Estimated IBKR order commission (Tiered pricing: $0.0035/share, min $0.35)">Est. fee ~$${(r.estFeeUsd || 0.35).toFixed(2)}${r.cost && r.cost.trade ? ` · ${r.cost.trade.roundTripPct.toFixed(3)}% round trip` : ''}</span></div>`
       : `<span style="color:var(--cyan); font-weight:600;">Top pick</span>` },
     { key: 'verdict', label: 'What it\'s for', sortable: true, sortValue: r => r.buyHoldScore || 0, render: invVerdictCell },
-    { key: 'buyHoldScore', label: 'Quality', align: 'center', sortable: true, render: r => invGradeCell(r.buyHoldGrade, r.buyHoldScore) },
+    { key: 'buyHoldScore', label: 'Quality', align: 'center', sortable: true, render: invQualityCell },
     { key: 'costTotal', label: 'Cost to own', align: 'right', sortable: true, sortValue: r => r.cost ? r.cost.totalPct : 0, render: invCostCell },
-    { key: 'holdNote', label: 'Commission check', render: r => r.cost
-      ? `<span style="font-size:11.5px; color:${INV_TONE[r.cost.holdLevel] || 'var(--text-secondary)'}; line-height:1.4;">${esc(r.cost.holdNote)}</span>`
+    { key: 'holdNote', label: 'Commission', align: 'center', render: r => r.cost
+      ? `<span title="${esc(r.cost.holdNote)}" style="font-size:11px; font-weight:600; cursor:help; color:${INV_TONE[r.cost.holdLevel] || 'var(--text-secondary)'};">${
+          r.cost.holdLevel === 'ok' ? 'Negligible' : r.cost.holdLevel === 'warn' ? 'Order is small' : r.cost.holdLevel === 'bad' ? 'Too small' : 'See note'}</span>`
       : '—' },
   ];
   const dividendCols = [

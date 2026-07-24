@@ -16,7 +16,7 @@ section('dividendYieldPct');
 const O   = { regularMarketPrice: 64.72,  trailingAnnualDividendRate: 3.234, trailingAnnualDividendYield: 0.049730893, dividendYield: 5 };
 const JNJ = { regularMarketPrice: 259.27, trailingAnnualDividendRate: 5.24,  trailingAnnualDividendYield: 0.020498374, dividendYield: 2.07 };
 const VTI = { regularMarketPrice: 364.69, trailingAnnualDividendRate: 2.802, trailingAnnualDividendYield: 0.0075961724, dividendYield: 1.05 };
-// The ADR trap: rate is 145 JPY against a USD price → Yahoo's own ratio is 13.81.
+// The ADR problem case: rate is 145 JPY against a USD price → Yahoo's own ratio is 13.81.
 const MFG = { regularMarketPrice: 10.57,  trailingAnnualDividendRate: 145,   trailingAnnualDividendYield: 13.809524,   dividendYield: 1.75 };
 
 test('normal US names resolve to their real yield', () => {

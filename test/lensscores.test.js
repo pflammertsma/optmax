@@ -23,7 +23,7 @@ const iwda = {                      // foreign-domiciled fund → PFIC for a US 
   symbol: 'IWDA', quoteType: 'ETF', marketCap: 80e9, expenseRatioPct: 0.20,
   yieldPct: 1.6, analysis: { type: 'etf', domicile: 'Ireland', isPfic: true },
 };
-const highYield = {                 // small-cap double-digit yield — a yield trap
+const highYield = {                 // small-cap double-digit yield — likely unsustainable
   symbol: 'YLD', quoteType: 'EQUITY', marketCap: 400e6, yieldPct: 14,
   analysis: { type: 'stock', domicile: 'United States', isPfic: false },
 };
@@ -75,10 +75,10 @@ test('a zero-yield growth stock scores poorly for income', () => {
   assert.strictEqual(r.grade, 'F');
 });
 
-test('a solid large-cap payer beats a small-cap yield trap', () => {
+test('a solid large-cap payer beats an unsustainable small-cap yield', () => {
   const payer = dividendScore({ symbol: 'KO', quoteType: 'EQUITY', marketCap: 260e9, yieldPct: 3.0, analysis: {} }, { dividendTaxRatePct: 35 });
-  const trap = dividendScore(highYield, { dividendTaxRatePct: 35 });
-  assert.ok(payer.score > trap.score, `payer ${payer.score} should beat trap ${trap.score}`);
+  const unsustainable = dividendScore(highYield, { dividendTaxRatePct: 35 });
+  assert.ok(payer.score > unsustainable.score, `payer ${payer.score} should beat unsustainable ${unsustainable.score}`);
 });
 
 test('tax drag lowers the after-tax yield score', () => {

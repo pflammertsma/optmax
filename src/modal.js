@@ -116,6 +116,14 @@ function renderVerdictAndCost(d, a, lenses) {
         <span style="font-size:12px; font-weight:600; color:${vc};">${q(v.rating.label)}</span>
       </div>
       <div style="font-size:12.5px; color:var(--text-secondary); line-height:1.5;">${q(v.headline)} ${q(v.role.blurb)}</div>
+      ${v.hold ? `<div style="margin-top:9px; padding-top:8px; border-top:1px solid var(--border);">
+        <span style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Plan to hold</span>
+        <span style="font-size:13px; font-weight:700; color:var(--cyan); margin-left:8px;">${q(v.hold.label)}</span>
+        <div style="font-size:11.5px; color:var(--text-secondary); line-height:1.5; margin-top:3px;">${q(v.hold.rationale)}</div>
+      </div>` : ''}
+      ${(v.strengths || []).length ? `<div style="margin-top:9px; display:flex; flex-wrap:wrap; gap:5px;">${
+        v.strengths.map(s => `<span style="font-size:10.5px; color:var(--green); background:rgba(16,185,129,0.10); border:1px solid rgba(16,185,129,0.25); border-radius:4px; padding:2px 7px;">${q(s)}</span>`).join('')
+      }</div>` : ''}
       ${v.watch.length ? `<ul style="margin:8px 0 0; padding-left:16px; font-size:11.5px; color:var(--text-secondary); line-height:1.5;">${v.watch.map(w => `<li>${q(w)}</li>`).join('')}</ul>` : ''}
     </div>
 

@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('assert');
-const { instrumentVerdict, fundBreadth } = require('../lib/verdict');
+const { instrumentVerdict, fundBreadth, holdingPeriod, qualityStrengths } = require('../lib/verdict');
 const { buyHoldScore } = require('../lib/lensscores');
 
 let passed = 0, failed = 0;
@@ -132,6 +132,108 @@ test('a taxable yield is called out with the actual drag', () => {
 test('single-company risk is always stated for a stock', () => {
   const v = instrumentVerdict({ symbol: 'AAPL', isFund: false, yieldPct: 0.4, marketCap: 3e12, buyHoldScore: 60 }, CH);
   assert.ok(v.watch.some(w => /single company/i.test(w)));
+});
+
+test('a high-yield fund whose tax bill eats the return is not "solid"', () => {
+  // JEPQ: passes every individual check (fee under 0.50, quality 82, diversified)
+  // yet hands back 3.3%/yr once the Swiss dividend tax is applied.
+  const v = instrumentVerdict({ symbol: 'JEPQ', isFund: true, kind: 'equity', expenseRatioPct: 0.35, yieldPct: 9.9, buyHoldScore: 82 }, CH);
+  assert.strictEqual(v.rating.key, 'careful');
+  assert.match(v.headline, /3\.3%\/yr/);
+  assert.ok(v.watch.some(w => /high bar for the returns to clear/.test(w)));
+});
+
+test('the same fund is fine for someone who is not taxed on dividends', () => {
+  const v = instrumentVerdict(
+    { symbol: 'JEPQ', isFund: true, kind: 'equity', expenseRatioPct: 0.35, yieldPct: 9.9, buyHoldScore: 82 },
+    { usPerson: true, dividendTaxRatePct: 0 });
+  assert.strictEqual(v.rating.key, 'solid');
+});
+
+test('a cap-segment fund does not claim to be the whole market', () => {
+  const s = qualityStrengths({ symbol: 'VB', isFund: true, kind: 'equity', expenseRatioPct: 0.05 }, CH);
+  assert.ok(s.some(x => /one size band/.test(x)), `got: ${JSON.stringify(s)}`);
+  assert.ok(!s.some(x => /whole market/i.test(x)));
+});
+
+// ── Recommended holding period ───────────────────────────────────────────────
+test('broad equity wants a full business cycle', () => {
+  const h = holdingPeriod({ breadth: 'broad' });
+  assert.strictEqual(h.minYears, 7);
+  assert.match(h.rationale, /business cycle/i);
+});
+
+test('a single sector needs longer than the market, being concentrated', () => {
+  assert.strictEqual(holdingPeriod({ breadth: 'sector' }).minYears, 5);
+});
+
+test('a single company is the longest hold and never for a dated goal', () => {
+  const h = holdingPeriod({ breadth: 'single' });
+  assert.strictEqual(h.minYears, 10);
+  assert.match(h.rationale, /never money you need on a date/i);
+});
+
+test('a T-bill fund is a parking space, not a multi-year hold', () => {
+  const h = holdingPeriod({ kind: 'bond', symbol: 'SGOV' });
+  assert.strictEqual(h.minYears, 0);
+  assert.strictEqual(h.label, 'Any time');
+});
+
+test('a long bond fund is NOT treated like a T-bill fund', () => {
+  assert.strictEqual(holdingPeriod({ kind: 'bond', symbol: 'TLT' }).minYears, 3);
+});
+
+test('the verdict carries the holding period', () => {
+  const v = instrumentVerdict({ symbol: 'VTI', isFund: true, kind: 'equity', expenseRatioPct: 0.03, yieldPct: 1.05, buyHoldScore: 100 }, CH);
+  assert.strictEqual(v.hold.label, '7+ yrs');
+  // The short label is for the table; the reason has to stay reachable.
+  assert.match(v.hold.rationale, /business cycle/i);
+});
+
+test('the verdict carries a short label for what the instrument is', () => {
+  const vti = instrumentVerdict({ symbol: 'VTI', isFund: true, kind: 'equity', expenseRatioPct: 0.03, yieldPct: 1.05, buyHoldScore: 100 }, CH);
+  const vb  = instrumentVerdict({ symbol: 'VB',  isFund: true, kind: 'equity', expenseRatioPct: 0.05, yieldPct: 1.19, buyHoldScore: 100 }, CH);
+  const vgt = instrumentVerdict({ symbol: 'VGT', isFund: true, kind: 'equity', expenseRatioPct: 0.10, yieldPct: 0.36, buyHoldScore: 91 }, CH);
+  assert.strictEqual(vti.breadthLabel, 'Whole market');
+  assert.strictEqual(vb.breadthLabel, 'One size band');
+  assert.strictEqual(vgt.breadthLabel, 'One sector');
+  // Short enough to sit in a table cell without wrapping.
+  for (const v of [vti, vb, vgt]) assert.ok(v.breadthLabel.length <= 16, v.breadthLabel);
+});
+
+test('a T-bill fund is labelled as cash-like, not generic fixed income', () => {
+  const v = instrumentVerdict({ symbol: 'SGOV', isFund: true, kind: 'bond', expenseRatioPct: 0.07, yieldPct: 3.9, buyHoldScore: 100 }, CH);
+  assert.strictEqual(v.breadthLabel, 'Cash-like bonds');
+});
+
+// ── Why the quality score is high ────────────────────────────────────────────
+test('a broad cheap US fund explains its own A grade', () => {
+  const s = qualityStrengths({ symbol: 'VTI', isFund: true, kind: 'equity', expenseRatioPct: 0.03, yieldPct: 1.05 }, CH);
+  assert.ok(s.some(x => /whole market/i.test(x)), `got: ${JSON.stringify(s)}`);
+  assert.ok(s.some(x => /PFIC/.test(x)), `got: ${JSON.stringify(s)}`);
+  assert.ok(s.some(x => /Very low fee/.test(x)), `got: ${JSON.stringify(s)}`);
+});
+
+test('a sector fund does not claim to be the whole market', () => {
+  const s = qualityStrengths({ symbol: 'VGT', isFund: true, kind: 'equity', expenseRatioPct: 0.10 }, CH);
+  assert.ok(s.some(x => /One sector/.test(x)), `got: ${JSON.stringify(s)}`);
+  assert.ok(!s.some(x => /whole market/i.test(x)));
+});
+
+test('a mega-cap stock is credited for its size, not fund breadth', () => {
+  const s = qualityStrengths({ symbol: 'AAPL', isFund: false, marketCap: 3e12 }, CH);
+  assert.ok(s.some(x => /Mega-cap/.test(x)), `got: ${JSON.stringify(s)}`);
+});
+
+test('the PFIC credit is withheld from a fund that is one', () => {
+  const s = qualityStrengths({ symbol: 'VWRL', isFund: true, isPfic: true, expenseRatioPct: 0.22 }, CH);
+  assert.ok(!s.some(x => /PFIC/.test(x)));
+});
+
+test('a PFIC verdict has no strengths and no holding period', () => {
+  const v = instrumentVerdict({ symbol: 'VWRL', isFund: true, isPfic: true, buyHoldScore: 30 }, CH);
+  assert.deepStrictEqual(v.strengths, []);
+  assert.strictEqual(v.hold.label, 'Don\'t buy');
 });
 
 console.log('─'.repeat(60));

@@ -635,7 +635,10 @@ async function captureScannerConfig() {
     breadth: 'broad',
     role: { key: 'core', label: 'Core', blurb: 'Portfolio bedrock.' },
     rating: { key: 'strong', label: 'Strong buy-and-hold', tone: 'good' },
-    headline: 'Broad, cheap and tax-clean for you.',
+    headline: 'Broad, cheap and tax-clean for you — the kind of fund to buy and forget.',
+    breadthLabel: 'Whole market',
+    strengths: ['Whole market in one fund', 'US-domiciled — no PFIC exposure', 'Very low fee (0.03%)'],
+    hold: { minYears: 7, label: '7+ yrs', rationale: 'Broad equity needs a full business cycle.' },
     watch: [],
   };
   const sectorVerdict = {
@@ -643,6 +646,9 @@ async function captureScannerConfig() {
     role: { key: 'satellite', label: 'Satellite', blurb: 'A side bet around the core.' },
     rating: { key: 'careful', label: 'Only with care', tone: 'warn' },
     headline: 'Usable, but the 0.60% fee is a permanent drag.',
+    breadthLabel: 'One sector',
+    strengths: ['One sector', 'US-domiciled — no PFIC exposure'],
+    hold: { minYears: 5, label: '5+ yrs', rationale: 'One sector can lag the market for years.' },
     watch: ['0.60%/yr fund fee — about $60 a year on every $10,000', 'One sector only'],
   };
   const cheapCost = { expenseRatioPct: 0.03, taxDragPct: 0.32, totalPct: 0.35, annualCostPer10kUsd: 35,
@@ -717,6 +723,42 @@ testAsync('every tab leads with a plain-language verdict, not just numbers', asy
   }
 });
 
+testAsync('the quality grade explains what earned it', async () => {
+  const cfg = await captureScannerConfig();
+  const col = cfg.columns('etf').find(c => c.key === 'buyHoldScore');
+  const html = col.render(cfg.getRows('etf')[0]);
+  // A column of identical "A 91" badges is what this replaced.
+  assert.ok(/Whole market in one fund/.test(html), `quality cell gives no rationale: ${html}`);
+  assert.ok(/Very low fee/.test(html) || /PFIC/.test(html), 'quality cell shows only one reason');
+  // Falls back to a bare badge rather than breaking when there is no verdict.
+  assert.doesNotThrow(() => col.render({ buyHoldGrade: 'A', buyHoldScore: 91 }));
+});
+
+testAsync('each row says how long to plan to hold it', async () => {
+  const cfg = await captureScannerConfig();
+  const col = cfg.columns('etf').find(c => c.key === 'verdict');
+  const broad = col.render(cfg.getRows('etf')[0]);
+  const sector = col.render(cfg.getRows('etf')[1]);
+  assert.ok(/7\+ yrs/.test(broad), `broad fund missing its holding period: ${broad}`);
+  assert.ok(/5\+ yrs/.test(sector), `sector fund missing its holding period: ${sector}`);
+  // The reason stays reachable on hover rather than taking a column of prose.
+  assert.ok(/full business cycle/.test(broad), 'the reason for the holding period is not available');
+});
+
+testAsync('the verdict cell stays compact — no repeated prose in the table', async () => {
+  const cfg = await captureScannerConfig();
+  const col = cfg.columns('etf').find(c => c.key === 'verdict');
+  const html = col.render(cfg.getRows('etf')[0]);
+  // The headline is identical on every broad ETF, so it must not be rendered as
+  // visible text — tooltip only. Strip attributes, then check what is left.
+  const visible = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  assert.ok(!/kind of fund to buy and forget/.test(visible),
+    `repeated headline prose is being rendered as cell text: "${visible}"`);
+  assert.ok(visible.length < 60, `verdict cell text is too long to scan: "${visible}"`);
+  assert.ok(/Core/.test(visible) && /Whole market/.test(visible),
+    `verdict cell lost its differentiating labels: "${visible}"`);
+});
+
 testAsync('cost to own is shown as a yearly percentage AND in dollars', async () => {
   const cfg = await captureScannerConfig();
   const col = cfg.columns('etf').find(c => c.key === 'costTotal');
@@ -738,7 +780,10 @@ testAsync('watch-outs list real caveats and stay silent when there are none', as
   const cfg = await captureScannerConfig();
   const col = cfg.columns('etf').find(c => c.key === 'watch');
   assert.ok(col, 'ETF tab is missing the watch-out column');
-  assert.ok(/Nothing notable/.test(col.render(cfg.getRows('etf')[0])));
+  // Silent when there is nothing to say — a green "Nothing notable" repeated
+  // down 30 rows is the same noise the caveats were meant to stand out from.
+  assert.ok(/—/.test(col.render(cfg.getRows('etf')[0])));
+  assert.ok(!/Nothing notable/.test(col.render(cfg.getRows('etf')[0])));
   assert.ok(/0\.60%\/yr fund fee/.test(col.render(cfg.getRows('etf')[1])));
 });
 
