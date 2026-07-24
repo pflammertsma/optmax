@@ -99,5 +99,44 @@ test('empty portfolio returns empty categories', () => {
   assert.deepStrictEqual(r.categories, { etf: [], bond: [], stock: [], dividend: [] });
 });
 
+section('discovery + quality guards');
+
+const withDiscovery = {
+  ...base,
+  quotes: {
+    BIGCO:  { regularMarketPrice: 120, marketCap: 8e10, currency: 'USD', quoteType: 'EQUITY' },
+    TINYCO: { regularMarketPrice: 2,   marketCap: 1e8,  currency: 'USD', quoteType: 'EQUITY' },
+    FRGN:   { regularMarketPrice: 60,  marketCap: 2e10, currency: 'EUR', quoteType: 'EQUITY' },
+  },
+  discovered: [
+    { symbol: 'BIGCO',  name: 'Big Co',     hint: 'screener: undervalued large-cap' },
+    { symbol: 'TINYCO', name: 'Tiny Co',    hint: 'screener: growth' },
+    { symbol: 'FRGN',   name: 'Foreign Co', hint: 'similar to VTI' },
+  ],
+};
+
+test('a quality discovered large-cap appears, tagged with its discovery hint', () => {
+  const r = scanInvestments(withDiscovery);
+  const big = r.categories.stock.find(x => x.symbol === 'BIGCO');
+  assert.ok(big, 'discovered large-cap missing');
+  assert.strictEqual(big.source, 'discovery');
+  assert.ok((big.reasons || []).some(t => /undervalued large-cap/.test(t)), 'hint not surfaced');
+});
+
+test('quality guard drops discovered penny / micro-cap names', () => {
+  const all = [].concat(...Object.values(scanInvestments(withDiscovery).categories)).map(x => x.symbol);
+  assert.ok(!all.includes('TINYCO'), 'micro-cap leaked in');
+});
+
+test('discovered non-USD names are excluded', () => {
+  const all = [].concat(...Object.values(scanInvestments(withDiscovery).categories)).map(x => x.symbol);
+  assert.ok(!all.includes('FRGN'), 'foreign-currency discovered name leaked in');
+});
+
+test('maxPerCategory caps each tab', () => {
+  const r = scanInvestments({ ...withDiscovery, maxPerCategory: 1 });
+  ['etf', 'bond', 'stock', 'dividend'].forEach(k => assert.ok(r.categories[k].length <= 1, `${k} exceeded cap`));
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

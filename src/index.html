@@ -1497,7 +1497,7 @@
   <!-- Analysis Modal -->
   <div class="modal-overlay hidden" id="modal-overlay">
     <div class="modal"
-      style="width: 820px; height: 620px; max-height: 90vh; max-width: 95vw; display:flex; flex-direction:column; padding: 0;">
+      style="width: 1080px; height: 760px; max-height: calc(100vh - 48px); max-width: 95vw; display:flex; flex-direction:column; padding: 0;">
       <button class="modal-close" id="modal-close" style="top: 14px; right: 18px; z-index: 10;">✕</button>
 
       <div class="modal-header"
@@ -1528,30 +1528,44 @@
         </div>
       </div>
 
-      <!-- Detail Tabs -->
-      <div class="symbol-tabs"
-        style="display:flex; gap:16px; margin: 0 28px 12px 28px; border-bottom: 1px solid var(--border); padding-bottom:8px; flex-shrink: 0;">
-        <button class="tab-btn active" id="modal-tab-compliance"
-          style="font-weight:600; font-size:13px; color:var(--cyan); border:none; background:none; cursor:pointer; padding:4px 8px; border-bottom:2px solid var(--cyan); outline: none;">Compliance
-          &amp; Fund Analysis</button>
-        <button class="tab-btn" id="modal-tab-options"
-          style="font-weight:600; font-size:13px; color:var(--text-secondary); border:none; background:none; cursor:pointer; padding:4px 8px; outline: none;">Options
-          Opportunity</button>
-      </div>
+      <!-- Live region (hidden while loading): full-width chart, essentials, tabs, body -->
+      <div id="modal-live" style="display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden;">
 
-      <div class="modal-body" id="modal-details-body"
-        style="flex: 1; display: grid; grid-template-columns: 1.25fr 1fr; gap: 28px; padding: 8px 28px 24px 28px; overflow: hidden; min-height: 0;">
-        <!-- Left Column: Tabbed Content (Scrollable internally) -->
-        <div class="modal-left-col" style="overflow-y: auto; padding-right: 8px; min-width: 0; height: 100%;">
+        <!-- Full-width price chart -->
+        <div style="margin: 0 28px 12px 28px; flex-shrink:0;">
+          <div class="chart-container"
+            style="height:150px; background: rgba(255,255,255,0.01); border: 1px solid var(--border); border-radius: 8px; padding: 10px;">
+            <canvas id="price-chart"></canvas>
+          </div>
+        </div>
 
-          <!-- Tab 1: Compliance & Fund Analysis -->
-          <div id="modal-content-compliance" style="display: block;">
+        <!-- Always-visible essentials (market cap, your position, yield, 52w…) -->
+        <div class="stats-grid" id="si-essentials"
+          style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin: 0 28px 12px 28px; flex-shrink:0;"></div>
+
+        <!-- Detail Tabs -->
+        <div class="symbol-tabs"
+          style="display:flex; gap:16px; margin: 0 28px 10px 28px; border-bottom: 1px solid var(--border); padding-bottom:8px; flex-shrink: 0;">
+          <button class="tab-btn active" id="modal-tab-recommendation"
+            style="font-weight:600; font-size:13px; color:var(--cyan); border:none; background:none; cursor:pointer; padding:4px 8px; border-bottom:2px solid var(--cyan); outline: none;">Recommendation</button>
+          <button class="tab-btn" id="modal-tab-compliance"
+            style="font-weight:600; font-size:13px; color:var(--text-secondary); border:none; background:none; cursor:pointer; padding:4px 8px; outline: none;">Compliance</button>
+          <button class="tab-btn" id="modal-tab-options"
+            style="font-weight:600; font-size:13px; color:var(--text-secondary); border:none; background:none; cursor:pointer; padding:4px 8px; outline: none;">Options</button>
+        </div>
+
+        <div class="modal-body" id="modal-details-body"
+          style="flex: 1; display: block; padding: 4px 28px 24px 28px; overflow-y: auto; min-height: 0;">
+
+          <!-- Tab 1: Recommendation (default) -->
+          <div id="modal-content-recommendation" style="display: block;">
+            <div id="si-recommendation" style="margin-bottom:16px;"></div>
+            <div id="si-goal-scores"></div>
+          </div>
+
+          <!-- Tab 2: Compliance & Fund Analysis -->
+          <div id="modal-content-compliance" style="display: none;">
             <div id="si-compliance" style="margin-bottom:16px;"></div>
-            <!-- Purpose-specific lens scores: same security judged as a hold, an
-                 income holding, and a short-term trade -->
-            <div id="si-lens-scores" style="margin-bottom:16px;"></div>
-            <div class="stats-grid" id="si-stats"
-              style="display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-bottom:16px;"></div>
             <div id="si-overlap-callout" style="margin-bottom:16px;"></div>
             <div id="si-holdings-section" style="display:none; margin-bottom:16px;">
               <div
@@ -1567,65 +1581,57 @@
             </div>
           </div>
 
-          <!-- Tab 2: Options Opportunity -->
+          <!-- Tab 3: Options Opportunity -->
           <div id="modal-content-options" style="display: none;">
-            <!-- Score summary -->
-            <div class="modal-score-summary" style="margin-bottom: 16px;">
-              <div class="modal-score-header">
-                <div class="modal-score-number" id="modal-score-number">—</div>
-                <div class="modal-score-right">
-                  <span class="grade-badge grade-badge-lg" id="modal-grade-badge">—</span>
-                  <span class="modal-grade-label" id="modal-grade-label">—</span>
-                  <div class="modal-ann-yield" id="modal-ann-yield">—</div>
+            <div id="modal-sidebar-no-options"
+              style="display: none; padding: 30px 20px; text-align: center; color: var(--text-muted); border: 1px dashed var(--border); border-radius: 8px; font-size: 12px; line-height: 1.5;">
+              No options writing data available for this symbol. Options are scanned for watchlisted stocks.
+            </div>
+
+            <div id="modal-options-wrap" style="display:grid; grid-template-columns:1fr 1fr; gap:16px 20px; align-items:start;">
+              <!-- Score summary (full width) -->
+              <div class="modal-score-summary" style="grid-column:1 / -1;">
+                <div class="modal-score-header">
+                  <div class="modal-score-number" id="modal-score-number">—</div>
+                  <div class="modal-score-right">
+                    <span class="grade-badge grade-badge-lg" id="modal-grade-badge">—</span>
+                    <span class="modal-grade-label" id="modal-grade-label">—</span>
+                    <div class="modal-ann-yield" id="modal-ann-yield">—</div>
+                  </div>
                 </div>
+                <div class="modal-score-bar-track">
+                  <div class="modal-score-bar-fill" id="modal-score-bar"></div>
+                </div>
+                <div class="modal-kill-switches" id="modal-kill-switches" style="margin-top: 8px;"></div>
               </div>
-              <div class="modal-score-bar-track">
-                <div class="modal-score-bar-fill" id="modal-score-bar"></div>
+
+              <!-- Options data grid (left column) -->
+              <div>
+                <h3 class="stats-title" style="margin-bottom: 8px;">Options Data</h3>
+                <div class="stats-grid" id="stats-grid-options"
+                  style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;"></div>
               </div>
-              <div class="modal-kill-switches" id="modal-kill-switches" style="margin-top: 8px;"></div>
+
+              <!-- Score breakdown (right column) -->
+              <div class="modal-breakdown">
+                <h3 class="stats-title">Score Breakdown</h3>
+                <div id="modal-breakdown-rows"></div>
+              </div>
+
+              <!-- Trade mechanics (full width) -->
+              <div class="mechanics-box" style="grid-column:1 / -1;">
+                <h3 class="mechanics-title">Trade Mechanics</h3>
+                <p class="mechanics-text" id="mechanics-text">—</p>
+              </div>
+
+              <!-- Block explanation (full width) -->
+              <div class="mechanics-box" id="modal-block-explanation-box"
+                style="grid-column:1 / -1; background:rgba(244,63,94,0.05); border-color:rgba(244,63,94,0.15); display:none">
+                <h3 class="mechanics-title" style="color:var(--red)">⚠ Block Explanation</h3>
+                <p class="mechanics-text" id="modal-block-explanation"
+                  style="color:var(--text-secondary); line-height:1.6"></p>
+              </div>
             </div>
-
-            <!-- Score breakdown -->
-            <div class="modal-breakdown" style="margin-bottom: 16px;">
-              <h3 class="stats-title">Score Breakdown</h3>
-              <div id="modal-breakdown-rows"></div>
-            </div>
-
-            <!-- Trade mechanics -->
-            <div class="mechanics-box" style="margin-bottom: 16px;">
-              <h3 class="mechanics-title">Trade Mechanics</h3>
-              <p class="mechanics-text" id="mechanics-text">—</p>
-            </div>
-
-            <!-- Block explanation -->
-            <div class="mechanics-box" id="modal-block-explanation-box"
-              style="background:rgba(244,63,94,0.05); border-color:rgba(244,63,94,0.15); display:none">
-              <h3 class="mechanics-title" style="color:var(--red)">⚠ Block Explanation</h3>
-              <p class="mechanics-text" id="modal-block-explanation"
-                style="color:var(--text-secondary); line-height:1.6"></p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right Column: Permanent Sidebar (Price Chart + Options Data) -->
-        <div class="modal-right-col"
-          style="display: flex; flex-direction: column; gap: 16px; overflow-y: auto; min-width: 0; height: 100%;">
-          <!-- Price chart (always shown) -->
-          <div class="chart-container"
-            style="height:150px; flex-shrink: 0; background: rgba(255,255,255,0.01); border: 1px solid var(--border); border-radius: 8px; padding: 10px;">
-            <canvas id="price-chart"></canvas>
-          </div>
-
-          <!-- Options data grid (shown if options data is available) -->
-          <div id="modal-sidebar-options-section" style="display: block;">
-            <h3 class="stats-title" style="margin-bottom: 8px;">Options Data</h3>
-            <div class="stats-grid" id="stats-grid-options"
-              style="display: grid; grid-template-columns: 1fr; gap: 6px;"></div>
-          </div>
-
-          <div id="modal-sidebar-no-options"
-            style="display: none; padding: 20px; text-align: center; color: var(--text-muted); border: 1px dashed var(--border); border-radius: 8px; font-size: 12px; line-height: 1.5;">
-            No options writing data available for this symbol.
           </div>
         </div>
       </div>

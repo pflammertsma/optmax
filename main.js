@@ -109,6 +109,79 @@ async function fetchCachedQuoteSummary(symbol) {
   return summary;
 }
 
+// ── Investment discovery (Buy Ideas) ─────────────────────────────────────────
+// Market-wide candidate discovery beyond the user's holdings/watchlist: Yahoo
+// predefined screeners (value/growth) + "similar to what you own"
+// (recommendationsBySymbol). Cached to disk so page opens are cheap; the Refresh
+// button forces a rebuild. Pure symbol discovery — scoring/tax filtering stays
+// in lib/investments.js.
+const INVEST_DISCOVERY_TTL_MS = 12 * 60 * 60 * 1000; // twice a day
+
+function loadInvestDiscovery() {
+  try { if (fs.existsSync(INVEST_DISCOVERY_FILE)) return JSON.parse(fs.readFileSync(INVEST_DISCOVERY_FILE, 'utf8')); }
+  catch {}
+  return null;
+}
+function saveInvestDiscovery(obj) {
+  try { fs.writeFileSync(INVEST_DISCOVERY_FILE, JSON.stringify(obj), 'utf8'); } catch {}
+}
+
+async function discoverInvestmentUniverse({ holdings = [], excludeSyms = new Set(), force = false, max = 90 } = {}) {
+  const cache = loadInvestDiscovery();
+  if (!force && cache && cache.savedAt && (Date.now() - cache.savedAt) < INVEST_DISCOVERY_TTL_MS && Array.isArray(cache.discovered)) {
+    return cache.discovered;
+  }
+
+  const hints = new Map(); // symbol -> first reason it surfaced
+  const add = (sym, hint) => {
+    const s = (sym || '').toUpperCase().trim();
+    if (/^[A-Z]{1,5}$/.test(s) && !hints.has(s)) hints.set(s, hint);
+  };
+
+  // Predefined value/growth screeners (long-term oriented, not the trader set).
+  const screens = [
+    ['undervalued_large_caps', 'screener: undervalued large-cap'],
+    ['undervalued_growth_stocks', 'screener: undervalued growth'],
+    ['growth_technology_stocks', 'screener: growth tech'],
+  ];
+  const scr = await Promise.allSettled(screens.map(([id]) => yahooFinance.screener({ scrIds: id, count: 60 })));
+  scr.forEach((r, i) => {
+    if (r.status === 'fulfilled') for (const q of (r.value?.quotes || [])) add(q.symbol, screens[i][1]);
+  });
+
+  // "Similar to what you already own", seeded from a few real holdings.
+  const seeds = holdings
+    .filter(h => h.assetCategory !== 'OPT' && (h.symbol || '').length <= 5 && !excludeSyms.has((h.symbol || '').toUpperCase()))
+    .slice(0, 8);
+  const recs = await Promise.allSettled(seeds.map(h => yahooFinance.recommendationsBySymbol(h.symbol)));
+  recs.forEach((r, i) => {
+    if (r.status === 'fulfilled') for (const rec of (r.value?.recommendedSymbols || [])) add(rec.symbol, `similar to ${seeds[i].symbol}`);
+  });
+
+  const discovered = [];
+  for (const [symbol, hint] of hints) {
+    if (excludeSyms.has(symbol)) continue;
+    discovered.push({ symbol, name: symbol, kind: null, bucket: 'satellite', hint });
+    if (discovered.length >= max) break;
+  }
+  saveInvestDiscovery({ savedAt: Date.now(), discovered });
+  return discovered;
+}
+
+// Fetch quotes for many symbols into `quotes`, bounded concurrency + cache.
+async function fetchQuotesInto(quotes, syms, { usdOnly = false } = {}) {
+  const list = [...new Set(syms.map(s => (s || '').toUpperCase()).filter(Boolean))].filter(s => !quotes[s]);
+  const BATCH = 12;
+  for (let i = 0; i < list.length; i += BATCH) {
+    await Promise.all(list.slice(i, i + BATCH).map(async sym => {
+      try {
+        const q = await fetchCachedQuote(sym);
+        if (q && (!usdOnly || (q.currency || 'USD').toUpperCase() === 'USD')) quotes[sym] = q;
+      } catch {}
+    }));
+  }
+}
+
 const { findClosestDate, computeHV, computeIVR, detectMeanReversion } = require('./lib/strategies');
 const {
   parsePositionsCsv, totalValue, allocationByHolding, allocationByBucket,
@@ -116,7 +189,7 @@ const {
 } = require('./lib/portfolio');
 const { analyzeTicker, generatePortfolioGuidance, calculateHoldingRecommendation } = require('./lib/guidance');
 const { generateBuyRecommendations, CURATED_CANDIDATES } = require('./lib/recommendations');
-const { scanInvestments } = require('./lib/investments');
+const { scanInvestments, EXTRA_SEEDS } = require('./lib/investments');
 const { computePortfolioHealth, projectAnnualDividends } = require('./lib/health');
 const { createIbkrClient, isLoopbackGatewayUrl, gatewayLaunchSpec, treeKillSpec,
   gatewayHostPort, listGatewayPidsSpec, parsePids, gatewayRequest } = require('./lib/ibkr');
@@ -141,6 +214,7 @@ const QUOTE_CACHE_FILE = path.join(app.getPath('userData'), 'quote-cache.json');
 const FUND_INSIGHTS_CACHE_FILE = path.join(app.getPath('userData'), 'fund-insights-cache.json');
 const PROFILE_HISTORY_FILE = path.join(app.getPath('userData'), 'profile-history.json');
 const FLEX_LOG_FILE = path.join(app.getPath('userData'), 'flex-request-log.json');
+const INVEST_DISCOVERY_FILE = path.join(app.getPath('userData'), 'invest-discovery.json');
 
 const DEFAULT_SETTINGS = {
   refreshIntervalDays: 1,
@@ -1593,8 +1667,11 @@ app.whenReady().then(() => {
   }
 
   // Our current *guess* at IBKR's cool-down after a rate-limit lockout, used
-  // only to decide when to warn the user. Refine as the log reveals the truth.
-  const FLEX_GUESSED_COOLOFF_MS = 15 * 60 * 1000;
+  // only to decide when to warn the user. Evidence from flex-request-log.json
+  // (2026-07-24): a 1025 at 09:38 was still 1025 at 10:25 — 30 min after the
+  // prior attempt — so the window is >30 min (and each attempt likely re-arms
+  // it). Bumped to 60 min; refine further as the log reveals more.
+  const FLEX_GUESSED_COOLOFF_MS = 60 * 60 * 1000;
   const FLEX_MIN_GAP_MS = 30 * 1000;
 
   // Advisory (never blocking) — derived from the persisted log so it survives
@@ -2089,20 +2166,39 @@ app.whenReady().then(() => {
 
   // Investment Scanner: full per-category ranked "what to buy" lists (ETFs,
   // bonds, stocks, dividend income). Same quote-gathering as buy-recs.
-  ipcMain.handle('scan-investments', async (_event, watchlistData) => {
+  ipcMain.handle('scan-investments', async (_event, arg) => {
+    // Backward-compatible arg: an array (legacy watchlistData) or { watchlistData, force }.
+    let watchlistData = [], force = false;
+    if (Array.isArray(arg)) watchlistData = arg;
+    else if (arg && typeof arg === 'object') { watchlistData = arg.watchlistData || []; force = !!arg.force; }
+
     const p = loadPortfolio();
     const settings = loadSettings();
     const quotes = {};
+
+    // Holdings first (live prices), then the static universe (curated + seeds).
     await Promise.all(p.holdings.map(async h => {
       try { const q = await fetchQuoteForHolding(h); if (q) quotes[h.symbol.toUpperCase()] = q; } catch {}
     }));
-    await Promise.all(CURATED_CANDIDATES.map(async c => {
-      if (quotes[c.symbol]) return;
-      try { const q = await fetchCachedQuote(c.symbol); if (q && (q.currency || 'USD').toUpperCase() === 'USD') quotes[c.symbol] = q; } catch {}
-    }));
+    const staticSyms = [...CURATED_CANDIDATES.map(c => c.symbol), ...EXTRA_SEEDS.map(s => s.symbol)];
+    await fetchQuotesInto(quotes, staticSyms, { usdOnly: true });
+
+    // Live discovery — screeners + similar-to-holdings — excluding what we know.
+    const employerSyms = new Set((settings.employerSymbols || '').toUpperCase().split(',').map(s => s.trim()).filter(Boolean));
+    for (const h of p.holdings) if (h.isEmployerStock) employerSyms.add((h.symbol || '').toUpperCase());
+    const excludeSyms = new Set([
+      ...staticSyms,
+      ...p.holdings.map(h => (h.symbol || '').toUpperCase()),
+      ...employerSyms,
+    ]);
+    let discovered = [];
+    try { discovered = await discoverInvestmentUniverse({ holdings: p.holdings, excludeSyms, force }); }
+    catch (e) { console.warn('Investment discovery failed:', e.message); }
+    await fetchQuotesInto(quotes, discovered.map(d => d.symbol), { usdOnly: true });
+
     return scanInvestments({
       holdings: p.holdings, cash: p.cash, targets: p.targets,
-      settings, quotes, watchlistData: watchlistData || [],
+      settings, quotes, watchlistData, discovered,
     });
   });
 

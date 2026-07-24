@@ -2411,28 +2411,13 @@ input:checked + .slider:before {
 }
 
 /* ─── Unified Modal Details Grid Columns ─── */
+/* Redesigned symbol dialog: single full-width scrolling body (the chart +
+   essentials live above it, full width). Each tab owns its own layout. */
 #modal-details-body {
-  display: grid !important;
-  grid-template-columns: 1.25fr 1fr !important;
-  gap: 28px !important;
-  overflow: hidden !important;
-  padding: 8px 28px 24px 28px !important;
-}
-
-.modal-left-col {
+  display: block;
   overflow-y: auto;
-  padding-right: 8px;
-  min-width: 0;
-  height: 100%;
-}
-
-.modal-right-col {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  overflow-y: auto;
-  min-width: 0;
-  height: 100%;
+  min-height: 0;
+  padding: 4px 28px 24px 28px;
 }
 
 /* ─── Clickable Glossary Tooltips & Modal ─── */

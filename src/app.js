@@ -1237,47 +1237,91 @@ function initOptionsScannerView() {
 
 // ─── Analysis Modal ───────────────────────────────────────────────────────────
 function switchSymbolTab(tabName) {
-  const compTab = el('modal-tab-compliance');
-  const optTab = el('modal-tab-options');
-  const compContent = el('modal-content-compliance');
-  const optContent = el('modal-content-options');
-
-  if (!compTab || !optTab || !compContent || !optContent) return;
-
-  if (tabName === 'compliance') {
-    compTab.classList.add('active');
-    compTab.style.color = 'var(--cyan)';
-    compTab.style.borderBottom = '2px solid var(--cyan)';
-    
-    optTab.classList.remove('active');
-    optTab.style.color = 'var(--text-secondary)';
-    optTab.style.borderBottom = 'none';
-
-    compContent.style.display = 'block';
-    optContent.style.display = 'none';
-  } else {
-    optTab.classList.add('active');
-    optTab.style.color = 'var(--cyan)';
-    optTab.style.borderBottom = '2px solid var(--cyan)';
-    
-    compTab.classList.remove('active');
-    compTab.style.color = 'var(--text-secondary)';
-    compTab.style.borderBottom = 'none';
-
-    compContent.style.display = 'none';
-    optContent.style.display = 'grid';
+  const tabs = {
+    recommendation: { btn: el('modal-tab-recommendation'), body: el('modal-content-recommendation') },
+    compliance:     { btn: el('modal-tab-compliance'),     body: el('modal-content-compliance') },
+    options:        { btn: el('modal-tab-options'),         body: el('modal-content-options') },
+  };
+  if (!tabs[tabName] || !tabs[tabName].btn) tabName = 'recommendation';
+  for (const [name, { btn, body }] of Object.entries(tabs)) {
+    if (!btn || !body) continue;
+    const on = name === tabName;
+    btn.classList.toggle('active', on);
+    btn.style.color = on ? 'var(--cyan)' : 'var(--text-secondary)';
+    btn.style.borderBottom = on ? '2px solid var(--cyan)' : 'none';
+    body.style.display = on ? 'block' : 'none';
   }
 }
 
-async function openSymbolDetails(symbolOrData, defaultTab = 'compliance') {
+// Recommendation tab: a plain-language verdict on top, then the same security
+// scored through all four goals (buy & hold, dividend, short-term, options).
+function renderSymbolRecommendation(d, a, lenses, scannerHit) {
+  const rEl = el('si-recommendation');
+  const gEl = el('si-goal-scores');
+  if (!rEl || !gEl) return;
+  const meta = (window.lensScores && window.lensScores.LENS_META) || {};
+  const gradeNum = g => ({ A: 5, B: 4, C: 3, D: 2, E: 1, F: 0 }[g] ?? -1);
+
+  const cards = [
+    { key: 'buyHold',  label: meta.buyHold?.label  || 'Buy & Hold', grade: lenses?.buyHold?.grade,  blurb: meta.buyHold?.blurb  || 'Quality as a long-term core holding.', factor: lenses?.buyHold?.factors?.[0]?.detail },
+    { key: 'dividend', label: meta.dividend?.label || 'Dividend',   grade: lenses?.dividend?.grade, blurb: meta.dividend?.blurb || 'Tax-efficient income.',               factor: lenses?.dividend?.factors?.[0]?.detail },
+    { key: 'trading',  label: meta.trading?.label  || 'Short-Term', grade: lenses?.trading?.grade,  blurb: meta.trading?.blurb  || 'Short-term / speculative edge.',      adv: true, factor: lenses?.trading?.factors?.[0]?.detail },
+    { key: 'options',  label: 'Options', grade: scannerHit?._score?.grade, blurb: 'Cash-secured put income.', factor: scannerHit?._score ? `Score ${scannerHit._score.totalScore}/100` : 'No options scan for this symbol' },
+  ];
+
+  const badgeFor = g => (g ? renderGradeBadge(g) : '<span style="font-size:11px; color:var(--text-muted);">—</span>');
+  gEl.innerHTML = `
+    <div style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">How it scores for each goal</div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:8px;">
+      ${cards.map(c => `
+        <div title="${(c.blurb || '').replace(/"/g, '&quot;')}${c.factor ? ' — ' + c.factor.replace(/"/g, '&quot;') : ''}"
+          style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; padding:10px 12px; ${c.grade ? '' : 'opacity:0.6;'}">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:5px;">
+            <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">${c.label}${c.adv ? ' <span style="color:#a855f7; font-size:9px; text-transform:uppercase;">adv</span>' : ''}</span>
+            ${badgeFor(c.grade)}
+          </div>
+          <div style="font-size:11px; color:var(--text-muted); line-height:1.4;">${c.blurb}</div>
+          ${c.factor ? `<div style="font-size:10.5px; color:var(--text-secondary); margin-top:5px;">${c.factor}</div>` : ''}
+        </div>`).join('')}
+    </div>`;
+
+  // Headline verdict: compliance danger dominates; otherwise name the best-fit goal.
+  const tone = a?.suitability;
+  let color = 'var(--cyan)', bg = 'rgba(0,240,255,0.05)', border = 'rgba(0,240,255,0.22)';
+  let headline, detail;
+  if (a && tone === 'danger') {
+    color = '#f43f5e'; bg = 'rgba(244,63,94,0.08)'; border = 'rgba(244,63,94,0.25)';
+    headline = a.reason; detail = a.details;
+  } else {
+    if (tone === 'excellent') { color = 'var(--green)'; bg = 'rgba(16,185,129,0.08)'; border = 'rgba(16,185,129,0.25)'; }
+    else if (tone === 'caution') { color = '#f59e0b'; bg = 'rgba(245,158,11,0.08)'; border = 'rgba(245,158,11,0.25)'; }
+    const scored = cards.filter(c => c.grade);
+    const best = scored.slice().sort((x, y) => gradeNum(y.grade) - gradeNum(x.grade))[0];
+    headline = best ? `Best used as ${best.label.toLowerCase()} — grade ${best.grade}` : (a?.reason || 'Analysis');
+    const bits = [];
+    if (best?.factor) bits.push(best.factor);
+    if (a?.reason && a.reason !== headline) bits.push(a.reason);
+    detail = bits.join('. ') || (a?.details || 'No scoring data available for this symbol.');
+  }
+  rEl.innerHTML = `
+    <div style="padding:12px 14px; border-radius:8px; background:${bg}; border:1px solid ${border};">
+      <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:4px;">Recommendation</div>
+      <div style="font-weight:700; font-size:15px; color:${color}; margin-bottom:5px;">${headline}</div>
+      <div style="font-size:12px; color:var(--text-secondary); line-height:1.5;">${detail}</div>
+      <div style="font-size:10.5px; color:var(--text-muted); margin-top:8px;">Not financial advice — scores reflect your goals + tax profile, not a directive to trade.</div>
+    </div>`;
+}
+
+async function openSymbolDetails(symbolOrData, defaultTab = 'recommendation') {
   if (!symbolOrData) return;
   const symbol = typeof symbolOrData === 'string' ? symbolOrData : symbolOrData.symbol;
-  
+
   const modal = el('modal-overlay');
   if (!modal) return;
 
   modal.classList.remove('hidden');
-  el('modal-details-body').style.display = 'none';
+  const liveEl = el('modal-live');
+  if (liveEl) liveEl.style.display = 'none';
 
   let loadingEl = el('modal-loading-placeholder');
   if (!loadingEl) {
@@ -1288,7 +1332,7 @@ async function openSymbolDetails(symbolOrData, defaultTab = 'compliance') {
     loadingEl.style.textAlign = 'center';
     loadingEl.style.fontSize = '13px';
     loadingEl.textContent = 'Loading symbol details...';
-    el('modal-details-body').parentNode.insertBefore(loadingEl, el('modal-details-body'));
+    liveEl.parentNode.insertBefore(loadingEl, liveEl);
   }
   loadingEl.style.display = 'block';
 
@@ -1306,7 +1350,7 @@ async function openSymbolDetails(symbolOrData, defaultTab = 'compliance') {
   }
 
   loadingEl.style.display = 'none';
-  el('modal-details-body').style.display = 'grid';
+  if (liveEl) liveEl.style.display = 'flex';
 
   // 1. Header Population
   el('modal-company').textContent = d.name || d.symbol;
@@ -1373,7 +1417,7 @@ async function openSymbolDetails(symbolOrData, defaultTab = 'compliance') {
     };
   }
 
-  // 2. Compliance Content
+  // 2. Compliance box (Compliance tab) — the suitability verdict.
   const a = d.analysis;
   const compEl = el('si-compliance');
   if (a) {
@@ -1389,52 +1433,37 @@ async function openSymbolDetails(symbolOrData, defaultTab = 'compliance') {
       </div>`;
   } else compEl.innerHTML = '';
 
-  // Lens scores — the same security through three goals. Computed here so it
-  // always reflects the current tax profile, even for a name not in a scan.
-  const lensEl = el('si-lens-scores');
-  if (lensEl) {
-    const lenses = d._lenses || (window.lensScores && window.lensScores.scoreLenses(d, {
-      usPerson: lensUsPerson, dividendTaxRatePct: d.dividendTaxRatePct ?? lensDividendTaxRate,
-    }));
-    if (lenses && window.lensScores) {
-      const meta = window.lensScores.LENS_META;
-      const order = ['buyHold', 'dividend', 'trading'];
-      lensEl.innerHTML = `
-        <div style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">How it scores for your goal</div>
-        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px;">
-          ${order.map(k => {
-            const s = lenses[k], m = meta[k];
-            const top = s.factors[0] ? s.factors[0].detail : '';
-            return `
-              <div title="${m.blurb}${top ? ' — ' + top.replace(/"/g, '&quot;') : ''}"
-                style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; padding:9px 10px;">
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px;">
-                  <span style="font-size:11px; color:var(--text-secondary);">${m.label}${m.advanced ? ' <span style="color:#a855f7; font-size:9px; text-transform:uppercase;">adv</span>' : ''}</span>
-                  ${renderGradeBadge(s.grade)}
-                </div>
-                <div style="font-size:11px; color:var(--text-muted); line-height:1.35;">${m.blurb}</div>
-              </div>`;
-          }).join('')}
-        </div>`;
-    } else lensEl.innerHTML = '';
-  }
+  // Lenses (goal scores) — computed once, reused by the recommendation banner.
+  const lenses = d._lenses || (window.lensScores && window.lensScores.scoreLenses(d, {
+    usPerson: lensUsPerson, dividendTaxRatePct: d.dividendTaxRatePct ?? lensDividendTaxRate,
+  })) || null;
 
+  // Scanner hit (options data) if this symbol was scanned — used by the
+  // recommendation Options score and the Options tab.
+  const scannerHit = (typeof symbolOrData === 'object' && symbolOrData._score)
+    ? symbolOrData : (window.allData || allData || []).find(x => x.symbol === d.symbol);
+
+  // 3. Always-visible essentials (market cap, how much you own, yield, 52w).
   const range52 = (d.fiftyTwoWeekLow != null && d.fiftyTwoWeekHigh != null && d.price != null && d.fiftyTwoWeekHigh > d.fiftyTwoWeekLow)
     ? `${(((d.price - d.fiftyTwoWeekLow) / (d.fiftyTwoWeekHigh - d.fiftyTwoWeekLow)) * 100).toFixed(0)}% of 52w range`
     : null;
-  const stats = [
-    d.yieldPct != null ? { label: 'Dividend Yield', value: `${d.yieldPct.toFixed(2)}%` } : null,
-    d.taxDragPct != null ? { label: `Tax Drag (@${d.dividendTaxRatePct}%)`, value: `${d.taxDragPct.toFixed(2)}%/yr`, color: d.taxDragPct >= 1.5 ? 'var(--red)' : d.taxDragPct >= 0.5 ? '#f59e0b' : 'var(--green)' } : null,
-    d.expenseRatioPct != null ? { label: 'Expense Ratio', value: `${d.expenseRatioPct.toFixed(2)}%` } : null,
-    range52 ? { label: '52-Week Position', value: range52 } : null,
-    d.marketCap != null ? { label: d.overlap ? 'Fund Assets' : 'Market Cap', value: fmt.mktcap(d.marketCap), html: true } : null,
-    d.held ? { label: 'Your Position', value: `$${Math.round(d.held.marketValue).toLocaleString('en-US')} · ${d.held.weightPct.toFixed(1)}% (${d.held.bucket})`, html: false, privacy: true } : null,
-  ].filter(Boolean);
-  el('si-stats').innerHTML = stats.map(s => `
+  const essentials = [];
+  essentials.push({ label: d.overlap ? 'Fund Assets' : 'Market Cap', value: d.marketCap != null ? fmt.mktcap(d.marketCap) : '—' });
+  essentials.push(d.held
+    ? { label: 'You Own', value: `$${Math.round(d.held.marketValue).toLocaleString('en-US')} · ${d.held.weightPct.toFixed(1)}%`, privacy: true }
+    : { label: 'You Own', value: 'Not held' });
+  if (d.yieldPct != null) essentials.push({ label: 'Dividend Yield', value: `${d.yieldPct.toFixed(2)}%` });
+  if (range52) essentials.push({ label: '52-Week Position', value: range52 });
+  if (essentials.length < 4 && d.taxDragPct != null) essentials.push({ label: 'Tax Drag/yr', value: `${d.taxDragPct.toFixed(2)}%`, color: d.taxDragPct >= 1.5 ? 'var(--red)' : d.taxDragPct >= 0.5 ? '#f59e0b' : 'var(--green)' });
+  if (essentials.length < 4 && d.expenseRatioPct != null) essentials.push({ label: 'Expense Ratio', value: `${d.expenseRatioPct.toFixed(2)}%` });
+  el('si-essentials').innerHTML = essentials.slice(0, 4).map(s => `
     <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px; padding:8px 10px;">
       <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">${s.label}</div>
       <div style="font-size:13px; font-weight:600; margin-top:2px; ${s.color ? `color:${s.color};` : ''}" ${s.privacy ? 'class="privacy-amount"' : ''}>${s.value}</div>
     </div>`).join('');
+
+  // 4. Recommendation tab — general verdict + the four goal scores.
+  renderSymbolRecommendation(d, a, lenses, scannerHit);
 
   const calloutEl = el('si-overlap-callout');
   const holdingsSection = el('si-holdings-section');
@@ -1479,20 +1508,12 @@ async function openSymbolDetails(symbolOrData, defaultTab = 'compliance') {
     sectorsSection.style.display = 'none';
   }
 
-  // 3. Options Content
-  const scannerHit = typeof symbolOrData === 'object' && symbolOrData._score ? symbolOrData : (window.allData || allData || []).find(x => x.symbol === d.symbol);
-  const optTabBtn = el('modal-tab-options');
-  const sidebarOptSec = el('modal-sidebar-options-section');
+  // 3. Options Content (scannerHit computed earlier).
+  const optWrap = el('modal-options-wrap');
   const sidebarNoOpt = el('modal-sidebar-no-options');
 
   if (scannerHit) {
-    if (optTabBtn) {
-      optTabBtn.disabled = false;
-      optTabBtn.style.opacity = '1';
-      optTabBtn.style.cursor = 'pointer';
-      optTabBtn.title = '';
-    }
-    if (sidebarOptSec) sidebarOptSec.style.display = 'block';
+    if (optWrap) optWrap.style.display = 'block';
     if (sidebarNoOpt) sidebarNoOpt.style.display = 'none';
 
     currentModal = scannerHit;
@@ -1599,29 +1620,15 @@ async function openSymbolDetails(symbolOrData, defaultTab = 'compliance') {
       </div>
     `).join('');
   } else {
-    if (optTabBtn) {
-      optTabBtn.disabled = true;
-      optTabBtn.style.opacity = '0.4';
-      optTabBtn.style.cursor = 'not-allowed';
-      optTabBtn.title = 'No options scanner data found for this symbol';
-    }
-    if (sidebarOptSec) sidebarOptSec.style.display = 'none';
+    currentModal = null;
+    if (optWrap) optWrap.style.display = 'none';
     if (sidebarNoOpt) sidebarNoOpt.style.display = 'block';
-
-    el('modal-content-options').innerHTML = `
-      <div style="padding: 40px; text-align: center; color: var(--text-secondary);">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" style="margin-bottom:12px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <div style="font-weight:600; font-size:14px; margin-bottom:4px;">No active option writing opportunities found</div>
-        <p style="font-size:12px; max-width:400px; margin: 0 auto; line-height: 1.5;">Options are only scanned for watchlisted stocks. Check back later or search another ticker.</p>
-      </div>`;
   }
 
-  // 5. Default tab activation
-  if (defaultTab === 'options' && scannerHit) {
-    switchSymbolTab('options');
-  } else {
-    switchSymbolTab('compliance');
-  }
+  // 5. Default tab activation — recommendation by default; honor an explicit
+  // 'options' request only when there's actually options data.
+  const wantTab = (defaultTab === 'options' && !scannerHit) ? 'recommendation' : defaultTab;
+  switchSymbolTab(wantTab || 'recommendation');
 
   // 6. Draw Chart
   renderChart([], d.symbol);
@@ -1705,8 +1712,9 @@ el('modal-close').addEventListener('click', closeModal);
 el('modal-overlay').addEventListener('click', e => {
   if (e.target === el('modal-overlay')) closeModal();
 });
-el('modal-tab-compliance').addEventListener('click', () => switchSymbolTab('compliance'));
-el('modal-tab-options').addEventListener('click', () => switchSymbolTab('options'));
+el('modal-tab-recommendation')?.addEventListener('click', () => switchSymbolTab('recommendation'));
+el('modal-tab-compliance')?.addEventListener('click', () => switchSymbolTab('compliance'));
+el('modal-tab-options')?.addEventListener('click', () => switchSymbolTab('options'));
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (!el('modal-overlay').classList.contains('hidden')) { closeModal(); return; }
@@ -2697,7 +2705,7 @@ function pfBucketOptions(selected) {
 // compliance status. Distinct from the CSP opportunity modal, which is about
 // a specific options trade — but deep-links to it when scanner data exists.
 async function openSymbolInsight(symbol) {
-  await openSymbolDetails(symbol, 'compliance');
+  await openSymbolDetails(symbol, 'recommendation');
 }
 
 function closeSymbolInsight() {
@@ -2796,19 +2804,19 @@ function invSymbolCell(r) {
 }
 function invPct(v) { return v == null ? '—' : `${v.toFixed(2)}%`; }
 
-async function renderInvestmentScanner() {
+async function renderInvestmentScanner(force = false) {
   const root = el('inv-scan-root');
   if (!root) return;
   if (investmentScanLoading) return;
   investmentScanLoading = true;
-  if (!investmentScanner) root.innerHTML = '<div style="padding:24px; color:var(--text-muted); font-size:13px;">Loading buy ideas…</div>';
+  if (!investmentScanner) root.innerHTML = `<div style="padding:24px; color:var(--text-muted); font-size:13px;">${force ? 'Discovering ideas across the market…' : 'Loading buy ideas…'}</div>`;
 
   let data;
   try {
     const watchlistData = (window.allData || allData || [])
       .filter(d => d._score)
       .map(d => ({ symbol: d.symbol, grade: d._lenses?.buyHold?.grade || d._score?.grade, score: d._score?.totalScore ?? 0 }));
-    data = await window.electronAPI.scanInvestments(watchlistData);
+    data = await window.electronAPI.scanInvestments({ watchlistData, force });
   } catch (err) {
     root.innerHTML = `<div style="padding:24px; color:var(--red); font-size:13px;">Couldn't load buy ideas: ${err.message}</div>`;
     investmentScanLoading = false;
@@ -2854,7 +2862,13 @@ async function renderInvestmentScanner() {
     getRows: (tabId) => cats[tabId] || [],
     defaultSort: { col: 'buyHoldScore', dir: 'desc' },
     emptyText: 'No candidates in this category right now.',
-    onRowClick: (r) => { const d = (window.allData || allData || []).find(x => x.symbol === r.symbol); if (d) openModal(d); },
+    // Any row opens the details dialog. If the symbol was also option-scanned,
+    // pass that richer object; otherwise open by ticker (fixes rows like INTR
+    // that aren't in the option-scanner data doing nothing).
+    onRowClick: (r) => {
+      const d = (window.allData || allData || []).find(x => x.symbol === r.symbol);
+      openSymbolDetails(d || r.symbol, 'recommendation');
+    },
   };
 
   investmentScanner = window.Scanner.create(root, config);
@@ -3821,7 +3835,7 @@ async function loadPortfolioHealth(hasHoldings) {
   const seeAll = document.getElementById('dashboard-income-seeall');
   if (seeAll) seeAll.addEventListener('click', () => navigate(seeAll.dataset.nav || 'options-scanner'));
   const invRefresh = document.getElementById('inv-scan-refresh');
-  if (invRefresh) invRefresh.addEventListener('click', () => { investmentScanner = null; renderInvestmentScanner(); });
+  if (invRefresh) invRefresh.addEventListener('click', () => { investmentScanner = null; renderInvestmentScanner(true); });
 })();
 
 async function initPortfolioView() {  // Sortable holdings headers — same toggle behavior as the CSP tables
