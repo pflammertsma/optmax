@@ -509,11 +509,15 @@ function buildTableRows(items, tbodyId, sortState) {
   tbody.innerHTML = sorted.map((d, i) => {
     const sc = d._score;
     const scoreTd = sc ? `${sc.totalScore} ${renderGradeBadge(sc.grade)}` : '—';
+    const symbolCell = `<div style="display:flex; flex-direction:column;">
+      <span style="font-weight:600; color:var(--cyan); font-family:'JetBrains Mono', monospace; font-size:13px;">${d.symbol}</span>
+      <span style="font-size:11.5px; color:var(--text-muted); font-family:'Outfit', sans-serif; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;">${d.companyName || d.name || ''}</span>
+    </div>`;
     if (tbodyId === 'tbody-favorites') {
       return `
-        <tr>
+        <tr class="opt-row" data-idx="${allData.indexOf(d)}">
           <td class="td-rank">${i + 1}</td>
-          <td class="td-symbol">${d.symbol}</td>
+          <td class="td-symbol">${symbolCell}</td>
           <td class="td-price">${fmt.currency(d.currentPrice)}</td>
           <td class="td-mktcap" style="font-family:'JetBrains Mono',monospace;font-size:11.5px">${fmt.mktcap(d.marketCap)}</td>
           <td>${sc ? renderGradeBadge(sc.grade) : '—'}</td>
@@ -525,13 +529,12 @@ function buildTableRows(items, tbodyId, sortState) {
           <td class="td-yield-mo options-metric">${fmt.pct(d.monthlyYield)}</td>
           <td class="td-yield-ann options-metric">${fmt.pct(d.annualizedYield)}</td>
           <td class="td-income options-metric">${fmt.currency(d.monthlyIncome)}</td>
-          <td><button class="analyze-btn" data-idx="${allData.indexOf(d)}">Analyze</button></td>
         </tr>
       `;
     }
     return `
-      <tr>
-        <td class="td-symbol">${d.symbol}</td>
+      <tr class="opt-row" data-idx="${sorted.indexOf(d)}">
+        <td class="td-symbol">${symbolCell}</td>
         <td class="td-score">${scoreTd}</td>
         <td class="td-price">${fmt.currency(d.currentPrice)}</td>
         <td class="td-strike options-metric">${fmt.currency(d.strike)}</td>
@@ -541,13 +544,16 @@ function buildTableRows(items, tbodyId, sortState) {
         <td class="td-yield-mo options-metric">${fmt.pct(d.monthlyYield)}</td>
         <td class="td-yield-ann options-metric">${fmt.pct(d.annualizedYield)}</td>
         <td class="td-income options-metric">${fmt.currency(d.monthlyIncome)}</td>
-        <td><button class="analyze-btn" data-idx="${allData.indexOf(d)}">Analyze</button></td>
       </tr>
     `;
   }).join('');
 
-  tbody.querySelectorAll('.analyze-btn').forEach(btn => {
-    btn.addEventListener('click', () => openModal(allData[+btn.dataset.idx]));
+  tbody.querySelectorAll('tr').forEach((tr, idx) => {
+    tr.style.cursor = 'pointer';
+    const item = sorted[idx];
+    if (item) {
+      tr.addEventListener('click', () => openModal(item));
+    }
   });
 }
 
@@ -3449,9 +3455,11 @@ function renderPortfolio(p) {
   // Holdings table — rows carry their original index so edits survive sorting
   const rows = p.holdings.map((h, i) => {
     const pnl = (h.costBasis != null && h.marketValue != null) ? h.marketValue - h.costBasis : null;
+    const name = h.description || h.name || (allData.find(x => x.symbol === h.symbol)?.name) || '';
     return {
       idx: i,
       symbol:      h.symbol,
+      name,
       marketValue: h.marketValue ?? 0,
       weightPct:   d.totalValue > 0 ? ((h.marketValue || 0) / d.totalValue) * 100 : 0,
       costBasis:   h.costBasis ?? null,
@@ -3481,14 +3489,19 @@ function renderPortfolio(p) {
   });
 
   el('pf-holdings-tbody').innerHTML = rows.map(r => `
-    <tr>
-      <td class="symbol-cell click-insight" data-symbol="${r.symbol}" style="cursor: pointer; color: var(--cyan); text-decoration: underline dotted;" title="Click for details &amp; compliance insights">${r.symbol}</td>
-      <td>${fmt.currency(r.marketValue)}</td>
-      <td>${pfPct(r.weightPct)}</td>
-      <td>${r.costBasis != null ? fmt.currency(r.costBasis) : '—'}</td>
-      <td>${pfSignedCurrency(r.pnl)}</td>
-      <td>${pfSignedPct(r.pnlPct)}</td>
-      <td>${r.currency || '—'}</td>
+    <tr class="pf-row" data-symbol="${r.symbol}">
+      <td>
+        <div style="display:flex; flex-direction:column;">
+          <span style="font-weight:600; color:var(--cyan); font-family:'JetBrains Mono', monospace; font-size:13px;">${r.symbol}</span>
+          <span style="font-size:11.5px; color:var(--text-muted); font-family:'Outfit', sans-serif; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;">${r.name || ''}</span>
+        </div>
+      </td>
+      <td style="font-family:'JetBrains Mono', monospace;">${fmt.currency(r.marketValue)}</td>
+      <td style="font-family:'JetBrains Mono', monospace;">${pfPct(r.weightPct)}</td>
+      <td style="font-family:'JetBrains Mono', monospace;">${r.costBasis != null ? fmt.currency(r.costBasis) : '—'}</td>
+      <td style="font-family:'JetBrains Mono', monospace;">${pfSignedCurrency(r.pnl)}</td>
+      <td style="font-family:'JetBrains Mono', monospace;">${pfSignedPct(r.pnlPct)}</td>
+      <td style="font-family:'JetBrains Mono', monospace;">${r.currency || '—'}</td>
       <td style="text-align: center; vertical-align: middle; padding: 6px 4px;">
         ${renderRecommendationBadge(r.recommendation.type)}
         ${r.recommendation.reason ? `<div style="font-size: 10px; color: var(--text-secondary); margin-top: 4px; max-width: 140px; white-space: normal; line-height: 1.2; text-align: center; display: block; margin-left: auto; margin-right: auto;">${r.recommendation.reason}</div>` : ''}
@@ -3496,9 +3509,11 @@ function renderPortfolio(p) {
       <td><select class="schedule-select pf-bucket-select" data-idx="${r.idx}">${pfBucketOptions(r.bucket)}</select></td>
     </tr>`).join('');
 
-  el('pf-holdings-tbody').querySelectorAll('.click-insight').forEach(cell => {
-    cell.addEventListener('click', () => {
-      openSymbolInsight(cell.dataset.symbol);
+  el('pf-holdings-tbody').querySelectorAll('tr.pf-row').forEach(row => {
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.pf-bucket-select')) return;
+      openSymbolInsight(row.dataset.symbol);
     });
   });
 

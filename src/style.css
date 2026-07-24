@@ -2606,13 +2606,15 @@ input:checked + .slider:before {
    Every scanner page (Option Scanner, Investment Scanner, …) renders through
    these styles, so a change here carries over to all of them. */
 #view-investment-scanner,
-#view-option-scanner {
+#view-option-scanner,
+#view-portfolio {
   overflow: hidden;
 }
 
 #inv-scan-root,
 #scanner-root,
-.scanner-root {
+.scanner-root,
+#pf-content {
   display: flex;
   flex-direction: column;
   flex: 1;
