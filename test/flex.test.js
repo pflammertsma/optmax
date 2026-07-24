@@ -4,6 +4,7 @@ const assert = require('assert');
 const {
   sendRequestUrl, getStatementUrl, parseControlResponse, isGeneratingError,
   isLockoutError, describeFlexError, parseFlexStatement, mapAssetCategory,
+  flexGuardDecision,
 } = require('../lib/flex');
 
 let passed = 0, failed = 0;
@@ -217,6 +218,75 @@ test('flags the generating case so the caller can retry', () => {
   const r = parseFlexStatement(GENERATING);
   assert.strictEqual(r.generating, true);
 });
+
+section('Pre-flight guard');
+{
+  const T0 = Date.parse('2026-07-25T00:00:00Z');
+  const min = m => T0 + m * 60000;
+  const req = (mAgo, extra = {}) => ({ ts: new Date(min(-mAgo)).toISOString(), step: 'SendRequest', ...extra });
+
+  test('a clean, idle log does not warn', () => {
+    const g = flexGuardDecision([req(600, { errorCode: null, outcome: 'accepted' })], T0);
+    assert.strictEqual(g.warn, false);
+    assert.strictEqual(g.level, 'ok');
+  });
+
+  test('an active lockout warns with time remaining', () => {
+    const g = flexGuardDecision([req(20, { lockout: true, errorCode: '1025' })], T0);
+    assert.strictEqual(g.level, 'lockout');
+    assert.ok(g.lockoutRemainingMs > 0);
+    assert.ok(/lockout/i.test(g.message));
+  });
+
+  test('an expired lockout no longer warns on that basis', () => {
+    const g = flexGuardDecision([req(90, { lockout: true, errorCode: '1025' })], T0);
+    assert.notStrictEqual(g.level, 'lockout');
+    assert.strictEqual(g.lockoutRemainingMs, 0);
+  });
+
+  test('a recent 1001 warns and points at the query, not a wait', () => {
+    // The exact loop from the log: a 1001, no lockout. Retrying does not fix it.
+    const g = flexGuardDecision([req(19, { errorCode: '1001', outcome: 'error' })], T0);
+    assert.strictEqual(g.warn, true);
+    assert.strictEqual(g.level, 'query-error');
+    assert.ok(/1001/.test(g.message));
+    assert.ok(/Flex Queries|reporting period/i.test(g.message));
+    assert.ok(!/rate limit/i.test(g.message) || /isn't a rate limit/i.test(g.message));
+  });
+
+  test('a 1001 warns even after a long idle gap — waiting is not the fix', () => {
+    // 6h24m cold, still the last outcome was 1001: exactly the cold-slate case.
+    const g = flexGuardDecision([req(384, { errorCode: '1001', outcome: 'error' })], T0);
+    assert.strictEqual(g.level, 'query-error');
+  });
+
+  test('a success after a 1001 clears the query-error warning', () => {
+    const g = flexGuardDecision([
+      req(30, { errorCode: '1001', outcome: 'error' }),
+      req(5, { errorCode: null, outcome: 'accepted' }),
+    ], T0);
+    assert.strictEqual(g.warn, false);
+  });
+
+  test('an active lockout outranks a 1001', () => {
+    const g = flexGuardDecision([
+      req(40, { errorCode: '1001', outcome: 'error' }),
+      req(10, { lockout: true, errorCode: '1025' }),
+    ], T0);
+    assert.strictEqual(g.level, 'lockout');
+  });
+
+  test('back-to-back requests warn about the minimum gap', () => {
+    const g = flexGuardDecision([req(0.1, { errorCode: null, outcome: 'accepted' })], T0);
+    assert.strictEqual(g.level, 'soon');
+  });
+
+  test('an empty log never warns', () => {
+    const g = flexGuardDecision([], T0);
+    assert.strictEqual(g.warn, false);
+    assert.strictEqual(g.lastRequestAt, null);
+  });
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

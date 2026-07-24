@@ -208,7 +208,9 @@ async function flexPreflightOK() {
   try {
     const g = await window.electronAPI.ibkrFlexGuard();
     if (g && g.warn) {
-      return confirm(`${g.message}\n\nRequest anyway? This may reset IBKR's rate-limit timer.`);
+      // g.message already states the specific risk for this level (lockout /
+      // 1001 query error / too-soon), so the prompt tail stays generic.
+      return confirm(`${g.message}\n\nRequest anyway?`);
     }
   } catch {}
   return true;

@@ -1680,33 +1680,16 @@ app.whenReady().then(() => {
   // it re-arms the clock. 75 min is the conservative read of that; refine as
   // the log grows. Note 1001 is a DIFFERENT failure that a longer wait does not
   // fix — see describeFlexError.
-  const FLEX_GUESSED_COOLOFF_MS = 75 * 60 * 1000;
-  const FLEX_MIN_GAP_MS = 30 * 1000;
+  const FLEX_GUESSED_COOLOFF_MS = flex.GUARD_COOLOFF_MS;
+  const FLEX_MIN_GAP_MS = flex.GUARD_MIN_GAP_MS;
 
   // Advisory (never blocking) — derived from the persisted log so it survives
-  // restarts. Tells the renderer whether making a request now is risky.
+  // restarts. The decision itself is pure and lives in lib/flex.js; here we just
+  // feed it the log.
   function flexGuardInfo() {
-    const log = loadFlexLog();
-    const now = Date.now();
-    const requests = log.filter(e => e.step === 'SendRequest');
-    const last = requests.length ? Date.parse(requests[requests.length - 1].ts) : null;
-    const sinceLast = last ? now - last : null;
-    let lockoutAt = null;
-    for (let i = log.length - 1; i >= 0; i--) { if (log[i].lockout) { lockoutAt = Date.parse(log[i].ts); break; } }
-    const lockoutRemaining = (lockoutAt && now - lockoutAt < FLEX_GUESSED_COOLOFF_MS)
-      ? FLEX_GUESSED_COOLOFF_MS - (now - lockoutAt) : 0;
-
-    let warn = false, level = 'ok', message = '';
-    if (lockoutRemaining > 0) {
-      warn = true; level = 'lockout';
-      const m = Math.ceil(lockoutRemaining / 60000);
-      message = `IBKR signalled a rate-limit lockout at ${new Date(lockoutAt).toLocaleTimeString()}. Best guess is the cool-down has about ${m} minute${m === 1 ? '' : 's'} left. Sending another request now may reset IBKR's timer and extend the lockout.`;
-    } else if (sinceLast != null && sinceLast < FLEX_MIN_GAP_MS) {
-      warn = true; level = 'soon';
-      message = `Your last IBKR Flex request was ${Math.round(sinceLast / 1000)}s ago. Requesting again this soon can trip IBKR's rate limiter.`;
-    }
-    return { warn, level, message, sinceLastMs: sinceLast, lockoutRemainingMs: lockoutRemaining,
-      lastRequestAt: last, guessedCooloffMs: FLEX_GUESSED_COOLOFF_MS };
+    return flex.flexGuardDecision(loadFlexLog(), Date.now(), {
+      cooloffMs: FLEX_GUESSED_COOLOFF_MS, minGapMs: FLEX_MIN_GAP_MS,
+    });
   }
 
   // A single SendRequest to IBKR, logged (timestamp + outcome). Shared by test +
