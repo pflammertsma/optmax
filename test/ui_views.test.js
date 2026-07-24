@@ -517,7 +517,22 @@ test('privacy button renders eye SVG icon on startup without needing to be click
   assert.ok(privacyBtn.innerHTML.includes('<svg'));
 });
 
-test('Sync IBKR button triggers sync handler when clicked', async () => {
+// Async tests are queued here and run SEQUENTIALLY at the end. The plain
+// `test()` helper is fire-and-forget, and every async test below mutates state
+// the others read — window.Scanner, window.electronAPI.ibkrFlexSync,
+// ibkrConnectMode. Run concurrently they clobber each other: a later test's
+// mock reassignment lands before an earlier test's await resolves, so the
+// earlier one never sees its own stub called.
+const pendingAsync = [];
+function testAsync(name, fn) { pendingAsync.push({ name, fn }); }
+async function runAsyncTests() {
+  for (const { name, fn } of pendingAsync) {
+    try { await fn(); console.log(`  ✓  ${name}`); passed++; }
+    catch (err) { console.error(`  ✗  ${name}`); console.error(`     ${err.stack || err.message}`); failed++; }
+  }
+}
+
+testAsync('Sync IBKR button triggers sync handler when clicked', async () => {
   let synced = false;
   sandbox.window.electronAPI.ibkrFlexSync = async () => {
     synced = true;
@@ -531,7 +546,7 @@ test('Sync IBKR button triggers sync handler when clicked', async () => {
   assert.strictEqual(synced, true);
 });
 
-test('renderStatusDetail renders Recent Flex requests log entries in flex mode', async () => {
+testAsync('renderStatusDetail renders Recent Flex requests log entries in flex mode', async () => {
   sandbox.window.electronAPI.ibkrHasFlex = async () => ({ hasToken: true, queryId: '1581403' });
   sandbox.window.electronAPI.ibkrFlexLog = async () => ({
     entries: [
@@ -546,7 +561,7 @@ test('renderStatusDetail renders Recent Flex requests log entries in flex mode',
   assert.ok(body.innerHTML.includes('error 1025 (lockout)'));
 });
 
-test('Status dialog Sync now button triggers Flex sync when clicked in flex mode', async () => {
+testAsync('Status dialog Sync now button triggers Flex sync when clicked in flex mode', async () => {
   let syncCalled = false;
   sandbox.window.electronAPI.ibkrFlexSync = async () => {
     syncCalled = true;
@@ -609,19 +624,6 @@ test('closing the dialog hides the overlay', () => {
   getEl('modal-close').click();
   assert.ok(overlay.classList.contains('hidden'), 'close button did not hide the dialog');
 });
-
-// The Opportunities scanner renders asynchronously, so these need awaiting —
-// the plain `test()` helper is fire-and-forget.
-// Queued and run SEQUENTIALLY — they share the mocked window.Scanner, so
-// running them concurrently would let one test clobber another's capture.
-const pendingAsync = [];
-function testAsync(name, fn) { pendingAsync.push({ name, fn }); }
-async function runAsyncTests() {
-  for (const { name, fn } of pendingAsync) {
-    try { await fn(); console.log(`  ✓  ${name}`); passed++; }
-    catch (err) { console.error(`  ✗  ${name}`); console.error(`     ${err.stack || err.message}`); failed++; }
-  }
-}
 
 // Render the scanner once and hand back the config the shared renderer got.
 // The mock + state reset are injected via runInContext because the view's

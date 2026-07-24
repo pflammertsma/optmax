@@ -83,7 +83,12 @@ async function renderStatusDetail() {
         : e.outcome === 'synced' ? `synced ${e.holdings ?? '?'} holdings`
         : e.outcome === 'error' ? `error${e.errorCode ? ' ' + e.errorCode : ''}${e.lockout ? ' (lockout)' : ''}`
         : (e.outcome || '?');
-      return `${t}  ·  ${e.kind || '?'}/${e.step || '?'}  ·  ${out}`;
+      // The gap since the previous request is the thing worth reading here: it
+      // separates "we tripped the rate limiter ourselves" from "IBKR is
+      // refusing even after a long wait", which are different problems.
+      const gap = e.gapMinutes == null ? ''
+        : `  ·  +${e.gapMinutes < 60 ? `${e.gapMinutes}m` : `${Math.floor(e.gapMinutes / 60)}h${String(e.gapMinutes % 60).padStart(2, '0')}`}`;
+      return `${t}${gap}  ·  ${e.kind || '?'}/${e.step || '?'}  ·  ${out}`;
     });
 
     const stateLabel = ls && ls.ok
@@ -215,7 +220,13 @@ function shortFlexError(result) {
   return `IBKR Flex: sync failed${code}`;
 }
 
-async function runFlexSync(statusEl) {
+// One request at a time, globally. Three buttons reach Flex (portfolio "Sync
+// IBKR", the status dialog's "Sync now", and Settings) and only one of them used
+// to hold a busy flag, so two could overlap — the request log caught exactly
+// that, two SendRequests two seconds apart. Every wasted request risks a 1025.
+let flexRequestInFlight = false;
+
+async function runFlexSync(statusEl, { skipPreflight = false } = {}) {
   const setMsg = (kind, full, short) => {
     if (statusEl) {
       statusEl.textContent = full;
@@ -223,6 +234,20 @@ async function runFlexSync(statusEl) {
     }
     setStatus(kind === 'error' ? 'error' : (kind === 'ok' ? 'live' : 'loading'), short || full);
   };
+
+  if (flexRequestInFlight) {
+    setMsg('loading', 'An IBKR Flex request is already running — waiting for it to finish.', 'IBKR Flex: busy');
+    return false;
+  }
+  // The rate-limit warning belongs here, at the one choke point every caller
+  // goes through, rather than bolted onto individual buttons (where two of the
+  // three sync paths silently skipped it).
+  if (!skipPreflight && !(await flexPreflightOK())) {
+    setMsg('idle', 'Sync cancelled — waiting out IBKR\'s cool-down.', 'IBKR Flex: waiting');
+    return false;
+  }
+
+  flexRequestInFlight = true;
   setMsg('loading', 'Fetching IBKR Flex statement…');
   try {
     const result = await window.electronAPI.ibkrFlexSync();
@@ -247,6 +272,8 @@ async function runFlexSync(statusEl) {
     setMsg('error', 'Flex sync failed: ' + e.message, 'IBKR Flex: sync failed');
     lastFlexSync = { at: Date.now(), ok: false, error: e.message };
     return false;
+  } finally {
+    flexRequestInFlight = false;
   }
 }
 

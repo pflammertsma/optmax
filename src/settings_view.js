@@ -330,7 +330,8 @@ async function initSettingsUI() {
       syncFlexBtn.disabled = true;
       const orig = syncFlexBtn.textContent;
       syncFlexBtn.textContent = 'Syncing…';
-      try { await runFlexSync(statusEl); }
+      // Pre-flight already ran above — don't prompt the user a second time.
+      try { await runFlexSync(statusEl, { skipPreflight: true }); }
       finally { syncFlexBtn.disabled = false; syncFlexBtn.textContent = orig; }
     });
   }
