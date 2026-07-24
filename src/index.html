@@ -145,7 +145,7 @@
       <button class="sidebar-footer" id="status-bar-btn" title="Connection details">
         <div class="status-dot" id="status-dot"></div>
         <span class="status-text" id="status-text">Loading…</span>
-        <svg class="status-bar-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:auto; flex-shrink:0; opacity:0.6;">
+        <svg class="status-bar-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto; flex-shrink:0; opacity:0.6;">
           <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>
         </svg>
       </button>
@@ -1287,10 +1287,48 @@
                 <line x1="8" y1="21" x2="16" y2="21" />
                 <line x1="12" y1="17" x2="12" y2="21" />
               </svg>
-              IBKR Gateway Integration
+              IBKR Connection
             </div>
-            <p class="settings-card-desc">Client Portal Gateway setup and secure local OS credential manager.</p>
+            <p class="settings-card-desc">Choose how PortMax pulls your positions. Both are read-only — trades are always placed by you in IBKR.</p>
 
+            <!-- Connection method toggle -->
+            <div class="settings-field">
+              <label class="settings-field-label">Connection method</label>
+              <div id="ibkr-mode-toggle" style="display:flex; gap:0; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; width:fit-content;">
+                <button type="button" class="ibkr-mode-btn" data-mode="gateway" style="padding:7px 14px; font-size:12px; background:transparent; color:var(--text-secondary); border:none; cursor:pointer; border-right:1px solid var(--border);">Client Portal Gateway</button>
+                <button type="button" class="ibkr-mode-btn" data-mode="flex" style="padding:7px 14px; font-size:12px; background:transparent; color:var(--text-secondary); border:none; cursor:pointer;">Flex Web Service</button>
+              </div>
+              <div id="ibkr-mode-desc" style="font-size:11px; color:var(--text-muted); margin-top:6px; line-height:1.45;"></div>
+            </div>
+
+            <!-- FLEX WEB SERVICE settings -->
+            <div id="ibkr-flex-settings" style="display:none; border-top:1px solid var(--border); padding-top:12px; margin-top:2px;">
+              <div style="font-size:11.5px; color:var(--text-muted); line-height:1.5; margin-bottom:12px;">
+                In IBKR Client Portal → <strong>Performance &amp; Reports → Flex Queries</strong>:
+                <br>1. Under <strong>Activity Flex Query</strong>, click <strong>+</strong> to create one. Include <em>Open Positions</em> and <em>Cash Report</em>, set <em>Period</em> to <em>Year to Date</em>, and Format <em>XML</em>. Save it, then open it to see its <strong>Query ID</strong> (a ~7-digit number).
+                <br>2. On the right of that same page, in the <strong>Flex Web Service Configuration</strong> panel, click the gear, tick <em>Flex Web Service Status</em>, and copy the <strong>Current Token</strong> (a long number) — generate one if it's empty.
+              </div>
+              <div class="settings-field-group">
+                <div class="settings-field">
+                  <label style="font-size:11px; color:var(--text-secondary)" for="settings-flex-query-id">Flex Query ID</label>
+                  <input type="text" class="threshold-input" id="settings-flex-query-id" placeholder="e.g. 1234567" style="width:100%" autocomplete="off" />
+                </div>
+                <div class="settings-field">
+                  <label style="font-size:11px; color:var(--text-secondary)" for="settings-flex-token">Flex Web Service Token</label>
+                  <input type="password" class="threshold-input" id="settings-flex-token" placeholder="enter to save/replace" style="width:100%" autocomplete="new-password" />
+                </div>
+              </div>
+              <div style="display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap;">
+                <button class="settings-action-btn" id="pf-save-flex" style="width:auto; margin:0;">Save</button>
+                <button class="settings-action-btn" id="pf-flex-test" style="width:auto; margin:0;">Test connection</button>
+                <button class="settings-action-btn" id="pf-flex-sync" style="width:auto; margin:0;">Sync now</button>
+                <button class="settings-action-btn" id="pf-clear-flex" style="width:auto; margin:0; background:transparent; border-color:rgba(244,63,94,0.3); color:#f43f5e;">Clear</button>
+                <span id="pf-flex-status" style="font-size:12px; color:var(--text-muted);"></span>
+              </div>
+            </div>
+
+            <!-- CLIENT PORTAL GATEWAY settings -->
+            <div id="ibkr-gateway-settings" style="border-top:1px solid var(--border); padding-top:12px; margin-top:2px;">
             <div class="settings-field-group">
               <div class="settings-field">
                 <label class="settings-field-label" for="settings-ibkr-gateway-url">
@@ -1354,6 +1392,7 @@
                 <span id="pf-credentials-status" style="font-size:12px; color:var(--text-muted);"></span>
               </div>
             </div>
+            </div><!-- /#ibkr-gateway-settings -->
           </div>
 
           <!-- Tax Profile & PFIC Estimator Card -->
@@ -1691,7 +1730,7 @@
   <div class="modal-overlay hidden" id="status-detail-overlay">
     <div class="modal" style="width: 560px; max-width: 92vw; max-height: 88vh; display:flex; flex-direction:column; padding:0; overflow:hidden;">
       <button class="modal-close" id="status-detail-close" style="top:16px; right:16px; z-index:3;">✕</button>
-      <div class="modal-header" style="padding:18px 20px; margin:0; border-bottom:1px solid var(--border);">
+      <div class="modal-header" style="padding:18px 44px 18px 20px; margin:0; border-bottom:1px solid var(--border);">
         <h2 class="modal-company" style="margin:0;">Connection status</h2>
         <span class="modal-exchange" id="status-detail-subtitle">IBKR gateway &amp; data connection</span>
       </div>
@@ -1733,20 +1772,17 @@
         style="flex:1; padding:0; overflow:hidden; position:relative; background:#fff;">
         <div id="ibkr-login-loading"
           style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; color:var(--text-muted); font-size:13px; background:#0d0e12;">
-          <div style="width:52px; height:52px; border-radius:14px; background:rgba(244,63,94,0.10); border:1px solid rgba(244,63,94,0.22); display:flex; align-items:center; justify-content:center;">
+          <div style="width:52px; height:52px; border-radius:14px; background:rgba(0,240,255,0.06); border:1px solid rgba(0,240,255,0.18); display:flex; align-items:center; justify-content:center;">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"
               style="animation: spin 1s linear infinite;">
               <path d="M21 12a9 9 0 1 1-9-9" stroke-linecap="round" />
             </svg>
           </div>
           <div style="text-align:center; line-height:1.5;">
-            <div style="color:var(--text-secondary); font-weight:600; font-size:13px;">Connecting to the IBKR login page…</div>
-            <div style="color:var(--text-muted); font-size:12px; margin-top:3px;">Approve the prompt on your phone when it appears.</div>
+            <div id="ibkr-login-loading-title" style="color:var(--text-secondary); font-weight:600; font-size:13px;">Connecting to the IBKR login page…</div>
+            <div id="ibkr-login-loading-sub" style="color:var(--text-muted); font-size:12px; margin-top:3px;">This should only take a moment.</div>
           </div>
         </div>
-        <!-- Live reason from the gateway (competing session, pending 2FA, …) so a
-             stuck login explains itself instead of silently reverting. -->
-        <div id="ibkr-login-status" style="display:none; position:absolute; left:0; right:0; top:0; z-index:2; padding:10px 14px; font-size:12.5px; font-weight:600; line-height:1.45; background:#3a2c05; border-bottom:2px solid #f59e0b; color:#ffd479; box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>
         <!-- webview injected here at open time so it always loads the current gateway URL -->
         <div id="ibkr-webview-host" style="width:100%; height:100%;"></div>
         <!-- Shown when IBKR's Akamai bot-shield blocks the embedded window -->
@@ -1756,8 +1792,8 @@
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           </div>
           <div style="max-width:420px; line-height:1.55;">
-            <div style="color:var(--text-secondary); font-weight:600; font-size:14px; margin-bottom:6px;">IBKR blocked the built-in login window</div>
-            <div style="color:var(--text-muted); font-size:12.5px;">Interactive Brokers' security screens embedded windows. Open the login in your normal browser instead — once you finish there, PortMax connects on its own. You can leave this window open.</div>
+            <div id="ibkr-fallback-title" style="color:var(--text-secondary); font-weight:600; font-size:14px; margin-bottom:6px;">IBKR blocked the built-in login window</div>
+            <div id="ibkr-fallback-desc" style="color:var(--text-muted); font-size:12.5px;">Interactive Brokers' security screens embedded windows. Open the login in your normal browser instead — once you finish there, PortMax connects on its own. You can leave this window open.</div>
             <div style="color:var(--text-muted); font-size:11.5px; margin-top:8px; opacity:0.8;">Your browser will warn that <b>localhost</b>'s certificate isn't trusted — that's the local gateway on your own machine. Choose <b>Advanced → proceed</b> to continue.</div>
           </div>
           <button id="ibkr-open-browser-btn" class="settings-action-btn" style="align-self:center; padding:9px 18px;">

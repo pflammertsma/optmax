@@ -173,22 +173,94 @@ async function renderStatusDetail() {
   if (!body) return;
   body.innerHTML = '<div style="color:var(--text-muted);">Checking…</div>';
 
-  let s = {}, gw = {}, logInfo = {};
-  try { s = await window.electronAPI.ibkrStatus(); } catch (e) { s = { state: 'unreachable', error: e.message }; }
-  try { gw = await window.electronAPI.ibkrGatewayRunning(); } catch {}
-  try { logInfo = await window.electronAPI.ibkrGatewayLog(12); } catch {}
-
-  const stateMeta = {
-    connected:     { label: 'Connected', color: 'var(--green)', dot: 'live' },
-    'needs-login': { label: 'Not logged in', color: '#f59e0b', dot: 'warning' },
-    unreachable:   { label: 'Gateway not reachable', color: 'var(--red)', dot: 'error' },
-  }[s.state] || { label: s.state || 'Unknown', color: 'var(--text-muted)', dot: 'offline' };
+  const subtitle = el('status-detail-subtitle');
+  const retryBtn = el('status-detail-retry');
+  const stopBtn = el('status-detail-stopgw');
 
   const row = (label, value) => `
     <div style="display:flex; gap:12px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
       <span style="min-width:130px; color:var(--text-muted); flex-shrink:0;">${label}</span>
       <span style="color:var(--text-primary); word-break:break-word;">${value}</span>
     </div>`;
+
+  // ── Flex Web Service mode — no gateway to probe. Show the read-only Flex
+  // connection: config status + the last sync outcome, not gateway logs.
+  if (ibkrConnectMode === 'flex') {
+    // No subtitle — the "Connection method" row already states it, and a long
+    // subtitle collides with the close button.
+    if (subtitle) subtitle.textContent = '';
+    if (stopBtn) stopBtn.style.display = 'none';
+    if (retryBtn) retryBtn.textContent = 'Sync now';
+
+    let flexCfg = {};
+    try { flexCfg = await window.electronAPI.ibkrHasFlex(); } catch {}
+    let flexLog = { entries: [] };
+    try { flexLog = await window.electronAPI.ibkrFlexLog(); } catch {}
+    const configured = flexCfg.hasToken && flexCfg.queryId;
+    const ls = lastFlexSync;
+
+    // Recent request log (newest first) — for spotting the rate-limit cadence.
+    const logRows = (flexLog.entries || []).slice(-15).reverse().map(e => {
+      const t = e.ts ? new Date(e.ts).toLocaleString() : '?';
+      const out = e.outcome === 'accepted' ? 'accepted'
+        : e.outcome === 'synced' ? `synced ${e.holdings ?? '?'} holdings`
+        : e.outcome === 'error' ? `error${e.errorCode ? ' ' + e.errorCode : ''}${e.lockout ? ' (lockout)' : ''}`
+        : (e.outcome || '?');
+      return `${t}  ·  ${e.kind || '?'}/${e.step || '?'}  ·  ${out}`;
+    });
+
+    const stateLabel = ls && ls.ok
+      ? '<span style="color:var(--green); font-weight:600;">Connected — last sync OK</span>'
+      : ls && !ls.ok
+        ? '<span style="color:var(--red); font-weight:600;">Last sync failed</span>'
+        : configured
+          ? '<span style="color:#f59e0b; font-weight:600;">Ready — not synced yet</span>'
+          : '<span style="color:var(--text-muted); font-weight:600;">Not configured</span>';
+
+    const when = ls && ls.at ? new Date(ls.at).toLocaleString() : null;
+
+    body.innerHTML =
+      row('Connection method', 'Flex Web Service (read-only — no live gateway)')
+      + row('Status', stateLabel)
+      + row('Flex Query ID', flexCfg.queryId || '<span style="color:var(--text-muted);">not set</span>')
+      + row('Token', flexCfg.hasToken ? 'Stored (encrypted)' : '<span style="color:var(--text-muted);">not stored</span>')
+      + (ls && ls.ok
+          ? row('Last sync', `${ls.holdings} holdings${ls.statementDate ? ` · statement ${ls.statementDate}` : ''}${ls.accountId ? ` · ${ls.accountId}` : ''}${when ? `<br><span style="color:var(--text-muted); font-size:11px;">${when}</span>` : ''}`)
+          : '')
+      + (ls && !ls.ok
+          ? `<div style="margin-top:12px; padding:10px 12px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.28); border-radius:6px; color:#f8b4b4; line-height:1.5;">
+               <div style="font-weight:600; margin-bottom:3px; color:#f87171;">Last sync error</div>${(ls.error || '').replace(/</g, '&lt;')}${when ? `<div style="color:var(--text-muted); font-size:11px; margin-top:4px;">${when}</div>` : ''}</div>`
+          : '')
+      + (ls && ls.ok && ls.warnings && ls.warnings.length
+          ? `<div style="margin-top:10px;"><div style="color:var(--text-muted); margin-bottom:6px;">Import notes</div>`
+            + `<pre style="margin:0; padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:6px; font-size:11px; line-height:1.5; white-space:pre-wrap; word-break:break-word; color:var(--text-secondary); max-height:150px; overflow-y:auto;">${ls.warnings.join('\n').replace(/</g, '&lt;')}</pre></div>`
+          : '')
+      + (!configured
+          ? `<div style="margin-top:12px; color:var(--text-muted); line-height:1.5;">Add your Flex Query ID and token in <strong>Settings → IBKR</strong> to enable syncing.</div>`
+          : '')
+      + (logRows.length
+          ? `<div style="margin-top:12px;"><div style="color:var(--text-muted); margin-bottom:6px;">Recent Flex requests (newest first)</div>`
+            + `<pre style="margin:0; padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:6px; font-size:11px; line-height:1.5; white-space:pre-wrap; word-break:break-word; color:var(--text-secondary); max-height:180px; overflow-y:auto;">${logRows.join('\n').replace(/</g, '&lt;')}</pre></div>`
+          : '');
+    return;
+  }
+
+  // ── Gateway mode ───────────────────────────────────────────────────────────
+  if (subtitle) subtitle.textContent = 'IBKR gateway & data connection';
+  if (stopBtn) stopBtn.style.display = '';
+  if (retryBtn) retryBtn.textContent = 'Retry connection';
+
+  let s = {}, gw = {}, logInfo = {}, diag = null;
+  try { s = await window.electronAPI.ibkrStatus(); } catch (e) { s = { state: 'unreachable', error: e.message }; }
+  try { gw = await window.electronAPI.ibkrGatewayRunning(); } catch {}
+  try { logInfo = await window.electronAPI.ibkrGatewayLog(12); } catch {}
+  try { diag = await window.electronAPI.ibkrGatewayDiagnostics(); } catch {}
+
+  const stateMeta = {
+    connected:     { label: 'Connected', color: 'var(--green)', dot: 'live' },
+    'needs-login': { label: 'Not logged in', color: '#f59e0b', dot: 'warning' },
+    unreachable:   { label: 'Gateway not reachable', color: 'var(--red)', dot: 'error' },
+  }[s.state] || { label: s.state || 'Unknown', color: 'var(--text-muted)', dot: 'offline' };
 
   const errorLines = (logInfo.tail || []).filter(l => /error|denied|competing|fail|exception|refused/i.test(l));
   const lastExit = gw.lastExit || logInfo.lastExit;
@@ -201,6 +273,15 @@ async function renderStatusDetail() {
     + row('Gateway URL', s.gatewayUrl || '—')
     + (lastExit ? row('Last gateway exit', `code ${lastExit.code ?? '?'}${lastExit.error ? ' — ' + lastExit.error : ''}`) : '')
     + (s.error ? row('Error', `<span style="color:var(--red);">${s.error}</span>`) : '')
+    // The gateway's own verdict on the last login — the thing that was hidden.
+    + (diag && diag.verdict
+        ? `<div style="margin-top:12px; padding:10px 12px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.28); border-radius:6px; color:#f8d7a0; line-height:1.5;">
+             <div style="font-weight:600; margin-bottom:3px; color:#fbbf24;">What the gateway log says</div>${diag.verdict}</div>`
+        : '')
+    + (diag && diag.recent && diag.recent.length
+        ? `<div style="margin-top:10px;"><div style="color:var(--text-muted); margin-bottom:6px;">Recent gateway login events</div>`
+          + `<pre style="margin:0; padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:6px; font-size:11px; line-height:1.5; white-space:pre-wrap; word-break:break-word; color:var(--text-secondary); max-height:160px; overflow-y:auto;">${diag.recent.join('\n').replace(/</g, '&lt;')}</pre></div>`
+        : '')
     + (errorLines.length
         ? `<div style="margin-top:12px;"><div style="color:var(--text-muted); margin-bottom:6px;">Recent gateway log</div>`
           + `<pre style="margin:0; padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:6px; font-size:11px; line-height:1.5; white-space:pre-wrap; word-break:break-word; color:#f8b4b4; max-height:150px; overflow-y:auto;">${errorLines.join('\n')}</pre></div>`
@@ -1647,6 +1728,15 @@ el('status-detail-close')?.addEventListener('click', closeStatusDetail);
 el('status-detail-overlay')?.addEventListener('click', e => { if (e.target === el('status-detail-overlay')) closeStatusDetail(); });
 el('status-detail-retry')?.addEventListener('click', async () => {
   const note = el('status-detail-action-note');
+  // Flex mode: the "retry" is a fresh statement pull, not a gateway re-probe.
+  if (ibkrConnectMode === 'flex') {
+    if (!(await flexPreflightOK())) { if (note) note.textContent = 'Skipped — waiting out IBKR cool-down.'; return; }
+    if (note) note.textContent = 'Syncing…';
+    try { await runFlexSync(null); } catch {}
+    await renderStatusDetail();
+    if (note) note.textContent = lastFlexSync && lastFlexSync.ok ? 'Synced.' : 'Sync failed.';
+    return;
+  }
   if (note) note.textContent = 'Retrying…';
   try {
     if (typeof refreshIbkrStatus === 'function') await refreshIbkrStatus();
@@ -1915,6 +2005,9 @@ async function initSettingsUI() {
     const autoStart = el('settings-ibkr-autostart');
     if (autoStart) autoStart.checked = !!settings.ibkrAutoStart;
     refreshCredentialsStatus();
+    setIfEl('settings-flex-query-id', settings.ibkrFlexQueryId ?? '');
+    setIbkrModeUI(settings.ibkrConnectMode || 'gateway');
+    refreshFlexStatus();
 
     // Leave screener filter slider to 0 by default as requested
     screenerFilters.minScore = 0;
@@ -2064,6 +2157,27 @@ async function initSettingsUI() {
     }
   }
 
+  async function refreshFlexStatus() {
+    const status = el('pf-flex-status');
+    if (!status) return;
+    const s = await window.electronAPI.ibkrHasFlex();
+    const q = el('settings-flex-query-id');
+    if (q && !q.value && s.queryId) q.value = s.queryId;
+    if (!s.encryptionAvailable) {
+      status.textContent = 'OS credential encryption unavailable on this machine';
+      status.style.color = 'var(--red)';
+    } else if (s.hasToken && s.queryId) {
+      status.textContent = 'Token stored (encrypted) · ready to sync';
+      status.style.color = 'var(--green)';
+    } else if (s.hasToken) {
+      status.textContent = 'Token stored — add a Query ID to sync';
+      status.style.color = 'var(--text-muted)';
+    } else {
+      status.textContent = 'No Flex token stored';
+      status.style.color = 'var(--text-muted)';
+    }
+  }
+
   const saveCredsBtn = el('pf-save-credentials');
   if (saveCredsBtn) {
     saveCredsBtn.addEventListener('click', async () => {
@@ -2089,6 +2203,102 @@ async function initSettingsUI() {
       const p = el('settings-ibkr-password'); if (p) p.value = '';
       setStatus('live', 'IBKR credentials cleared');
       refreshCredentialsStatus();
+    });
+  }
+
+  // ── Connection-method toggle + Flex Web Service ────────────────────────────
+  document.querySelectorAll('.ibkr-mode-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      const mode = b.dataset.mode === 'flex' ? 'flex' : 'gateway';
+      setIbkrModeUI(mode);
+      window.electronAPI.saveSettings({ ibkrConnectMode: mode });
+    });
+  });
+
+  const saveFlexBtn = el('pf-save-flex');
+  if (saveFlexBtn) {
+    saveFlexBtn.addEventListener('click', async () => {
+      const queryId = el('settings-flex-query-id')?.value.trim() || '';
+      const tokenInput = el('settings-flex-token');
+      const token = tokenInput?.value.trim() || '';
+      const r = await window.electronAPI.ibkrSaveFlex({ queryId, token });
+      if (r.success) {
+        if (tokenInput) tokenInput.value = ''; // never leave the secret in the DOM
+        setStatus('live', 'Flex settings saved');
+      } else {
+        setStatus('error', r.error || 'Could not save Flex settings');
+      }
+      refreshFlexStatus();
+    });
+  }
+
+  const clearFlexBtn = el('pf-clear-flex');
+  if (clearFlexBtn) {
+    clearFlexBtn.addEventListener('click', async () => {
+      await window.electronAPI.ibkrClearFlex();
+      const q = el('settings-flex-query-id'); if (q) q.value = '';
+      const t = el('settings-flex-token'); if (t) t.value = '';
+      setStatus('live', 'Flex settings cleared');
+      refreshFlexStatus();
+    });
+  }
+
+  // Persist any freshly-typed Query ID / token before a test or sync uses them.
+  async function persistTypedFlex() {
+    const queryId = el('settings-flex-query-id')?.value.trim() || '';
+    const tokenInput = el('settings-flex-token');
+    const token = tokenInput?.value.trim() || '';
+    if (queryId || token) {
+      await window.electronAPI.ibkrSaveFlex({ queryId, token });
+      if (tokenInput) tokenInput.value = '';
+      refreshFlexStatus();
+    }
+  }
+
+  // Test connection: validates the token + Query ID via a single SendRequest.
+  // Does NOT sync or modify the portfolio.
+  const testFlexBtn = el('pf-flex-test');
+  if (testFlexBtn) {
+    testFlexBtn.addEventListener('click', async () => {
+      await persistTypedFlex();
+      const statusEl = el('pf-flex-status');
+      if (!(await flexPreflightOK())) {
+        if (statusEl) { statusEl.textContent = 'Skipped — waiting to avoid resetting IBKR\'s cool-down.'; statusEl.style.color = 'var(--text-muted)'; }
+        return;
+      }
+      testFlexBtn.disabled = true;
+      const orig = testFlexBtn.textContent;
+      testFlexBtn.textContent = 'Testing…';
+      if (statusEl) { statusEl.textContent = 'Testing connection…'; statusEl.style.color = 'var(--text-muted)'; }
+      try {
+        const r = await window.electronAPI.ibkrFlexTest();
+        if (statusEl) {
+          statusEl.textContent = r.success ? (r.message || 'Connection OK — no data synced.') : r.error;
+          statusEl.style.color = r.success ? 'var(--green)' : 'var(--red)';
+        }
+        setStatus(r.success ? 'live' : 'error',
+          r.success ? 'IBKR Flex: connection OK' : 'IBKR Flex: test failed');
+      } catch (e) {
+        if (statusEl) { statusEl.textContent = 'Test failed: ' + e.message; statusEl.style.color = 'var(--red)'; }
+      } finally { testFlexBtn.disabled = false; testFlexBtn.textContent = orig; }
+    });
+  }
+
+  // Sync now: the full read-only pull that updates the portfolio + history.
+  const syncFlexBtn = el('pf-flex-sync');
+  if (syncFlexBtn) {
+    syncFlexBtn.addEventListener('click', async () => {
+      await persistTypedFlex();
+      const statusEl = el('pf-flex-status');
+      if (!(await flexPreflightOK())) {
+        if (statusEl) { statusEl.textContent = 'Skipped — waiting to avoid resetting IBKR\'s cool-down.'; statusEl.style.color = 'var(--text-muted)'; }
+        return;
+      }
+      syncFlexBtn.disabled = true;
+      const orig = syncFlexBtn.textContent;
+      syncFlexBtn.textContent = 'Syncing…';
+      try { await runFlexSync(statusEl); }
+      finally { syncFlexBtn.disabled = false; syncFlexBtn.textContent = orig; }
     });
   }
 
@@ -2182,6 +2392,12 @@ el('price-interval-select').addEventListener('change', async e => {
 async function loadInitialData() {
   setStatus('loading', 'Loading cache…');
   try {
+    // Determine the IBKR connection method before the first status poll, so
+    // Flex mode never spins up / pings the gateway.
+    try {
+      const s0 = await window.electronAPI.getSettings();
+      setIbkrModeUI(s0.ibkrConnectMode || 'gateway');
+    } catch {}
     // Force-load watchlist and starred stocks before rendering to prevent race conditions on boot
     try {
       watchlist = await window.electronAPI.getWatchlists();
@@ -2339,6 +2555,95 @@ const PF_BUCKETS = ['core', 'satellite', 'cash', 'unassigned'];
 let portfolio = null;
 let pfSort = { col: 'marketValue', dir: 'desc' };
 let ibkrState = 'unreachable';
+// How PortMax pulls positions: 'gateway' (live Client Portal) or 'flex'
+// (read-only Flex Web Service). Set from settings at boot; drives the sync
+// button + whether we poll the gateway at all.
+let ibkrConnectMode = 'gateway';
+// Last Flex sync outcome, shown in the Connection status dialog in Flex mode.
+let lastFlexSync = null;
+
+// Toggle the IBKR settings blocks + the portfolio Sync button to match the
+// chosen connection method. Safe to call before those elements exist (guards).
+function setIbkrModeUI(mode) {
+  ibkrConnectMode = (mode === 'flex') ? 'flex' : 'gateway';
+  const gw = el('ibkr-gateway-settings');
+  const fx = el('ibkr-flex-settings');
+  if (gw) gw.style.display = ibkrConnectMode === 'gateway' ? '' : 'none';
+  if (fx) fx.style.display = ibkrConnectMode === 'flex' ? '' : 'none';
+  document.querySelectorAll('.ibkr-mode-btn').forEach(b => {
+    const active = b.dataset.mode === ibkrConnectMode;
+    b.style.background = active ? 'var(--cyan)' : 'transparent';
+    b.style.color = active ? '#04121a' : 'var(--text-secondary)';
+    b.style.fontWeight = active ? '600' : '400';
+  });
+  const desc = el('ibkr-mode-desc');
+  if (desc) desc.textContent = ibkrConnectMode === 'flex'
+    ? 'Read-only, token-based — no gateway, no 2FA popup. Pulls a Flex statement over HTTPS. Best when the live gateway login is being blocked.'
+    : 'Live session with interactive 2FA login. Enables real-time connection status; needs the local gateway running.';
+  if (typeof paintIbkrButton === 'function') paintIbkrButton();
+}
+
+// Pull a Flex statement and refresh the portfolio. Shared by the portfolio
+// "Sync IBKR" button and the settings "Test & sync now" button. statusEl, if
+// given, gets an inline message too.
+// Ask main whether a Flex request now is risky (too soon / suspected lockout).
+// If so, warn and let the user override. Returns true to proceed, false to
+// abort. `force` skips the check (used by an already-confirmed retry).
+async function flexPreflightOK() {
+  try {
+    const g = await window.electronAPI.ibkrFlexGuard();
+    if (g && g.warn) {
+      return confirm(`${g.message}\n\nRequest anyway? This may reset IBKR's rate-limit timer.`);
+    }
+  } catch {}
+  return true;
+}
+
+// A concise status-bar label for a Flex failure — the full text lives in the
+// inline settings status + the connection dialog (click the status bar).
+function shortFlexError(result) {
+  if (result && result.lockout) return 'IBKR Flex: rate-limited';
+  const code = result && result.errorCode ? ` (code ${result.errorCode})` : '';
+  return `IBKR Flex: sync failed${code}`;
+}
+
+async function runFlexSync(statusEl) {
+  // full → inline settings status + connection dialog; short → the small status
+  // bar (which is clickable for the full detail).
+  const setMsg = (kind, full, short) => {
+    if (statusEl) {
+      statusEl.textContent = full;
+      statusEl.style.color = kind === 'error' ? 'var(--red)' : (kind === 'ok' ? 'var(--green)' : 'var(--text-muted)');
+    }
+    setStatus(kind === 'error' ? 'error' : (kind === 'ok' ? 'live' : 'loading'), short || full);
+  };
+  setMsg('loading', 'Fetching IBKR Flex statement…');
+  try {
+    const result = await window.electronAPI.ibkrFlexSync();
+    if (result.success) {
+      if (typeof renderPortfolio === 'function') renderPortfolio(result.portfolio);
+      const dateNote = result.statementDate ? ` (as of ${result.statementDate})` : '';
+      setMsg('ok', `Synced ${result.portfolio.holdings.length} holdings from IBKR Flex${dateNote}`);
+      if (result.warnings?.length) console.warn('Flex sync warnings:', result.warnings);
+      lastFlexSync = {
+        at: Date.now(), ok: true,
+        holdings: result.portfolio.holdings.length,
+        statementDate: result.statementDate || null,
+        accountId: result.accountId || null,
+        warnings: result.warnings || [],
+      };
+      return true;
+    }
+    setMsg('error', result.error || 'Flex sync failed', shortFlexError(result));
+    lastFlexSync = { at: Date.now(), ok: false, error: result.error || 'Flex sync failed' };
+    return false;
+  } catch (e) {
+    setMsg('error', 'Flex sync failed: ' + e.message, 'IBKR Flex: sync failed');
+    lastFlexSync = { at: Date.now(), ok: false, error: e.message };
+    return false;
+  }
+}
+
 // The gateway's own explanation for the current state (competing session,
 // pending 2FA, an IBKR fail message), surfaced so a silent revert to "Login"
 // becomes a readable reason. Module-level so setStatus can show it even after
@@ -3554,6 +3859,13 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
   function paintIbkrButton() {
     const btn = el('pf-ibkr-sync-btn');
     if (!btn || ibkrBusy) return;
+    // Flex mode has no live session — the button is always a one-shot "pull a
+    // statement" action.
+    if (ibkrConnectMode === 'flex') {
+      btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>Sync IBKR`;
+      btn.disabled = false;
+      return;
+    }
     if (ibkrState === 'connected') {
       btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>Sync IBKR`;
     } else if (ibkrState === 'needs-login') {
@@ -3569,21 +3881,10 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
   // modal while it's open, and as the sidebar status tooltip.
   let ibkrLastReason = null;
   function updateIbkrReasonUI(s) {
+    // Keep the reason for the sidebar tooltip + connection dialog. We deliberately
+    // do NOT overlay it on the login webview — the login page speaks for itself,
+    // and failures get a dedicated panel after we verify the session.
     ibkrLastReason = s && s.reason ? s.reason : null;
-    const banner = el('ibkr-login-status');
-    const modalOpen = !el('ibkr-login-overlay')?.classList.contains('hidden');
-    if (banner) {
-      // Show it in the modal whenever we're not fully connected and have a reason.
-      if (modalOpen && s && s.state !== 'connected' && s.reason) {
-        banner.textContent = s.reason;
-        banner.style.display = '';
-      } else if (modalOpen && s && s.competing) {
-        banner.textContent = s.reason;
-        banner.style.display = '';
-      } else {
-        banner.style.display = 'none';
-      }
-    }
     const label = el('status-text');
     if (label) label.title = s && s.reason ? s.reason : '';
   }
@@ -3592,6 +3893,9 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
   // ("Synced 12 holdings…") unless the connection state actually changed.
   refreshIbkrStatus = async function ({ quiet = false } = {}) {
     if (!el('pf-ibkr-sync-btn')) return;
+    // In Flex mode we never talk to the gateway (no session to poll, and no
+    // desire to spin one up). Just keep the button painted.
+    if (ibkrConnectMode === 'flex') { paintIbkrButton(); return; }
     let s;
     try { s = await window.electronAPI.ibkrStatus(); } catch { return; }
     const changed = s.state !== ibkrState;
@@ -3626,6 +3930,7 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
   // ── Embedded IBKR login (webview) ───────────────────────────────────────
   let ibkrLoginPoll = null;
   let ibkrLoginDomPoll = null;
+  let ibkrLoadTimeout = null;
 
   async function openIbkrLogin() {
     const overlay = el('ibkr-login-overlay');
@@ -3635,9 +3940,14 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
 
     const s = await window.electronAPI.ibkrStatus();
     ibkrLoginHandled = false; // new login attempt → success may fire again
-    // Build a fresh webview each open so it always targets the current URL
+    // Reset any state a previous (failed) attempt left behind.
     host.innerHTML = '';
-    if (loading) loading.style.display = '';
+    host.style.display = '';
+    if (loading) {
+      loading.style.display = 'flex'; // 'flex', not '' — '' clears the inline flex and left-aligns
+      const t = el('ibkr-login-loading-title'); if (t) t.textContent = 'Connecting to the IBKR login page…';
+      const sub = el('ibkr-login-loading-sub'); if (sub) sub.textContent = 'This should only take a moment.';
+    }
     const wv = document.createElement('webview');
     wv.setAttribute('src', s.gatewayUrl || 'https://localhost:5000');
     wv.setAttribute('partition', 'persist:ibkr');
@@ -3648,7 +3958,18 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     wv.setAttribute('useragent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36');
     wv.style.width = '100%';
     wv.style.height = '100%';
-    wv.addEventListener('did-stop-loading', () => { if (loading) loading.style.display = 'none'; });
+    // If the IBKR page never finishes loading within a reasonable window, the
+    // connection is almost certainly being blocked (temporary IP block from too
+    // many attempts). Stop spinning forever — explain it and offer the browser
+    // fallback. Cleared as soon as the page loads or the modal closes.
+    clearTimeout(ibkrLoadTimeout);
+    ibkrLoadTimeout = setTimeout(() => {
+      if (!ibkrLoginHandled) showIbkrFallback('stuck');
+    }, 20000);
+    wv.addEventListener('did-stop-loading', () => {
+      if (loading) loading.style.display = 'none';
+      clearTimeout(ibkrLoadTimeout); // page loaded — the user can proceed / do 2FA
+    });
 
     // Footer address bar — show where the login flow currently is (gateway →
     // IBKR SSO → back), and colour the lock by scheme so an http hop is visible.
@@ -3765,59 +4086,75 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
     // connected-but-unauthenticated session via reauthenticate, so a phone
     // approval that doesn't visually advance the webview still gets picked up.
     clearInterval(ibkrLoginPoll);
-    const openedAt = Date.now();
     ibkrLoginPoll = setInterval(async () => {
-      await refreshIbkrStatus();
-      if (ibkrState === 'connected') { onIbkrLoginSuccess(); return; }
-      // Don't let the "waiting on your phone" screen hang silently. After a
-      // while, tell the user their login is safe in the gateway and what to do.
-      const waited = Date.now() - openedAt;
-      const banner = el('ibkr-login-status');
-      if (banner && banner.style.display === 'none' && waited > 30000) {
-        banner.innerHTML = 'Still waiting to authenticate. If you approved the prompt on your phone, your login is held by the gateway — you can safely close this and it will connect on its own, or refresh the app. If it never completes, the usual cause is another IBKR session (browser, TWS, mobile) competing with this one.';
-        banner.style.display = '';
-      }
+      await refreshIbkrStatus({ quiet: true });
+      if (ibkrState === 'connected') onIbkrLoginSuccess();
     }, 5000); // gentle cadence — repeated reauth spam is a ban-risk signal
   }
 
-  // Idempotent: reachable from both the success-page capture and the status
-  // poll — whichever fires first closes the modal and kicks off a sync.
+  // Fires when the webview reaches "Client login succeeds" (2FA done). We do NOT
+  // declare victory yet: the SSO login succeeding does NOT mean the brokerage
+  // session authenticated — IBKR's edge can still deny the gateway's
+  // /sso/validate. So keep the modal OPEN, verify the REAL session, and if it
+  // fails show the actual reason (from the gateway's own log) instead of a
+  // silent revert to "Login". This is the whole point: never leave the user
+  // guessing why it didn't connect.
   let ibkrLoginHandled = false;
   async function onIbkrLoginSuccess() {
     if (ibkrLoginHandled) return;
     ibkrLoginHandled = true;
-    closeIbkrLogin();
-    setStatus('live', 'IBKR login successful — syncing your portfolio…');
-    // We already know we're authenticated (this fires off the "Client login
-    // succeeds" page or a connected status poll) — set state directly instead
-    // of re-checking via refreshIbkrStatus() first. Right after 2FA the real
-    // gateway's /iserver/auth/status can briefly still answer needs-login
-    // before the session propagates, and the sync button's click handler
-    // reads ibkrState synchronously, so a stale refresh here would reopen
-    // this same login modal instead of syncing.
-    ibkrState = 'connected';
-    paintIbkrButton(); // flip to "Sync IBKR" now, before the sync round-trip
-    const syncBtn = el('pf-ibkr-sync-btn');
-    if (syncBtn && !syncBtn.disabled) syncBtn.click();
-    settleIbkrStatusAfterLogin();
-  }
+    clearTimeout(ibkrLoadTimeout);
+    clearInterval(ibkrLoginDomPoll); // login page done — stop scraping it
+    ibkrLoginDomPoll = null;
+    clearInterval(ibkrLoginPoll);    // we take over verification from here
+    ibkrLoginPoll = null;
 
-  // For the same reason, one fire-and-forget refresh right after login is worse
-  // than none: a stale needs-login read would repaint the button back to
-  // "Login to IBKR" and leave it there until the next reload. Poll until the
-  // gateway agrees, and only fall back to whatever it reports if it never does.
-  async function settleIbkrStatusAfterLogin(attempts = 8, delayMs = 2000) {
-    for (let i = 0; i < attempts; i++) {
-      await new Promise(r => setTimeout(r, delayMs));
+    // Show a "confirming" state — the loading overlay is opaque, so it covers
+    // the webview without removing it from layout (hiding it collapsed the box).
+    const loading = el('ibkr-login-loading');
+    if (loading) {
+      loading.style.display = 'flex'; // 'flex', not '' — keeps it centered
+      const t = el('ibkr-login-loading-title');
+      const sub = el('ibkr-login-loading-sub');
+      if (t) t.textContent = 'Login received — confirming your session with IBKR…';
+      if (sub) sub.textContent = 'This takes a few seconds.';
+    }
+
+    // Verify against the REAL gateway status.
+    let ok = false;
+    for (let i = 0; i < 12; i++) {
+      await new Promise(r => setTimeout(r, 2000));
       let s;
       try { s = await window.electronAPI.ibkrStatus(); } catch { continue; }
-      if (s.state === 'connected') {
-        ibkrState = 'connected';
-        paintIbkrButton();
-        return;
-      }
+      if (s && s.state === 'connected') { ok = true; break; }
     }
-    refreshIbkrStatus({ quiet: true });
+
+    if (ok) {
+      ibkrState = 'connected';
+      closeIbkrLogin();
+      setStatus('live', 'IBKR connected — syncing your portfolio…');
+      paintIbkrButton();
+      const syncBtn = el('pf-ibkr-sync-btn');
+      if (syncBtn && !syncBtn.disabled) syncBtn.click();
+      return;
+    }
+
+    await showIbkrLoginFailure();
+  }
+
+  // Show WHY a login didn't complete, read straight from the gateway's own log.
+  // Modal stays open with the reason; the button reflects the true state.
+  async function showIbkrLoginFailure() {
+    ibkrLoginHandled = false; // allow another attempt from this same modal
+    const waiting = el('ibkr-fallback-waiting');
+    if (waiting) waiting.style.display = 'none';
+    let verdict = 'You logged in, but IBKR did not confirm the trading session. This is almost always a temporary block on your connection (an IP block from repeated attempts). Wait a while and try again — ideally from a different network.';
+    try {
+      const diag = await window.electronAPI.ibkrGatewayDiagnostics();
+      if (diag && diag.verdict) verdict = diag.verdict;
+    } catch {}
+    showIbkrFallback('failed', verdict);
+    await refreshIbkrStatus({ quiet: true });
   }
 
   function closeIbkrLogin() {
@@ -3833,20 +4170,38 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
 
   el('ibkr-login-close')?.addEventListener('click', closeIbkrLogin);
 
-  // Reveal the "log in via your real browser" fallback over the embedded view.
-  function showIbkrFallback() {
+  // Reveal the fallback panel with a message tailored to why we're showing it.
+  function showIbkrFallback(reason, customDesc) {
     const fb = el('ibkr-login-fallback');
     const loading = el('ibkr-login-loading');
+    const title = el('ibkr-fallback-title');
+    const desc = el('ibkr-fallback-desc');
     if (loading) loading.style.display = 'none';
+    if (reason === 'stuck') {
+      if (title) title.textContent = 'The IBKR login page didn’t load';
+      if (desc) desc.textContent = 'This usually means IBKR is temporarily blocking this connection — an IP block from repeated login attempts. Wait a while and try again, ideally from a different network. You can also try your normal browser below.';
+    } else if (reason === 'failed') {
+      if (title) title.textContent = 'Login didn’t complete';
+      if (desc) desc.textContent = customDesc || 'IBKR did not confirm the session after you logged in.';
+    } else {
+      if (title) title.textContent = 'IBKR blocked the built-in login window';
+      if (desc) desc.textContent = "Interactive Brokers' security screens embedded windows. Open the login in your normal browser instead — once you finish there, PortMax connects on its own. You can leave this window open.";
+    }
     if (fb) fb.style.display = 'flex';
   }
 
   el('ibkr-open-browser-btn')?.addEventListener('click', async () => {
     try { await window.electronAPI.ibkrOpenLogin(); } catch {}
-    // The 3s ibkrLoginPoll keeps running while the modal is open, so an
-    // external-browser login is picked up automatically — just show we're waiting.
+    // The login poll picks up a successful external-browser login automatically —
+    // just show we're waiting. But don't wait forever: if it hasn't connected
+    // within a reasonable window, surface the real reason (usually the same
+    // IP-block on the gateway's session validation) instead of spinning.
     const waiting = el('ibkr-fallback-waiting');
     if (waiting) waiting.style.display = 'inline-flex';
+    clearTimeout(ibkrLoadTimeout);
+    ibkrLoadTimeout = setTimeout(() => {
+      if (ibkrState !== 'connected') showIbkrLoginFailure();
+    }, 45000);
   });
 
   el('ibkr-retry-embedded-btn')?.addEventListener('click', () => {
@@ -3856,7 +4211,18 @@ async function initPortfolioView() {  // Sortable holdings headers — same togg
 
   el('pf-ibkr-sync-btn').addEventListener('click', async () => {
     const btn = el('pf-ibkr-sync-btn');
-    
+
+    // Flex mode: one-shot statement pull, no gateway/login flow.
+    if (ibkrConnectMode === 'flex') {
+      if (!(await flexPreflightOK())) { setStatus('', 'Flex sync skipped — waiting out IBKR cool-down'); return; }
+      ibkrBusy = true;
+      btn.disabled = true;
+      btn.textContent = 'Syncing…';
+      try { await runFlexSync(null); }
+      finally { ibkrBusy = false; btn.disabled = false; paintIbkrButton(); }
+      return;
+    }
+
     if (ibkrState === 'connected') {
       ibkrBusy = true;
       btn.disabled = true;

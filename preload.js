@@ -45,10 +45,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ibkrGatewayRunning:     ()             => ipcRenderer.invoke('ibkr-gateway-running'),
   ibkrPickGatewayDir:     ()             => ipcRenderer.invoke('ibkr-pick-gateway-dir'),
   ibkrGatewayLog:         (lines)        => ipcRenderer.invoke('ibkr-gateway-log', lines),
+  ibkrGatewayDiagnostics: ()             => ipcRenderer.invoke('ibkr-gateway-diagnostics'),
   ibkrSaveCredentials:    (creds)        => ipcRenderer.invoke('ibkr-save-credentials', creds),
   ibkrClearCredentials:   ()             => ipcRenderer.invoke('ibkr-clear-credentials'),
   ibkrHasCredentials:     ()             => ipcRenderer.invoke('ibkr-has-credentials'),
   ibkrGetCredentials:     ()             => ipcRenderer.invoke('ibkr-get-credentials'),
+
+  // IBKR Flex Web Service (read-only, no gateway)
+  ibkrFlexSync:           ()             => ipcRenderer.invoke('ibkr-flex-sync'),
+  ibkrFlexTest:           ()             => ipcRenderer.invoke('ibkr-flex-test'),
+  ibkrFlexGuard:          ()             => ipcRenderer.invoke('ibkr-flex-guard'),
+  ibkrFlexLog:            ()             => ipcRenderer.invoke('ibkr-flex-log'),
+  ibkrSaveFlex:           (payload)      => ipcRenderer.invoke('ibkr-save-flex', payload),
+  ibkrClearFlex:          ()             => ipcRenderer.invoke('ibkr-clear-flex'),
+  ibkrHasFlex:            ()             => ipcRenderer.invoke('ibkr-has-flex'),
 
   // Portfolio health + live prices
   refreshPortfolioPrices: ()             => ipcRenderer.invoke('refresh-portfolio-prices'),

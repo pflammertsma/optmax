@@ -119,7 +119,7 @@ const { generateBuyRecommendations, CURATED_CANDIDATES } = require('./lib/recomm
 const { scanInvestments } = require('./lib/investments');
 const { computePortfolioHealth, projectAnnualDividends } = require('./lib/health');
 const { createIbkrClient, isLoopbackGatewayUrl, gatewayLaunchSpec, treeKillSpec,
-  gatewayHostPort, listGatewayPidsSpec, parsePids } = require('./lib/ibkr');
+  gatewayHostPort, listGatewayPidsSpec, parsePids, gatewayRequest } = require('./lib/ibkr');
 const net = require('net');
 const { execFile } = require('child_process');
 const { computeFundOverlap, computeIndexImpliedEmployer } = require('./lib/funds');
@@ -127,6 +127,8 @@ const { buildPlan, computePlanStatus } = require('./lib/selldown');
 const { buildActionPlan } = require('./lib/actions');
 const { isUSPerson, estimatePficExitCost } = require('./lib/pfic');
 const { parseStatementMeta, buildProfileSnapshot, appendSnapshot } = require('./lib/history');
+const flex = require('./lib/flex');
+const https = require('https');
 const { spawn } = require('child_process');
 
 const CACHE_FILE      = path.join(app.getPath('userData'), 'data.json');
@@ -138,6 +140,7 @@ const SEED_CACHE_FILE = path.join(__dirname, 'lib', 'discovery-seed.json');
 const QUOTE_CACHE_FILE = path.join(app.getPath('userData'), 'quote-cache.json');
 const FUND_INSIGHTS_CACHE_FILE = path.join(app.getPath('userData'), 'fund-insights-cache.json');
 const PROFILE_HISTORY_FILE = path.join(app.getPath('userData'), 'profile-history.json');
+const FLEX_LOG_FILE = path.join(app.getPath('userData'), 'flex-request-log.json');
 
 const DEFAULT_SETTINGS = {
   refreshIntervalDays: 1,
@@ -167,6 +170,11 @@ const DEFAULT_SETTINGS = {
   ibkrAutoStart: false,
   ibkrUsername: '',
   ibkrPasswordEncrypted: '', // base64 ciphertext from Electron safeStorage — never plaintext
+  // Connection method: 'gateway' = live Client Portal Gateway (interactive
+  // 2FA); 'flex' = read-only Flex Web Service (token + query id, no gateway).
+  ibkrConnectMode: 'gateway',
+  ibkrFlexQueryId: '',         // the Flex Query's numeric id (not secret)
+  ibkrFlexTokenEncrypted: '',  // base64 safeStorage ciphertext of the Flex token
   // Tax profile: drives which tax rules the guidance engines apply (PFIC
   // relevance in particular) + the §1291 exit-cost estimator. Defaults match
   // the app's original persona (US/NL citizen resident in CH) so existing
@@ -902,11 +910,54 @@ function gatewayLogTail(lines = 15) {
   }
 }
 
+// Read the gateway's OWN detailed log (gatewayDir/logs/gw.<date>.log) and turn
+// its most recent login attempt into a plain-English diagnosis. This is what
+// makes a silent revert to "Login" explain itself — the reason lives here, not
+// in anything our app controls.
+function readGatewayDiagnostics() {
+  try {
+    const dir = loadSettings().ibkrGatewayDir;
+    if (!dir) return null;
+    const logsDir = path.join(dir, 'logs');
+    const files = fs.readdirSync(logsDir)
+      .filter(f => /^gw\.\d{4}-\d{2}-\d{2}\.log$/.test(f))
+      .sort();
+    if (!files.length) return null;
+    const latest = path.join(logsDir, files[files.length - 1]);
+    const all = fs.readFileSync(latest, 'utf8').split(/\r?\n/).filter(Boolean);
+    const tail = all.slice(-400);
+
+    // Pull the interesting, human-relevant events from the recent tail.
+    const rx = /(Client login succeeds|Access Denied|authentication to cp failed|giving up|UnknownHostException|competing|not authenticated|sso\/validate)/i;
+    const relevant = tail.filter(l => rx.test(l)).slice(-12);
+
+    // Derive a one-line verdict from the most telling recent event.
+    const has = re => tail.some(l => re.test(l));
+    let verdict = null;
+    if (has(/UnknownHostException/)) {
+      verdict = "The gateway can't resolve IBKR's servers (DNS). Restart the gateway (Stop all gateways, then start again) — a stale DNS failure only clears on restart.";
+    } else if (has(/Access Denied/) && has(/Client login succeeds/)) {
+      verdict = "Your login succeeded, but IBKR's edge denied the gateway's session validation (“Access Denied”) and it gave up. This is an IBKR-side block on the gateway's requests — usually IP reputation. Try again later from a clean network.";
+    } else if (has(/Access Denied/)) {
+      verdict = "IBKR returned “Access Denied” to the gateway — an edge/bot block, usually IP reputation. Try later from a clean network.";
+    } else if (has(/competing/)) {
+      verdict = 'Another IBKR session is competing. Log out of IBKR everywhere else, then retry.';
+    }
+    return { logFile: latest, verdict, recent: relevant };
+  } catch {
+    return null;
+  }
+}
+
 // Is something already listening on the gateway's port? A fast TCP probe — this
 // is how we recognize a gateway from a previous (possibly crashed) run, or one
 // the user started by hand, and reuse it instead of spawning a duplicate.
 function probeGatewayPort(url, timeoutMs = 700) {
   const { host, port } = gatewayHostPort(url);
+  // Force IPv4 for a loopback host, for the same reason the request path does:
+  // the gateway listens on 127.0.0.1, not ::1, so probing 'localhost' can
+  // spuriously fail on the IPv6 address and make us miss a running gateway.
+  const probeHost = (host === 'localhost') ? '127.0.0.1' : host;
   return new Promise(resolve => {
     const sock = new net.Socket();
     let done = false;
@@ -915,7 +966,7 @@ function probeGatewayPort(url, timeoutMs = 700) {
     sock.once('connect', () => finish(true));
     sock.once('timeout', () => finish(false));
     sock.once('error', () => finish(false));
-    sock.connect(port, host);
+    sock.connect({ port, host: probeHost, family: 4 });
   });
 }
 
@@ -1379,7 +1430,47 @@ app.whenReady().then(() => {
   });
 
   // ── IBKR Client Portal Gateway (Phase 2) ───────────────────────────────────
-  const ibkrClientFor = () => createIbkrClient(loadSettings().ibkrGatewayUrl);
+
+  // Debug log for the login/connection flow — appended to a file we can read
+  // to see exactly what each gateway request does (path, status, cookie or not).
+  const IBKR_DEBUG_LOG = path.join(app.getPath('userData'), 'ibkr-debug.log');
+  function ibkrDebugLog(line) {
+    try {
+      fs.appendFileSync(IBKR_DEBUG_LOG, `[${new Date().toISOString()}] ${line}\n`);
+    } catch {}
+  }
+
+  // The gateway session is cookie-scoped to whoever logged in. The login happens
+  // in the webview's persist:ibkr partition, so read that partition's cookies
+  // and attach them to our API calls — otherwise the gateway 401s us even though
+  // the webview is authenticated. THIS is the fix for "briefly Sync, then Login".
+  async function gatewaySessionCookieHeader(gatewayUrl) {
+    try {
+      const { session } = require('electron');
+      const cookies = await session.fromPartition('persist:ibkr').cookies.get({ url: gatewayUrl });
+      return cookies.map(c => `${c.name}=${c.value}`).join('; ');
+    } catch (err) {
+      ibkrDebugLog(`cookie read failed: ${err.message}`);
+      return '';
+    }
+  }
+
+  // A request function for createIbkrClient that injects the login cookie and
+  // logs every call.
+  function makeIbkrRequest(gatewayUrl) {
+    return async (baseUrl, method, apiPath) => {
+      const cookie = await gatewaySessionCookieHeader(baseUrl || gatewayUrl);
+      const headers = cookie ? { Cookie: cookie } : {};
+      const res = await gatewayRequest(baseUrl, method, apiPath, headers);
+      ibkrDebugLog(`${method} ${apiPath} -> ${res.status} ${cookie ? `[cookie: ${cookie.length} chars, ${cookie.split(';').length} pairs]` : '[NO COOKIE]'}`);
+      return res;
+    };
+  }
+
+  const ibkrClientFor = () => {
+    const url = loadSettings().ibkrGatewayUrl;
+    return createIbkrClient(url, makeIbkrRequest(url));
+  };
   let ibkrLastAuthOk = 0;
 
   // FX via Yahoo currency pairs — same source the price refresh uses.
@@ -1388,9 +1479,298 @@ app.whenReady().then(() => {
     return q?.regularMarketPrice || null;
   }
 
+  // ── Flex Web Service (read-only, no gateway) ───────────────────────────────
+  function httpsGetText(url, redirectsLeft = 4) {
+    return new Promise((resolve, reject) => {
+      const req = https.get(url, {
+        timeout: 30000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) PortMax',
+          'Accept': 'application/xml,text/xml,*/*',
+        },
+      }, (res) => {
+        // The Flex endpoints redirect across subdomains; https.get won't follow
+        // on its own, so do it here (an unfollowed 302 = empty body = the
+        // "unexpected response" the user hit).
+        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirectsLeft > 0) {
+          res.resume();
+          const next = new URL(res.headers.location, url).toString();
+          resolve(httpsGetText(next, redirectsLeft - 1));
+          return;
+        }
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', (c) => { body += c; });
+        res.on('end', () => resolve({ status: res.statusCode, body }));
+      });
+      req.on('timeout', () => { req.destroy(new Error('Flex request timed out')); });
+      req.on('error', reject);
+    });
+  }
+
+  function decryptFlexToken() {
+    const enc = loadSettings().ibkrFlexTokenEncrypted;
+    if (!enc || !safeStorage.isEncryptionAvailable()) return null;
+    try { return safeStorage.decryptString(Buffer.from(enc, 'base64')); }
+    catch { return null; }
+  }
+
+  // Two-step Flex retrieval with backoff on BOTH steps. IBKR queues the
+  // statement asynchronously and returns transient "busy / not ready / in
+  // progress" codes (1009/1018/1019/1021/…) from SendRequest *and*
+  // GetStatement, so we retry either. Returns the parsed statement or a
+  // detailed { error }.
+  async function fetchFlexStatement(token, queryId) {
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const GET_TRIES = 6, DELAY = 4000;
+
+    // Step 1 — SendRequest: a SINGLE attempt, never retried (logged). A
+    // refused/busy SendRequest (1001/1009) means IBKR won't even queue the
+    // statement — retrying it is exactly what trips the rate limiter, so we stop
+    // and report it. We only make more requests once IBKR has accepted this one.
+    const r = await flexSendRequestLogged(token, queryId, 'sync');
+    if (r.netError) return { error: `Could not reach IBKR Flex service: ${r.netError}` };
+    if (r.unexpected) {
+      const snippet = String(r.unexpected.body || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+      return { error: `Unexpected SendRequest response from IBKR (HTTP ${r.unexpected.status}): ${snippet || 'empty body'}` };
+    }
+    const control = r.control;
+    if (!control.ok || !control.referenceCode) {
+      return {
+        error: flex.describeFlexError('request', control),
+        errorCode: control.errorCode,
+        lockout: flex.isLockoutError(control),
+      };
+    }
+    const referenceCode = control.referenceCode;
+    const statementUrl = control.url;
+
+    // Step 2 — GetStatement: poll while the ALREADY-ACCEPTED statement is being
+    // generated (1019/1021). This is the documented async flow, not rate-limit
+    // territory — we only reach it because IBKR issued a reference code.
+    const url = flex.getStatementUrl(statementUrl, token, referenceCode);
+    let lastErr = null;
+    for (let attempt = 0; attempt < GET_TRIES; attempt++) {
+      if (attempt > 0) await sleep(DELAY);
+      let gs;
+      try { gs = await httpsGetText(url); }
+      catch (e) { return { error: `Could not download Flex statement: ${e.message}` }; }
+      const parsed = flex.parseFlexStatement(gs.body);
+      if (!parsed.error) return parsed;
+      lastErr = parsed;
+      const asControl = { errorCode: parsed.errorCode, errorMessage: parsed.error };
+      if (flex.isLockoutError(asControl)) {
+        return { error: flex.describeFlexError('retrieve', asControl), errorCode: parsed.errorCode, lockout: true };
+      }
+      if (parsed.generating) continue;                      // still building — retry
+      return { error: flex.describeFlexError('retrieve', asControl), errorCode: parsed.errorCode };
+    }
+    return { error: flex.describeFlexError('retrieve',
+      { errorCode: lastErr && lastErr.errorCode, errorMessage: lastErr && lastErr.error },
+      `PortMax retried for ~${Math.round(GET_TRIES * DELAY / 1000)}s but the statement never became ready`),
+      errorCode: lastErr && lastErr.errorCode };
+  }
+
+  // Local guards so PortMax never contributes to a rate-limit lockout: a short
+  // min-interval between requests, and a multi-minute cooldown after IBKR
+  // signals one (1018/1025). Times are process-lifetime only. Returns an error
+  // string to abort with, or null to proceed (and records this attempt).
+  // ── Persistent request log (for reverse-engineering IBKR's cool-down) ───────
+  // Every SendRequest to IBKR is appended here with a timestamp + outcome, so
+  // the real server-side rate-limit window can be studied over time. Capped.
+  function loadFlexLog() {
+    try { if (fs.existsSync(FLEX_LOG_FILE)) return JSON.parse(fs.readFileSync(FLEX_LOG_FILE, 'utf8')) || []; }
+    catch (e) { console.warn('Flex log read failed:', e.message); }
+    return [];
+  }
+  function appendFlexLog(entry) {
+    try {
+      const log = loadFlexLog();
+      log.push(entry);
+      const capped = log.length > 1000 ? log.slice(log.length - 1000) : log;
+      fs.writeFileSync(FLEX_LOG_FILE, JSON.stringify(capped), 'utf8');
+    } catch (e) { console.warn('Flex log write failed:', e.message); }
+  }
+
+  // Our current *guess* at IBKR's cool-down after a rate-limit lockout, used
+  // only to decide when to warn the user. Refine as the log reveals the truth.
+  const FLEX_GUESSED_COOLOFF_MS = 15 * 60 * 1000;
+  const FLEX_MIN_GAP_MS = 30 * 1000;
+
+  // Advisory (never blocking) — derived from the persisted log so it survives
+  // restarts. Tells the renderer whether making a request now is risky.
+  function flexGuardInfo() {
+    const log = loadFlexLog();
+    const now = Date.now();
+    const requests = log.filter(e => e.step === 'SendRequest');
+    const last = requests.length ? Date.parse(requests[requests.length - 1].ts) : null;
+    const sinceLast = last ? now - last : null;
+    let lockoutAt = null;
+    for (let i = log.length - 1; i >= 0; i--) { if (log[i].lockout) { lockoutAt = Date.parse(log[i].ts); break; } }
+    const lockoutRemaining = (lockoutAt && now - lockoutAt < FLEX_GUESSED_COOLOFF_MS)
+      ? FLEX_GUESSED_COOLOFF_MS - (now - lockoutAt) : 0;
+
+    let warn = false, level = 'ok', message = '';
+    if (lockoutRemaining > 0) {
+      warn = true; level = 'lockout';
+      const m = Math.ceil(lockoutRemaining / 60000);
+      message = `IBKR signalled a rate-limit lockout at ${new Date(lockoutAt).toLocaleTimeString()}. Best guess is the cool-down has about ${m} minute${m === 1 ? '' : 's'} left. Sending another request now may reset IBKR's timer and extend the lockout.`;
+    } else if (sinceLast != null && sinceLast < FLEX_MIN_GAP_MS) {
+      warn = true; level = 'soon';
+      message = `Your last IBKR Flex request was ${Math.round(sinceLast / 1000)}s ago. Requesting again this soon can trip IBKR's rate limiter.`;
+    }
+    return { warn, level, message, sinceLastMs: sinceLast, lockoutRemainingMs: lockoutRemaining,
+      lastRequestAt: last, guessedCooloffMs: FLEX_GUESSED_COOLOFF_MS };
+  }
+
+  // A single SendRequest to IBKR, logged (timestamp + outcome). Shared by test +
+  // sync so every rate-limit-relevant call lands in the log.
+  async function flexSendRequestLogged(token, queryId, kind) {
+    const started = Date.now();
+    const entry = { ts: new Date(started).toISOString(), kind, step: 'SendRequest' };
+    let sr;
+    try { sr = await httpsGetText(flex.sendRequestUrl(token, queryId)); }
+    catch (e) {
+      entry.outcome = 'neterror'; entry.error = e.message; entry.ms = Date.now() - started;
+      appendFlexLog(entry);
+      return { netError: e.message };
+    }
+    entry.httpStatus = sr.status;
+    const control = flex.parseControlResponse(sr.body);
+    if (!control) {
+      entry.outcome = 'unexpected'; entry.ms = Date.now() - started;
+      appendFlexLog(entry);
+      return { unexpected: { status: sr.status, body: sr.body } };
+    }
+    entry.status = control.status || null;
+    entry.errorCode = control.errorCode || null;
+    if (control.ok && control.referenceCode) { entry.outcome = 'accepted'; entry.referenceCode = control.referenceCode; }
+    else { entry.outcome = 'error'; if (flex.isLockoutError(control)) entry.lockout = true; }
+    entry.ms = Date.now() - started;
+    appendFlexLog(entry);
+    return { control };
+  }
+
+  ipcMain.handle('ibkr-flex-guard', () => flexGuardInfo());
+  ipcMain.handle('ibkr-flex-log', () => ({ entries: loadFlexLog() }));
+
+  // Validate the token + Query ID WITHOUT syncing: a single SendRequest, then
+  // stop. IBKR has no read-only "ping", but a successful SendRequest confirms
+  // the credentials are accepted; we never download or store anything.
+  ipcMain.handle('ibkr-flex-test', async () => {
+    const settings = loadSettings();
+    const token = decryptFlexToken();
+    const queryId = settings.ibkrFlexQueryId;
+    if (!token) return { success: false, error: 'No Flex token stored. Add it in Settings → IBKR → Flex Web Service.' };
+    if (!queryId) return { success: false, error: 'No Flex Query ID set. Add it in Settings → IBKR → Flex Web Service.' };
+
+    const r = await flexSendRequestLogged(token, queryId, 'test');
+    if (r.netError) return { success: false, error: `Could not reach IBKR Flex service: ${r.netError}` };
+    if (r.unexpected) {
+      const snippet = String(r.unexpected.body || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+      return { success: false, error: `Unexpected response from IBKR (HTTP ${r.unexpected.status}): ${snippet || 'empty body'}` };
+    }
+    const control = r.control;
+    if (control.ok && control.referenceCode) {
+      return { success: true, message: 'Token and Query ID are valid — IBKR accepted the request. No data was synced.' };
+    }
+    return { success: false, error: flex.describeFlexError('request', control), errorCode: control.errorCode, lockout: flex.isLockoutError(control) };
+  });
+
+  ipcMain.handle('ibkr-flex-sync', async () => {
+    const settings = loadSettings();
+    const token = decryptFlexToken();
+    const queryId = settings.ibkrFlexQueryId;
+    if (!token) return { success: false, error: 'No Flex token stored. Add it in Settings → IBKR → Flex Web Service.' };
+    if (!queryId) return { success: false, error: 'No Flex Query ID set. Add it in Settings → IBKR → Flex Web Service.' };
+
+    // No hard block here — the renderer warns + lets the user override. The
+    // SendRequest inside fetchFlexStatement is logged for the rate-limit study.
+    const parsed = await fetchFlexStatement(token, queryId);
+    if (parsed.error) {
+      return { success: false, error: parsed.error, errorCode: parsed.errorCode, lockout: parsed.lockout };
+    }
+    if (!parsed.holdings || !parsed.holdings.length) {
+      return { success: false, error: (parsed.errors && parsed.errors.join('; ')) || 'The Flex statement had no positions. Check that the query includes Open Positions.' };
+    }
+
+    // Same annotation-preserving merge the gateway sync + CSV import use.
+    const prev = loadPortfolio();
+    const prevBySymbol = new Map(prev.holdings.map(h => [h.symbol, h]));
+    const employerSyms = new Set((settings.employerSymbols || '').toUpperCase().split(',').map(s => s.trim()).filter(Boolean));
+    for (const h of parsed.holdings) {
+      const old = prevBySymbol.get(h.symbol);
+      if (old) h.bucket = old.bucket;
+      if (employerSyms.has(h.symbol)) h.isEmployerStock = true;
+    }
+
+    const merged = {
+      ...prev,
+      holdings: parsed.holdings,
+      cash: parsed.cash,
+      baseCurrency: parsed.baseCurrency || prev.baseCurrency || null,
+      ibkrAccountId: parsed.accountId || prev.ibkrAccountId,
+      updatedAt: new Date().toISOString(),
+      source: 'ibkr-flex',
+    };
+    savePortfolio(merged);
+
+    // Flex uniquely gives us the cash ledger (dividends actually paid) and a
+    // statement date — capture a dated history point, like a CSV import does.
+    try {
+      captureProfileSnapshot({
+        p: { holdings: parsed.holdings, cash: parsed.cash, targets: prev.targets },
+        settings, quotes: {}, nav: parsed.nav, dividendsPaid: parsed.dividendsPaid,
+        date: parsed.statementDate || undefined,
+        source: parsed.statementDate ? 'statement' : 'live',
+      });
+    } catch (e) { console.warn('Flex snapshot capture failed:', e.message); }
+
+    appendFlexLog({ ts: new Date().toISOString(), kind: 'sync', step: 'complete',
+      outcome: 'synced', holdings: parsed.holdings.length, statementDate: parsed.statementDate || null });
+
+    return {
+      success: true,
+      portfolio: portfolioView(merged),
+      accountId: parsed.accountId,
+      statementDate: parsed.statementDate,
+      dividendsPaid: parsed.dividendsPaid,
+      warnings: parsed.errors,
+    };
+  });
+
+  ipcMain.handle('ibkr-save-flex', (_event, { queryId, token }) => {
+    const settings = loadSettings();
+    const updates = {};
+    if (queryId != null) updates.ibkrFlexQueryId = String(queryId).trim();
+    if (token) {
+      if (!safeStorage.isEncryptionAvailable()) {
+        return { success: false, error: 'OS-level credential encryption is unavailable on this machine.' };
+      }
+      updates.ibkrFlexTokenEncrypted = safeStorage.encryptString(token).toString('base64');
+    }
+    saveSettings({ ...settings, ...updates });
+    return { success: true };
+  });
+
+  ipcMain.handle('ibkr-clear-flex', () => {
+    saveSettings({ ...loadSettings(), ibkrFlexQueryId: '', ibkrFlexTokenEncrypted: '' });
+    return { success: true };
+  });
+
+  ipcMain.handle('ibkr-has-flex', () => {
+    const s = loadSettings();
+    return {
+      hasToken: !!s.ibkrFlexTokenEncrypted,
+      queryId: s.ibkrFlexQueryId || '',
+      encryptionAvailable: safeStorage.isEncryptionAvailable(),
+    };
+  });
+
   ipcMain.handle('ibkr-status', async () => {
     const status = await ibkrClientFor().getStatus();
     if (status.authenticated) ibkrLastAuthOk = Date.now();
+    ibkrDebugLog(`STATUS -> state=${status.state} authenticated=${status.authenticated} connected=${status.connected} competing=${status.competing}`);
     return { ...status, gatewayUrl: loadSettings().ibkrGatewayUrl };
   });
 
@@ -1457,6 +1837,7 @@ app.whenReady().then(() => {
     tail: gatewayLogTail(lines || 15),
     lastExit: gatewayLastExit,
   }));
+  ipcMain.handle('ibkr-gateway-diagnostics', () => readGatewayDiagnostics());
 
   ipcMain.handle('ibkr-pick-gateway-dir', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
