@@ -579,8 +579,8 @@ html, body {
 .data-table td {
   padding: 12px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 12.5px;
   white-space: nowrap;
   vertical-align: middle;
 }
@@ -2605,6 +2605,20 @@ input:checked + .slider:before {
 /* ── Shared scanner renderer (src/scanner.js) ─────────────────────────────────
    Every scanner page (Option Scanner, Investment Scanner, …) renders through
    these styles, so a change here carries over to all of them. */
+#view-investment-scanner,
+#view-option-scanner {
+  overflow: hidden;
+}
+
+#inv-scan-root,
+#scanner-root,
+.scanner-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 .scanner-tabs {
   display: flex;
   gap: 8px;
@@ -2615,6 +2629,25 @@ input:checked + .slider:before {
   border: 1px solid rgba(255, 255, 255, 0.06);
   margin-bottom: 16px;
   align-self: flex-start;
+  flex-shrink: 0;
+}
+
+.scanner-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.scanner-intro {
+  flex-shrink: 0;
+}
+
+.scanner-table-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 .scanner-tab-btn {
   display: inline-flex;
