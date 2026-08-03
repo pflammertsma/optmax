@@ -35,6 +35,7 @@ function navigate(viewId) {
 
   if (finalViewId === 'progress' && typeof renderProgressView === 'function') renderProgressView();
   if (finalViewId === 'investment-scanner' && typeof renderInvestmentScanner === 'function') renderInvestmentScanner();
+  if (finalViewId === 'sell-scanner' && typeof renderSellScanner === 'function') renderSellScanner();
 }
 
 document.querySelectorAll('.nav-link').forEach(link => {

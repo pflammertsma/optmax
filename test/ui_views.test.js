@@ -184,7 +184,10 @@ function createDOM() {
     'modal-tab-recommendation', 'modal-tab-compliance', 'modal-tab-options',
     'modal-content-recommendation', 'modal-content-compliance', 'modal-content-options',
     'si-recommendation', 'si-goal-scores', 'si-essentials', 'si-compliance',
-    'modal-options-wrap', 'modal-sidebar-no-options'
+    'modal-options-wrap', 'modal-sidebar-no-options',
+    // Long-Term Portfolio Settings inputs — needed so their change handlers bind.
+    'settings-glidepath-base', 'settings-cash-drag-threshold', 'settings-birth-year',
+    'settings-conc-limit',
   ];
 
   knownIds.forEach(id => getOrCreate(id));
@@ -828,6 +831,40 @@ testAsync('the Refresh button forces a fresh discovery pass', async () => {
   seenArg = sandbox.window.__scanArg;
   assert.ok(seenArg && !Array.isArray(seenArg), 'scanInvestments was called with the legacy array signature');
   assert.strictEqual(seenArg.force, true, 'Refresh did not request a forced discovery');
+});
+
+testAsync('Long-Term settings persist glidepath (incl. >130) and the cash-drag buffer', async () => {
+  // Two real bugs: the glidepath handler silently rejected anything over 130
+  // (so a typed 140 never saved), and the cash-drag field had no handler at all.
+  const saved = [];
+  vm.runInContext(
+    'window.electronAPI.getSettings = async () => ({ glidepathBase: 110, cashDragThreshold: 5000 });',
+    sandbox);
+  sandbox.window.electronAPI.saveSettings = async (patch) => { saved.push(patch); return { success: true }; };
+
+  await sandbox.initSettingsUI();
+
+  const glide = getEl('settings-glidepath-base');
+  const cash = getEl('settings-cash-drag-threshold');
+
+  // A value the old handler rejected (>130) must now persist.
+  glide.value = '140';
+  glide.trigger('change');
+  await new Promise(r => setTimeout(r, 0));
+  assert.ok(saved.some(p => p.glidepathBase === 140), `140 was not saved: ${JSON.stringify(saved)}`);
+
+  // Out of range is clamped and written back, never a silent no-op.
+  glide.value = '200';
+  glide.trigger('change');
+  await new Promise(r => setTimeout(r, 0));
+  assert.ok(saved.some(p => p.glidepathBase === 150), 'over-max should clamp to 150 and save');
+  assert.strictEqual(String(glide.value), '150', 'field should reflect the clamped value');
+
+  // The previously-unwired cash-drag buffer now saves.
+  cash.value = '8000';
+  cash.trigger('change');
+  await new Promise(r => setTimeout(r, 0));
+  assert.ok(saved.some(p => p.cashDragThreshold === 8000), `cash-drag was not saved: ${JSON.stringify(saved)}`);
 });
 
 testAsync('every scanner row opens the dialog, even without option-scanner data', async () => {

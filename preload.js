@@ -69,6 +69,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPortfolioGuidance: (holdings, cash, targets, watchlistData) => ipcRenderer.invoke('get-portfolio-guidance', holdings, cash, targets, watchlistData),
   getBuyRecommendations: (watchlistData) => ipcRenderer.invoke('get-buy-recommendations', watchlistData),
   scanInvestments:       (payload)       => ipcRenderer.invoke('scan-investments', payload),
+  scanSells:             ()              => ipcRenderer.invoke('scan-sells'),
   getSymbolInsights:     (symbol)        => ipcRenderer.invoke('get-symbol-insights', symbol),
   getEmployerExposure:   ()              => ipcRenderer.invoke('get-employer-exposure'),
 

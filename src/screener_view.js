@@ -741,3 +741,122 @@ el('inv-scan-refresh')?.addEventListener('click', () => {
   investmentScanner = null;
   renderInvestmentScanner(true);
 });
+
+// ─── Sell Scanner (Raise Cash View) ────────────────────────────────────────
+// The mirror of the Opportunities scanner: same shared renderer, same visual
+// language, but the cost axis is the tax + commission you pay to EXIT rather
+// than the annual cost to own.
+let sellScanner = null;
+let sellScanLoading = false;
+
+const SELL_TONE = { good: 'var(--green)', ok: 'var(--cyan)', warn: '#f59e0b', bad: 'var(--red)' };
+
+function sellActionCell(r) {
+  const color = SELL_TONE[r.actionTone] || 'var(--text-secondary)';
+  const title = `${r.actionLabel} — ${r.headline}`;
+  return `<div style="display:flex; flex-direction:column; gap:2px;" title="${esc(title)}">
+    <span style="align-self:flex-start; color:${color}; background:color-mix(in srgb, ${color} 12%, transparent); border:1px solid color-mix(in srgb, ${color} 30%, transparent); border-radius:4px; padding:1px 7px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em;">${esc(r.actionLabel)}</span>
+    <span style="font-size:11px; color:var(--text-muted);">${r.weightPct}% of portfolio</span>
+  </div>`;
+}
+
+// Net cash this frees, with the tax+commission friction underneath.
+function sellLiquidityCell(r) {
+  const gainStr = r.embeddedGainPct == null ? ''
+    : ` · ${r.embeddedGainPct >= 0 ? '+' : ''}${r.embeddedGainPct}%`;
+  const frictionColor = r.frictionPct >= 10 ? 'var(--red)' : r.frictionPct >= 3 ? '#f59e0b' : 'var(--green)';
+  const frictionNote = r.exitTaxUsd > 0
+    ? `$${r.exitTaxUsd.toLocaleString('en-US')} tax + $${(r.commissionUsd || 0).toFixed(2)} fee`
+    : (r.harvestableLoss ? 'no gains tax — harvestable loss' : 'no gains tax');
+  return `<div style="display:flex; flex-direction:column;" title="${esc(frictionNote)}">
+    <span style="font-family:'JetBrains Mono', monospace; font-weight:700; color:var(--green);" class="privacy-amount">$${r.netCashUsd.toLocaleString('en-US')}</span>
+    <span style="font-size:10.5px; color:${frictionColor};">${r.frictionPct}% to exit${gainStr}</span>
+  </div>`;
+}
+
+function sellReasonsCell(r) {
+  const reasons = r.reasons || [];
+  if (!reasons.length) return `<span style="color:var(--text-muted);">—</span>`;
+  const rest = reasons.length > 1 ? ` <span style="color:var(--text-muted);">+${reasons.length - 1} more</span>` : '';
+  return `<span title="${esc(reasons.join('\n'))}" style="font-size:11.5px; color:var(--text-secondary); line-height:1.4; display:block; max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(reasons[0])}${rest}</span>`;
+}
+
+function sellWatchCell(r) {
+  const w = r.watch || [];
+  if (!w.length) return `<span style="color:var(--text-muted);">—</span>`;
+  const rest = w.length > 1 ? ` <span style="color:var(--text-muted);">+${w.length - 1} more</span>` : '';
+  return `<span title="${esc(w.join('\n'))}" style="font-size:11.5px; color:#f59e0b; line-height:1.4; display:block; max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(w[0])}${rest}</span>`;
+}
+
+async function renderSellScanner(force = false) {
+  const root = el('sell-scan-root');
+  if (!root) return;
+  if (sellScanLoading) return;
+  sellScanLoading = true;
+  if (!sellScanner) root.innerHTML = '<div style="padding:24px; color:var(--text-muted); font-size:13px;">Finding what to sell…</div>';
+
+  let data;
+  try {
+    data = await window.electronAPI.scanSells();
+  } catch (err) {
+    root.innerHTML = `<div style="padding:24px; color:var(--red); font-size:13px;">Couldn't load sell ideas: ${err.message}</div>`;
+    sellScanLoading = false;
+    return;
+  }
+  const cats = (data && data.categories) || { recommendation: [], weak: [], overweight: [], taxsmart: [] };
+
+  const mvCell = r => `<span class="privacy-amount" style="font-family:'JetBrains Mono', monospace;">$${(r.marketValue || 0).toLocaleString('en-US')}</span>`;
+
+  const baseCols = [
+    { key: 'symbol', label: 'Symbol', sortable: true, render: invSymbolCell },
+    { key: 'action', label: 'Action', sortable: true, sortValue: r => r.rankValue || 0, render: sellActionCell },
+    { key: 'marketValue', label: 'Position', align: 'right', sortable: true, render: mvCell },
+    { key: 'netCashUsd', label: 'Cash freed', align: 'right', sortable: true, sortValue: r => r.netCashUsd || 0, render: sellLiquidityCell },
+    { key: 'buyHoldScore', label: 'Quality', align: 'center', sortable: true, render: invQualityCell },
+    { key: 'reasons', label: 'Why sell', render: sellReasonsCell },
+  ];
+  // Tax-smart leads with the exit friction and the caveats instead of "why".
+  const taxCols = [
+    { key: 'symbol', label: 'Symbol', sortable: true, render: invSymbolCell },
+    { key: 'action', label: 'Action', sortable: true, sortValue: r => r.rankValue || 0, render: sellActionCell },
+    { key: 'marketValue', label: 'Position', align: 'right', sortable: true, render: mvCell },
+    { key: 'netCashUsd', label: 'Cash freed', align: 'right', sortable: true, sortValue: r => r.netCashUsd || 0, render: sellLiquidityCell },
+    { key: 'watch', label: 'Watch out for', render: sellWatchCell },
+  ];
+
+  const liq = (data.recommendedLiquidityUsd || 0).toLocaleString('en-US');
+  const intros = {
+    recommendation: `Sell these to raise cash with the least regret — weak or oversized positions that are cheap to exit, best first. Acting on all of them would free about $${liq}. In Switzerland you owe no tax on capital gains; the exit cost shown is US capital-gains tax plus commission.`,
+    weak: 'Every holding, worst long-term quality first — the natural candidates to sell when you need to fund something better.',
+    overweight: 'Positions larger than their target or your concentration limit. Trimming these raises cash and rebalances at the same time.',
+    taxsmart: 'The cheapest exits: holdings at a loss (a US-harvestable deduction, and no gains tax) and low-gain positions. Mind the 30-day wash-sale rule if you plan to rebuy.',
+  };
+
+  const config = {
+    tabs: [
+      { id: 'recommendation', label: 'Raise Cash', badge: (cats.recommendation || []).length, intro: intros.recommendation },
+      { id: 'weak', label: 'Weak Holdings', badge: (cats.weak || []).length, intro: intros.weak },
+      { id: 'overweight', label: 'Overweight', badge: (cats.overweight || []).length, intro: intros.overweight },
+      { id: 'taxsmart', label: 'Tax-Smart', badge: (cats.taxsmart || []).length, intro: intros.taxsmart },
+    ],
+    columns: (tabId) => (tabId === 'taxsmart' ? taxCols : baseCols),
+    getRows: (tabId) => cats[tabId] || [],
+    defaultSort: { col: 'action', dir: 'desc' },
+    emptyText: 'Nothing to sell in this category right now.',
+    onRowClick: (r) => {
+      const d = (window.allData || allData || []).find(x => x.symbol === r.symbol);
+      openSymbolDetails(d || r.symbol, 'recommendation');
+    },
+  };
+
+  if (window.Scanner) {
+    sellScanner = window.Scanner.create(root, config);
+    window.sellScanner = sellScanner;
+  }
+  sellScanLoading = false;
+}
+
+el('sell-scan-refresh')?.addEventListener('click', () => {
+  sellScanner = null;
+  renderSellScanner(true);
+});

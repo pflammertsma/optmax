@@ -112,13 +112,37 @@ async function initSettingsUI() {
 
   const glidebaseInp = el('settings-glidepath-base');
   if (glidebaseInp) {
-    glidebaseInp.value = settings.glidepathBase ?? 110;
+    let savedGlidepath = Number(settings.glidepathBase) || 110;
+    glidebaseInp.value = savedGlidepath;
     glidebaseInp.addEventListener('change', async () => {
-      const val = parseInt(glidebaseInp.value, 10);
-      if (Number.isFinite(val) && val >= 90 && val <= 130) {
-        await window.electronAPI.saveSettings({ glidepathBase: val });
-        if (portfolio && typeof renderPortfolio === 'function') renderPortfolio(portfolio);
-      }
+      const raw = parseInt(glidebaseInp.value, 10);
+      // Range matches the input's own min/max (80–150). Out-of-range values are
+      // clamped and written back rather than silently dropped — the old handler
+      // rejected anything >130 with no feedback, so a typed 140 looked saved but
+      // never was.
+      if (!Number.isFinite(raw)) { glidebaseInp.value = savedGlidepath; return; }
+      const val = Math.max(80, Math.min(150, raw));
+      glidebaseInp.value = val;
+      savedGlidepath = val;
+      await window.electronAPI.saveSettings({ glidepathBase: val });
+      if (portfolio && typeof renderPortfolio === 'function') renderPortfolio(portfolio);
+    });
+  }
+
+  const cashDragInp = el('settings-cash-drag-threshold');
+  if (cashDragInp) {
+    // Previously unwired: the field showed a hardcoded 5000 and never loaded or
+    // saved anything.
+    let savedCashDrag = Number.isFinite(Number(settings.cashDragThreshold)) ? Number(settings.cashDragThreshold) : 5000;
+    cashDragInp.value = savedCashDrag;
+    cashDragInp.addEventListener('change', async () => {
+      const raw = parseFloat(cashDragInp.value);
+      if (!Number.isFinite(raw) || raw < 0) { cashDragInp.value = savedCashDrag; return; }
+      const val = Math.round(raw);
+      cashDragInp.value = val;
+      savedCashDrag = val;
+      await window.electronAPI.saveSettings({ cashDragThreshold: val });
+      if (portfolio && typeof renderPortfolio === 'function') renderPortfolio(portfolio);
     });
   }
 

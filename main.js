@@ -190,6 +190,7 @@ const {
 const { analyzeTicker, generatePortfolioGuidance, calculateHoldingRecommendation } = require('./lib/guidance');
 const { generateBuyRecommendations, CURATED_CANDIDATES } = require('./lib/recommendations');
 const { scanInvestments, EXTRA_SEEDS } = require('./lib/investments');
+const { scanSellCandidates } = require('./lib/sellscan');
 const { dividendYieldPct } = require('./lib/yield');
 const { computePortfolioHealth, projectAnnualDividends, healthInputMaterial } = require('./lib/health');
 const { createIbkrClient, isLoopbackGatewayUrl, gatewayLaunchSpec, treeKillSpec,
@@ -2200,6 +2201,20 @@ app.whenReady().then(() => {
     return scanInvestments({
       holdings: p.holdings, cash: p.cash, targets: p.targets,
       settings, quotes, watchlistData, discovered,
+    });
+  });
+
+  // Sell scanner — what to sell/close to raise cash. Only needs quotes for the
+  // holdings themselves (no discovery universe), so it's cheap.
+  ipcMain.handle('scan-sells', async () => {
+    const p = loadPortfolio();
+    const settings = loadSettings();
+    const quotes = {};
+    await Promise.all(p.holdings.map(async h => {
+      try { const q = await fetchQuoteForHolding(h); if (q) quotes[h.symbol.toUpperCase()] = q; } catch {}
+    }));
+    return scanSellCandidates({
+      holdings: p.holdings, cash: p.cash, targets: p.targets, settings, quotes,
     });
   });
 
