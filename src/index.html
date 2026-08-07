@@ -140,7 +140,15 @@
           Settings
         </a>
 
-        <a class="nav-link" id="help-nav" role="button" tabindex="0">
+        <a class="nav-link" id="sidebar-glossary-btn" role="button" tabindex="0">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+          Glossary
+        </a>
+
+        <a class="nav-link" data-view="help">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"></circle>
             <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
@@ -1508,6 +1516,64 @@
         </div>
       </section>
 
+      <!-- Help & Guide View (Embedded) -->
+      <section class="view" id="view-help">
+        <div class="view-header">
+          <div>
+            <h1 class="view-title">Help &amp; Guide</h1>
+            <span class="view-subtitle">Learn how PortMax evaluates options, manages risk, and structures your portfolio</span>
+          </div>
+        </div>
+
+        <div class="settings-grid" style="grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div class="settings-card">
+            <div class="settings-card-title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              What is PortMax?
+            </div>
+            <p class="settings-card-desc" style="line-height:1.6;">
+              PortMax scans your watchlist for <span class="glossary-term" data-glossary="cash-secured-put">cash-secured put</span> opportunities and scores each one on a unified 100-point scale across five dimensions: volatility, yield, strike quality, liquidity, and trend.
+            </p>
+          </div>
+
+          <div class="settings-card">
+            <div class="settings-card-title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              The 100-Point Score
+            </div>
+            <p class="settings-card-desc">Each stock is evaluated across five weighted dimensions:</p>
+            <ul style="margin: 8px 0 0 0; padding-left: 18px; font-size: 12.5px; color: var(--text-secondary); line-height: 1.8;">
+              <li><strong style="color:var(--cyan)">35 pts</strong> — Volatility (IV Rank + IV/HV ratio)</li>
+              <li><strong style="color:var(--cyan)">25 pts</strong> — Yield (monthly yield % + absolute IV)</li>
+              <li><strong style="color:var(--cyan)">20 pts</strong> — Strike quality (delta + at-support)</li>
+              <li><strong style="color:var(--cyan)">12 pts</strong> — Liquidity (open interest + bid-ask spread)</li>
+              <li><strong style="color:var(--cyan)">8 pts</strong> — Trend (above MA50 + earnings clear)</li>
+            </ul>
+          </div>
+
+          <div class="settings-card">
+            <div class="settings-card-title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Grades &amp; Kill Switches
+            </div>
+            <div style="font-size:12.5px; color:var(--text-secondary); line-height:1.6;">
+              <p style="margin-bottom:8px;"><strong>Grades:</strong> Grade A (>50 pts), Grade B (≥40 pts), Grade C (≥30 pts), Grade D (≥20 pts), Grade E (≥1 pt), and Grade F (Blocked).</p>
+              <p style="margin:0;"><strong>Kill Switches:</strong> Earnings event inside expiry window, bid-ask spread > $0.50, or absolute IV > 80% automatically disqualify candidates.</p>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <div class="settings-card-title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              Core vs. Satellite Strategy
+            </div>
+            <p class="settings-card-desc" style="line-height:1.6;">
+              Dividing your portfolio into <span class="glossary-term" data-glossary="core-bucket">Core</span> (broad market index ETFs) and <span class="glossary-term" data-glossary="satellite-bucket">Satellite</span> (individual stock and options bets) ensures steady long-term growth while capturing high-potential market yield.
+            </p>
+          </div>
+        </div>
+      </section>
+
     </main>
   </div>
 
@@ -1655,96 +1721,7 @@
     </div>
   </div>
 
-  <!-- Help Modal -->
-  <div class="help-overlay hidden" id="help-overlay">
-    <div class="help-modal">
-      <button class="help-close" id="help-close">✕</button>
-      <h2 class="help-title">PortMax Guide</h2>
-      <div class="help-body">
 
-        <div class="help-section">
-          <h3>What is PortMax?</h3>
-          <p>PortMax scans your watchlist for cash-secured put opportunities and scores each one on a unified 100-point
-            scale across five dimensions: volatility, yield, strike quality, liquidity, and trend.</p>
-        </div>
-
-        <div class="help-section">
-          <h3>The 100-Point Score</h3>
-          <p>Each stock is evaluated across five dimensions:</p>
-          <ul class="help-list">
-            <li><span style="color:var(--cyan)">35 pts</span> — Volatility (IV Rank + IV/HV ratio)</li>
-            <li><span style="color:var(--cyan)">25 pts</span> — Yield (monthly yield % + absolute IV)</li>
-            <li><span style="color:var(--cyan)">20 pts</span> — Strike quality (delta + at-support)</li>
-            <li><span style="color:var(--cyan)">12 pts</span> — Liquidity (open interest + bid-ask spread)</li>
-            <li><span style="color:var(--cyan)">8 pts</span> — Trend (above MA50 + earnings clear)</li>
-          </ul>
-        </div>
-
-        <div class="help-section">
-          <h3>Grades</h3>
-          <ul class="help-list">
-            <li><span class="grade-badge grade-badge-A">A</span> &gt; 50 pts — Strong buy</li>
-            <li><span class="grade-badge grade-badge-B">B</span> ≥ 40 pts — Good entry</li>
-            <li><span class="grade-badge grade-badge-C">C</span> ≥ 30 pts — Marginal</li>
-            <li><span class="grade-badge grade-badge-D">D</span> ≥ 20 pts — Weak</li>
-            <li><span class="grade-badge grade-badge-E">E</span> ≥ 1 pt — Avoid</li>
-            <li><span class="grade-badge grade-badge-F">F</span> Blocked — Score of 0 or Kill switch active</li>
-          </ul>
-        </div>
-
-        <div class="help-section">
-          <h3>Kill Switches</h3>
-          <p>Three conditions override the score to 0 (grade F) regardless of other signals:</p>
-          <ul class="help-list">
-            <li>Earnings event inside the option's expiry window</li>
-            <li>Bid-ask spread wider than $0.50</li>
-            <li>Absolute IV above 80% (danger zone)</li>
-          </ul>
-          <p>Kill switches can be toggled individually in Settings → Scoring Configuration.</p>
-        </div>
-
-        <div class="help-section">
-          <h3>Screener &amp; Filters</h3>
-          <p>The Screener shows your opportunities with multi-column sorting (click any header to toggle
-            ascending/descending order) and features interactive sliders to filter by Minimum Score, Min Monthly Yield,
-            Min Market Cap, and a dual-thumb Price Range selector.</p>
-        </div>
-
-        <div class="help-section">
-          <h3>Watchlists &amp; Favorites</h3>
-          <p>Add tickers via the Screener input box. When a stock is watchlisted, the system immediately runs three
-            automatic sync tasks (chart history, options scan, and price update) to fully populate it.</p>
-          <p>Click the <strong>Star column (☆/★)</strong> inside the Screener table or the details modal to mark a stock
-            as a favorite. Starred favorites are tracked collectively in the main Starred Stocks view and on your
-            Dashboard.</p>
-        </div>
-
-        <div class="help-section">
-          <h3>Refresh Schedule</h3>
-          <p><strong>Opportunity Data</strong> — Full options scan on all watchlist stocks. Run when you want fresh
-            opportunity data. Also triggered automatically after a Discover scan.</p>
-          <p><strong>Price Update</strong> — Lightweight update of current stock prices only. IV and volatility are not
-            recalculated.</p>
-        </div>
-
-        <div class="help-section">
-          <h3>Core vs. Satellite Strategy</h3>
-          <p>This is a popular portfolio structuring method that balances safety with growth/income opportunities:</p>
-          <ul class="help-list">
-            <li><strong>Core (The Foundation)</strong> — Broad, highly diversified, low-cost index ETFs (like S&amp;P
-              500 or Total World funds). This forms the stable bedrock of your wealth and should represent the majority
-              of your assets.</li>
-            <li><strong>Satellite (The Opportunities)</strong> — Individual stocks, sector-specific funds, or tactical
-              option-selling candidates. These carry higher risk/reward and are used to try and beat the market average
-              or generate active income.</li>
-          </ul>
-          <p>By dividing your portfolio this way, you ensure that you don't take excessive single-stock concentration
-            risks while still having room to capture high-potential market opportunities.</p>
-        </div>
-
-      </div>
-    </div>
-  </div>
 
 
 
@@ -1903,7 +1880,7 @@
       <button class="modal-close" id="glossary-modal-close">✕</button>
 
       <div class="glossary-modal-header">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; padding-right:36px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; padding-right:44px; min-height:32px;">
           <div style="display:flex; align-items:center; gap:10px;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2">
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
@@ -1914,7 +1891,7 @@
 
           <div style="position:relative; width:220px; flex-shrink:0;">
             <input type="text" class="threshold-input" id="glossary-search-input" placeholder="Search terms…" style="width:100%; padding-left:28px; font-family:'Outfit', sans-serif;" />
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2.5" style="position:absolute; left:9px; top:8px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2.5" style="position:absolute; left:9px; top:9.5px;">
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>

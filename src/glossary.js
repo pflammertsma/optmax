@@ -467,6 +467,157 @@ const GLOSSARY_TERMS = {
       <p><strong>Rebalancing</strong> involves periodically selling overweighted assets or deploying fresh capital into underweighted buckets to maintain your desired risk-return profile.</p>
     `,
     related: ['asset-allocation', 'core-bucket', 'satellite-bucket']
+  },
+  'stock': {
+    id: 'stock',
+    term: 'Stock (Equity)',
+    category: 'Portfolio Architecture',
+    short: 'A security representing fractional ownership in a corporation.',
+    definition: `
+      <p>A <strong>Stock</strong> (or equity) represents a fractional ownership share in a corporation.</p>
+      <p>Stockholders hold a claim on the company's underlying assets and net earnings. Stocks can appreciate in market price over time and may pay cash dividends to shareholders.</p>
+    `,
+    related: ['option', 'etf', 'market-cap', 'dividend']
+  },
+  'option': {
+    id: 'option',
+    term: 'Option Contract',
+    category: 'Options & Scoring',
+    short: 'A derivative contract granting the right, but not obligation, to buy or sell an asset at a set price.',
+    definition: `
+      <p>An <strong>Option</strong> is a financial contract granting the buyer the right (without the obligation) to buy or sell an underlying security at a fixed strike price on or before an expiration date.</p>
+      <p>Option sellers (writers) receive upfront cash premium in exchange for taking on contractual obligation.</p>
+    `,
+    related: ['call', 'put', 'short', 'long', 'strike-price', 'premium']
+  },
+  'call': {
+    id: 'call',
+    term: 'Call Option',
+    category: 'Options & Scoring',
+    short: 'A contract granting the buyer the right to buy stock at a set strike price, or the seller the obligation to sell.',
+    definition: `
+      <p>A <strong>Call Option</strong> gives the buyer the right to purchase 100 shares of a stock at a specified strike price prior to expiration.</p>
+      <p>In a <strong>Covered Call</strong> strategy, an investor sells call options against stock shares they already own to generate income premium.</p>
+    `,
+    related: ['option', 'put', 'short', 'covered-call']
+  },
+  'put': {
+    id: 'put',
+    term: 'Put Option',
+    category: 'Options & Scoring',
+    short: 'A contract granting the buyer the right to sell stock at a set strike price, or the seller the obligation to buy.',
+    definition: `
+      <p>A <strong>Put Option</strong> gives the buyer the right to sell 100 shares of stock at a specified strike price prior to expiration.</p>
+      <p>In a <strong>Cash-Secured Put</strong> strategy, an investor sells put options while holding cash collateral to earn income premium while offering to buy the stock at a discount.</p>
+    `,
+    related: ['option', 'call', 'cash-secured-put', 'short']
+  },
+  'short': {
+    id: 'short',
+    term: 'Short Position (Selling Short)',
+    category: 'Options & Scoring',
+    short: 'Selling a contract or security first with the intent of buying it back later or collecting premium.',
+    definition: `
+      <p>Going <strong>Short</strong> means selling an asset or derivative contract first, opening a negative position.</p>
+      <p>In options trading, selling a put or call option to collect upfront premium is opening a short option position. In stock trading, shorting involves borrowing shares to profit from a price decline.</p>
+    `,
+    related: ['option', 'put', 'call', 'long']
+  },
+  'long': {
+    id: 'long',
+    term: 'Long Position',
+    category: 'Portfolio Architecture',
+    short: 'Owning an asset or contract with the expectation that its value will increase over time.',
+    definition: `
+      <p>Going <strong>Long</strong> means purchasing and holding an asset (such as shares of stock, ETFs, or long options contracts) with the expectation that its market price will appreciate over time.</p>
+    `,
+    related: ['stock', 'etf', 'short', 'option']
+  },
+  'strike-price': {
+    id: 'strike-price',
+    term: 'Strike Price',
+    category: 'Options & Scoring',
+    short: 'The set price per share at which an option contract can be exercised.',
+    definition: `
+      <p>The <strong>Strike Price</strong> (or exercise price) is the fixed price per share at which an option contract buyer can exercise their contract to buy (for calls) or sell (for puts) the underlying stock.</p>
+    `,
+    related: ['option', 'delta-range', 'expiration-date', 'otm']
+  },
+  'expiration-date': {
+    id: 'expiration-date',
+    term: 'Expiration Date (DTE)',
+    category: 'Options & Scoring',
+    short: 'The final date on which an option contract is valid and can be exercised.',
+    definition: `
+      <p>The <strong>Expiration Date</strong> (or Expiry) is the last day an option contract can be exercised.</p>
+      <p>Days to Expiration (DTE) measures the remaining life of the contract. After this date, the option contract expires either in-the-money (exercised) or worthless (out-of-the-money).</p>
+    `,
+    related: ['option', 'strike-price', 'dte', 'theta']
+  },
+  'premium': {
+    id: 'premium',
+    term: 'Option Premium',
+    category: 'Options & Scoring',
+    short: 'The cash price paid by an option buyer to the option seller upfront for taking contract risk.',
+    definition: `
+      <p><strong>Option Premium</strong> is the total upfront cash price paid by the option buyer to the seller.</p>
+      <p>For cash-secured put sellers, the premium collected serves as immediate cash income that buffers downside purchase cost.</p>
+    `,
+    related: ['option', 'yield-targets', 'cash-secured-put']
+  },
+  'underlying': {
+    id: 'underlying',
+    term: 'Underlying Asset',
+    category: 'Options & Scoring',
+    short: 'The stock or ETF upon which an option contract is written.',
+    definition: `
+      <p>The <strong>Underlying Asset</strong> is the specific stock, ETF, or index upon which a derivative option contract is based and settled.</p>
+    `,
+    related: ['option', 'stock', 'etf']
+  },
+  'etf': {
+    id: 'etf',
+    term: 'Exchange-Traded Fund (ETF)',
+    category: 'Portfolio Architecture',
+    short: 'A basket of securities traded on a stock exchange like a single share.',
+    definition: `
+      <p>An <strong>Exchange-Traded Fund (ETF)</strong> is an investment fund traded on public stock exchanges that holds a basket of underlying assets such as stocks or bonds.</p>
+      <p>ETFs provide instant diversification across broad indexes or specific sectors at low expense ratios.</p>
+    `,
+    related: ['stock', 'core-bucket', 'satellite-bucket']
+  },
+  'dividend': {
+    id: 'dividend',
+    term: 'Dividend & Dividend Yield',
+    category: 'Portfolio Architecture',
+    short: 'A cash distribution of corporate earnings paid out to shareholders.',
+    definition: `
+      <p>A <strong>Dividend</strong> is a cash payout made regularly by a company to its eligible shareholders from net profits.</p>
+      <p><strong>Dividend Yield</strong> measures the annualized dividend payout relative to current share price (<code>Annual Payout / Stock Price</code>).</p>
+    `,
+    related: ['stock', 'dividend-tax', 'tax-drag']
+  },
+  'market-cap': {
+    id: 'market-cap',
+    term: 'Market Capitalization',
+    category: 'Portfolio Architecture',
+    short: 'The total dollar market value of a company\'s outstanding stock shares.',
+    definition: `
+      <p><strong>Market Capitalization</strong> (Market Cap) measures a company's total equity value on the stock market (calculated as <code>Share Price × Total Shares Outstanding</code>).</p>
+      <p>Large-cap stocks (&gt;$10B) generally offer lower volatility and higher liquidity than small-cap stocks.</p>
+    `,
+    related: ['stock', 'volatility', 'liquidity']
+  },
+  'volatility': {
+    id: 'volatility',
+    term: 'Volatility & Implied Volatility',
+    category: 'Options & Scoring',
+    short: 'Degree of variation of a trading price series, reflecting market uncertainty.',
+    definition: `
+      <p><strong>Volatility</strong> quantifies the magnitude of price fluctuations for a stock or asset.</p>
+      <p><strong>Historical Volatility (HV)</strong> measures past price swings, while <strong>Implied Volatility (IV)</strong> reflects the market's forward-looking pricing of risk in options contracts.</p>
+    `,
+    related: ['option', 'implied-volatility', 'historical-volatility', 'iv-rank']
   }
 };
 
@@ -491,15 +642,35 @@ class GlossaryController {
     const target = typeof container === 'string' ? document.querySelector(container) : container;
     if (!target) return;
 
-    const termsList = Object.values(GLOSSARY_TERMS).sort((a, b) => b.term.length - a.term.length);
+    const phraseMap = [];
+    for (const item of Object.values(GLOSSARY_TERMS)) {
+      const cleanTerm = item.term.replace(/\s*\([^)]*\)/g, '').trim();
+      const phrases = new Set([
+        item.term,
+        cleanTerm,
+        item.id.replace(/-/g, ' ')
+      ]);
+      if (item.id === 'stock') { phrases.add('stocks'); phrases.add('equity'); }
+      if (item.id === 'option') { phrases.add('options'); }
+      if (item.id === 'put') { phrases.add('puts'); }
+      if (item.id === 'call') { phrases.add('calls'); }
+
+      for (const p of phrases) {
+        if (p && p.length >= 3) {
+          phraseMap.push({ phrase: p, item });
+        }
+      }
+    }
+    phraseMap.sort((a, b) => b.phrase.length - a.phrase.length);
+
     const textNodes = [];
     const walk = document.createTreeWalker(target, NodeFilter.SHOW_TEXT, {
       acceptNode: (node) => {
         const parent = node.parentElement;
         if (!parent) return NodeFilter.FILTER_REJECT;
         const tag = parent.tagName.toLowerCase();
-        if (['script', 'style', 'input', 'textarea', 'select', 'button', 'a'].includes(tag)) return NodeFilter.FILTER_REJECT;
-        if (parent.closest('[data-glossary], .glossary-term, .no-glossary')) return NodeFilter.FILTER_REJECT;
+        if (['script', 'style', 'input', 'textarea', 'select', 'button', 'a', 'h1', 'h2'].includes(tag)) return NodeFilter.FILTER_REJECT;
+        if (parent.closest('[data-glossary], .glossary-term, .no-glossary, .glossary-detail-title')) return NodeFilter.FILTER_REJECT;
         return NodeFilter.FILTER_ACCEPT;
       }
     });
@@ -510,13 +681,13 @@ class GlossaryController {
       let content = node.nodeValue;
       if (!content || !content.trim()) continue;
 
-      for (const item of termsList) {
-        const regex = new RegExp(`\\b(${item.term.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')})\\b`, 'i');
+      for (const entry of phraseMap) {
+        const regex = new RegExp(`\\b(${entry.phrase.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')})\\b`, 'i');
         if (regex.test(content)) {
           const span = document.createElement('span');
           span.innerHTML = content.replace(regex, (match) => {
-            const shortTooltip = (item.short || item.term) + ' Click for glossary.';
-            return `<span class="glossary-term" data-glossary="${item.id}" title="${shortTooltip.replace(/"/g, '&quot;')}">${match}</span>`;
+            const shortTooltip = (entry.item.short || entry.item.term) + ' Click for glossary.';
+            return `<span class="glossary-term" data-glossary="${entry.item.id}" title="${shortTooltip.replace(/"/g, '&quot;')}">${match}</span>`;
           });
           node.parentNode.replaceChild(span, node);
           break;
@@ -540,9 +711,26 @@ class GlossaryController {
         e.preventDefault();
         e.stopPropagation();
         const termId = trigger.getAttribute('data-glossary');
-        this.open(termId);
+        if (termId && GLOSSARY_TERMS[termId]) {
+          this.open(termId);
+        }
       }
     });
+
+    // Sidebar Glossary button handler
+    const sidebarBtn = document.getElementById('sidebar-glossary-btn');
+    if (sidebarBtn) {
+      sidebarBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.open();
+      });
+      sidebarBtn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          this.open();
+        }
+      });
+    }
 
     // Modal close handlers
     const closeBtn = document.getElementById('glossary-modal-close');
@@ -554,7 +742,7 @@ class GlossaryController {
       });
     }
 
-    // Search bar listener
+    // Search input
     const searchInput = document.getElementById('glossary-search-input');
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
@@ -563,17 +751,16 @@ class GlossaryController {
       });
     }
 
-    // Category Filter buttons
+    // Category filter tabs
     const catContainer = document.getElementById('glossary-categories');
     if (catContainer) {
-      catContainer.addEventListener('click', (e) => {
-        const btn = e.target.closest('.tab-btn');
-        if (btn && btn.dataset.category) {
+      catContainer.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
           catContainer.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           this.activeCategory = btn.dataset.category;
           this.renderSidebar();
-        }
+        });
       });
     }
   }
@@ -667,6 +854,11 @@ class GlossaryController {
         </div>
       ` : ''}
     `;
+
+    const bodyEl = detailEl.querySelector('.glossary-detail-body');
+    if (bodyEl) {
+      this.wrapTerms(bodyEl);
+    }
   }
 }
 

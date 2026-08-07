@@ -604,18 +604,9 @@ function renderChart(history, symbol) {
   });
 }
 
-// ─── Help & Guide Modal ──────────────────────────────────────────────────────
-function openHelp()  { el('help-overlay')?.classList.remove('hidden'); }
-function closeHelp() { el('help-overlay')?.classList.add('hidden'); }
-
-el('help-nav')?.addEventListener('click', openHelp);
-el('help-nav')?.addEventListener('keydown', e => {
-  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openHelp(); }
-});
-el('help-close')?.addEventListener('click', closeHelp);
-el('help-overlay')?.addEventListener('click', e => {
-  if (e.target === el('help-overlay')) closeHelp();
-});
+// ─── Help & Guide Navigation ──────────────────────────────────────────────────
+function openHelp()  { if (typeof navigate === 'function') navigate('help'); }
+function closeHelp() { /* embedded view — no modal overlay to close */ }
 
 // ─── Status Bar & Connection Details Modal ──────────────────────────────────
 el('status-bar-btn')?.addEventListener('click', () => {

@@ -157,7 +157,7 @@ function createDOM() {
   const knownIds = [
     'view-dashboard', 'view-portfolio', 'view-targets', 'view-guidance',
     'view-health', 'view-progress', 'view-screener', 'view-investment-scanner',
-    'view-options-scanner', 'view-settings', 'dashboard-vitals', 'dashboard-vitals-card',
+    'view-options-scanner', 'view-settings', 'view-help', 'dashboard-vitals', 'dashboard-vitals-card',
     'dashboard-actionable-steps-wrap', 'dashboard-actionable-steps-list',
     'dashboard-action-plan-card', 'dashboard-action-plan-list', 'dashboard-ap-count',
     'metric-cards', 'preview-starred', 'dashboard-income-chips', 'dashboard-income-strip',
@@ -472,15 +472,12 @@ test('renderInvestmentScanner configures category tabs and column definitions', 
 
 section('Help & Status Modals Unit Tests');
 
-test('openHelp and closeHelp toggle the help overlay visibility', () => {
-  const overlay = getEl('help-overlay');
-  overlay.classList.add('hidden');
+test('openHelp navigates to the help view', () => {
+  const viewHelp = getEl('view-help');
+  viewHelp.classList.remove('active');
 
   sandbox.openHelp();
-  assert.strictEqual(overlay.classList.contains('hidden'), false);
-
-  sandbox.closeHelp();
-  assert.strictEqual(overlay.classList.contains('hidden'), true);
+  assert.strictEqual(viewHelp.classList.contains('active'), true);
 });
 
 test('setIbkrModeUI updates connection mode and displays gateway vs flex settings', () => {

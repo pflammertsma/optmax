@@ -44,6 +44,7 @@ function navigate(viewId) {
 
 document.querySelectorAll('.nav-link').forEach(link => {
   link.addEventListener('click', () => {
+    if (!link.dataset.view) return;
     navigate(link.dataset.view);
     if (link.dataset.view === 'portfolio' && typeof refreshIbkrStatus === 'function') refreshIbkrStatus();
     if (link.dataset.view === 'health' && typeof loadPortfolioHealth === 'function') {
