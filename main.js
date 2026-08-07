@@ -547,20 +547,33 @@ function portfolioView(p) {
 // ── Discovery cache ───────────────────────────────────────────────────────────
 function loadDiscoveryCache() {
   let raw = {};
+  let isSeed = false;
   try {
     if (fs.existsSync(DISC_CACHE_FILE)) {
-      raw = JSON.parse(fs.readFileSync(DISC_CACHE_FILE, 'utf8'));
-    } else if (fs.existsSync(SEED_CACHE_FILE)) {
-      raw = JSON.parse(fs.readFileSync(SEED_CACHE_FILE, 'utf8'));
+      raw = JSON.parse(fs.readFileSync(DISC_CACHE_FILE, 'utf8')) || {};
+    }
+    const hasOpps = Object.values(raw).some(e => e && e.opp);
+    if (!hasOpps && fs.existsSync(SEED_CACHE_FILE)) {
+      raw = JSON.parse(fs.readFileSync(SEED_CACHE_FILE, 'utf8')) || {};
+      isSeed = true;
     }
 
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 3);
     const cutoffStr = cutoff.toISOString().split('T')[0];
+    const todayStr = new Date().toISOString().split('T')[0];
     const pruned = {};
     for (const [sym, entry] of Object.entries(raw)) {
-      if (entry.date >= cutoffStr || !fs.existsSync(DISC_CACHE_FILE)) {
-        pruned[sym] = entry;
+      if (entry && entry.opp) {
+        if (isSeed) {
+          pruned[sym] = {
+            ...entry,
+            date: todayStr,
+            opp: { ...entry.opp, date: todayStr }
+          };
+        } else if (entry.date >= cutoffStr) {
+          pruned[sym] = entry;
+        }
       }
     }
     return pruned;
@@ -574,6 +587,7 @@ function saveDiscoveryCache(cache) {
 
 // ── Per-symbol analysis ───────────────────────────────────────────────────────
 async function analyzeSingleSymbol(symbol, minMarginMultiplier, ivHistory) {
+  const settings = loadSettings();
   const target = new Date();
   target.setDate(target.getDate() + 30);
 

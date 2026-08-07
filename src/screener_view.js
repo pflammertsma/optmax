@@ -303,7 +303,39 @@ function buildTableRows(items, tbodyId, sortState) {
   const tbody = el(tbodyId);
   if (!tbody) return;
   if (!items || !items.length) {
-    tbody.innerHTML = '<tr><td colspan="10" class="empty-row" style="padding: 24px; text-align: center; color: var(--text-muted);">No option opportunities found yet. Click "Discover Scanner" or "Refresh" to scan market options.</td></tr>';
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="10" class="empty-row" style="padding: 40px 20px; text-align: center;">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 480px; margin: 0 auto;">
+            <span style="font-size: 14px; color: var(--text-secondary); font-family: 'Outfit', sans-serif; font-weight: 500;">
+              No option opportunities found in local cache.
+            </span>
+            <div style="display: flex; gap: 12px; margin-top: 4px; justify-content: center; flex-wrap: wrap;">
+              <button class="settings-action-btn empty-discover-trigger" style="width: auto; margin: 0; padding: 7px 18px; background: var(--cyan); color: #000; font-family: 'Outfit', sans-serif; font-weight: 600; border: none; border-radius: 6px; cursor: pointer;">
+                Open Discover Scanner
+              </button>
+              <button class="settings-action-btn empty-refresh-trigger" style="width: auto; margin: 0; padding: 7px 18px; font-family: 'Outfit', sans-serif; cursor: pointer;">
+                Refresh Watchlist
+              </button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    `;
+
+    const discBtn = tbody.querySelector('.empty-discover-trigger');
+    const refBtn  = tbody.querySelector('.empty-refresh-trigger');
+    if (discBtn) {
+      discBtn.addEventListener('click', () => {
+        const btn = document.querySelector('.subview-btn[data-subview="discover"]');
+        if (btn) btn.click();
+      });
+    }
+    if (refBtn) {
+      refBtn.addEventListener('click', () => {
+        if (typeof refreshData === 'function') refreshData();
+      });
+    }
     return;
   }
 
@@ -417,10 +449,82 @@ function renderAll(data) {
   }
 
   renderTables(data);
+  renderDiscoverUnified(data);
   renderDashboardIncomeStrip(data.filter(d => d._score && d._score.totalScore > 0));
   renderScreener();
   if (portfolio && typeof renderPortfolio === 'function') {
     renderPortfolio(portfolio);
+  }
+}
+
+function renderDiscoverUnified(results) {
+  const tbody = el('discover-tbody-unified');
+  if (!tbody) return;
+
+  let items = [];
+  if (Array.isArray(results)) {
+    items = results;
+  } else if (results && typeof results === 'object') {
+    const map = new Map();
+    ['ivr', 'iv_hv', 'mean_reversion'].forEach(key => {
+      (results[key] || []).forEach(item => {
+        if (item && item.symbol && !map.has(item.symbol)) {
+          map.set(item.symbol, item);
+        }
+      });
+    });
+    items = Array.from(map.values());
+  }
+
+  items.forEach(d => applyScore(d));
+
+  items.sort((a, b) => {
+    const sa = a._score?.totalScore ?? 0;
+    const sb = b._score?.totalScore ?? 0;
+    if (sb !== sa) return sb - sa;
+    return (b.annualizedYield || 0) - (a.annualizedYield || 0);
+  });
+
+  if (!items.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-row" style="padding: 24px; text-align: center; color: var(--text-muted);">Run a scan to see candidates.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = items.map(d => {
+    const sc = d._score;
+    const scoreTd = sc ? `${sc.totalScore}` : '—';
+    const gradeTd = sc ? renderGradeBadge(sc.grade) : '—';
+    const ivPctStr = d.impliedVolatility != null ? fmt.pct(d.impliedVolatility * 100) : '—';
+    const ivrStr = d.ivr != null ? `${d.ivr}` : '—';
+    const ivhvStr = d.ivHvRatio != null ? d.ivHvRatio.toFixed(2) : '—';
+
+    return `
+      <tr class="opt-row" data-symbol="${d.symbol}" style="cursor:pointer;">
+        <td class="td-symbol">
+          <div style="display:flex; flex-direction:column;">
+            <span style="font-weight:600; color:var(--cyan); font-family:'JetBrains Mono', monospace; font-size:13px;">${d.symbol}</span>
+            <span style="font-size:11.5px; color:var(--text-muted); font-family:'Outfit', sans-serif; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;">${d.companyName || d.name || ''}</span>
+          </div>
+        </td>
+        <td class="td-score">${scoreTd}</td>
+        <td>${gradeTd}</td>
+        <td>${ivPctStr}</td>
+        <td>${ivrStr}</td>
+        <td>${ivhvStr}</td>
+        <td class="td-yield-mo options-metric">${fmt.pct(d.monthlyYield)}</td>
+        <td class="td-yield-ann options-metric">${fmt.pct(d.annualizedYield)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  tbody.querySelectorAll('tr').forEach(tr => {
+    const sym = tr.dataset.symbol;
+    const item = items.find(x => x.symbol === sym);
+    if (item) tr.addEventListener('click', () => openModal(item));
+  });
+
+  if (window.glossaryController && typeof window.glossaryController.wrapTerms === 'function') {
+    window.glossaryController.wrapTerms(tbody);
   }
 }
 

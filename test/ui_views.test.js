@@ -177,7 +177,7 @@ function createDOM() {
     'status-detail-retry', 'status-detail-stopgw', 'status-detail-action-note',
     'status-detail-subtitle', 'wc-privacy', 'status-dot', 'status-text',
     'tbody-top25', 'tbody-under10k', 'tbody-megacaps', 'table-top25', 'table-under10k', 'table-megacaps',
-    'empty-state', 'dashboard-stats-subtitle', 'screener-tbody', 'screener-total-count',
+    'empty-state', 'dashboard-stats-subtitle', 'screener-tbody', 'screener-total-count', 'discover-tbody-unified',
     'ibkr-gateway-settings', 'ibkr-flex-settings', 'ibkr-mode-desc',
     // Symbol details dialog — needed so its close/tab listeners actually bind.
     'modal-overlay', 'modal-close', 'modal-live', 'modal-details-body',
@@ -892,6 +892,16 @@ test('renderTables populates Option Scanner tables with valid option metrics', (
   assert.strictEqual(top25Rows.length, 2, 'Top 25 should render both option candidates');
   assert.strictEqual(under10kRows.length, 1, 'Under 10k should include candidate with capital <= $10,000 (F)');
   assert.strictEqual(megacapRows.length, 1, 'Mega caps should include candidate with marketCap >= 200B or mega cap symbol (AAPL)');
+});
+
+test('renderDiscoverUnified populates discover-tbody-unified', () => {
+  const mockResults = [
+    { symbol: 'MSFT', currentPrice: 420, strike: 410, dte: 30, premium: 8.5, monthlyYield: 2.1, annualizedYield: 25, impliedVolatility: 0.22, ivr: 45, ivHvRatio: 1.15, _score: { totalScore: 78, grade: 'A' } }
+  ];
+  sandbox.renderDiscoverUnified(mockResults);
+  const rows = getEl('discover-tbody-unified').querySelectorAll('tr');
+  assert.strictEqual(rows.length, 1, 'Discover table should render candidate');
+  assert.ok(getEl('discover-tbody-unified').textContent.includes('MSFT'));
 });
 
 runAsyncTests().then(() => {
