@@ -616,6 +616,7 @@ function renderPortfolio(p) {
       if (!recBox) return;
       if (rec) {
         recBox.style.display = 'flex';
+        recBox.style.flexDirection = 'column';
         const labelEl = el('pf-rec-age-label');
         if (labelEl) labelEl.textContent = `(Age ${rec.age}, glidepath ${rec.base})`;
         const coreEl = el('pf-rec-core');
@@ -629,6 +630,10 @@ function renderPortfolio(p) {
       }
     } catch {}
   })();
+
+  if (window.glossaryController && typeof window.glossaryController.wrapTerms === 'function') {
+    setTimeout(() => window.glossaryController.wrapTerms(el('view-portfolio')), 100);
+  }
 }
 
 // The age-indexed target mix, from settings. One implementation so the display

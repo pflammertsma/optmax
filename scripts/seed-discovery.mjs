@@ -1,5 +1,8 @@
 import YahooFinance from 'yahoo-finance2';
-const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
+const yahooFinance = new YahooFinance({
+  suppressNotices: ['yahooSurvey', 'ripHistorical'],
+  validation: { logErrors: false }
+});
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';

@@ -252,6 +252,10 @@ function renderScreener() {
       openSymbolDetails(d || symbol);
     });
   });
+
+  if (window.glossaryController && typeof window.glossaryController.wrapTerms === 'function') {
+    window.glossaryController.wrapTerms(tbody);
+  }
 }
 
 function initScreenerFilters() {

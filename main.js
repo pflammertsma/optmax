@@ -8,7 +8,10 @@ if (process.argv.includes('--smoke-test')) {
   app.setPath('userData', path.join(__dirname, 'test', 'mock-userData'));
 }
 const YahooFinance = require('yahoo-finance2').default;
-const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
+const yahooFinance = new YahooFinance({
+  suppressNotices: ['yahooSurvey', 'ripHistorical'],
+  validation: { logErrors: false }
+});
 
 const quoteCache = new Map();
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour

@@ -36,6 +36,10 @@ function navigate(viewId) {
   if (finalViewId === 'progress' && typeof renderProgressView === 'function') renderProgressView();
   if (finalViewId === 'investment-scanner' && typeof renderInvestmentScanner === 'function') renderInvestmentScanner();
   if (finalViewId === 'sell-scanner' && typeof renderSellScanner === 'function') renderSellScanner();
+
+  if (view && window.glossaryController && typeof window.glossaryController.wrapTerms === 'function') {
+    setTimeout(() => window.glossaryController.wrapTerms(view), 50);
+  }
 }
 
 document.querySelectorAll('.nav-link').forEach(link => {

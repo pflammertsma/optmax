@@ -478,6 +478,10 @@ async function openSymbolDetails(symbolOrData, defaultTab = 'recommendation') {
   } catch (e) {
     console.warn('History fetch failed:', e);
   }
+
+  if (window.glossaryController && typeof window.glossaryController.wrapTerms === 'function') {
+    setTimeout(() => window.glossaryController.wrapTerms(el('modal-overlay')), 100);
+  }
 }
 
 async function openSymbolInsight(symbol) {

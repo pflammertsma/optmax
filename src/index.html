@@ -812,30 +812,27 @@
               </svg>
               Target Allocation
             </div>
-            <p class="settings-card-desc">Buckets group holdings by their role in your plan: <strong>core</strong> =
-              broad index funds (e.g. VTI, VEA); <strong>satellite</strong> = individual stock/option bets;
-              <strong>cash</strong> = uninvested money. Rebalancing trades are calculated below based on your targets.
-            </p>
+            <p class="settings-card-desc">Group holdings into <span class="glossary-term" data-glossary="core-bucket">Core</span>, <span class="glossary-term" data-glossary="satellite-bucket">Satellite</span>, and <span class="glossary-term" data-glossary="cash-bucket">Cash</span> buckets to manage <span class="glossary-term" data-glossary="asset-allocation">Asset Allocation</span>. <span class="glossary-term" data-glossary="rebalancing">Rebalancing</span> trades are calculated below based on your targets.</p>
 
             <!-- Dynamic Age-based recommendation block -->
             <div class="recommended-allocation" id="pf-recommendation-box"
-              style="margin: 16px 0; padding: 12px 16px; background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.2); border-radius: var(--radius-sm);">
+              style="margin: 16px 0; padding: 12px 16px; background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.2); border-radius: var(--radius-sm); display: flex; flex-direction: column; gap: 8px;">
               <div
-                style="font-size: 13px; font-weight: 600; color: var(--cyan); margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+                style="font-size: 13px; font-weight: 600; color: var(--cyan); display: flex; align-items: center; justify-content: space-between;">
                 <span>Age-Indexed Recommendation</span>
                 <span id="pf-rec-age-label" style="font-size: 11px; opacity: 0.8;"></span>
               </div>
-              <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">
+              <div style="font-size: 12px; color: var(--text-secondary);">
                 Bonds/fixed-income are held via index funds and belong in <strong>Core</strong>. Recommended bucket
                 targets:
-                <div style="margin-top: 4px; display: flex; gap: 12px; font-weight: 500; color: var(--text-main);">
+                <div style="margin-top: 6px; display: flex; gap: 16px; font-weight: 500; color: var(--text-main);">
                   <span>Core: <strong id="pf-rec-core">—</strong></span>
                   <span>Satellite: <strong id="pf-rec-sat">—</strong></span>
                   <span>Cash: <strong id="pf-rec-cash">—</strong></span>
                 </div>
               </div>
               <button class="settings-action-btn" id="pf-apply-rec-btn"
-                style="width: auto; padding: 4px 10px; font-size: 11px; margin: 0; align-self: flex-start;">
+                style="width: auto; padding: 4px 10px; font-size: 11px; margin: 4px 0 0 0; align-self: flex-start;">
                 Apply Recommendation
               </button>
             </div>
@@ -1906,30 +1903,30 @@
       <button class="modal-close" id="glossary-modal-close">✕</button>
 
       <div class="glossary-modal-header">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-          </svg>
-          <h2 style="font-size:16px; font-weight:600; color:var(--text-primary); margin:0">PortMax Financial &amp; Technical Glossary</h2>
-        </div>
-
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
-          <div class="guidance-tabs" id="glossary-categories" style="margin:0; border:none;">
-            <button class="tab-btn active" data-category="ALL">All Terms</button>
-            <button class="tab-btn" data-category="Options &amp; Scoring">Options &amp; Scoring</button>
-            <button class="tab-btn" data-category="Tax &amp; Expat Rules">Tax &amp; Expat Rules</button>
-            <button class="tab-btn" data-category="Portfolio Architecture">Portfolio Architecture</button>
-            <button class="tab-btn" data-category="IBKR &amp; Gateway">IBKR &amp; Gateway</button>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; padding-right:36px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+            <h2 style="font-size:16px; font-weight:600; color:var(--text-primary); margin:0">PortMax Financial &amp; Technical Glossary</h2>
           </div>
 
-          <div style="position:relative; width:220px;">
-            <input type="text" class="threshold-input" id="glossary-search-input" placeholder="Search terms…" style="width:100%; padding-left:28px;" />
+          <div style="position:relative; width:220px; flex-shrink:0;">
+            <input type="text" class="threshold-input" id="glossary-search-input" placeholder="Search terms…" style="width:100%; padding-left:28px; font-family:'Outfit', sans-serif;" />
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2.5" style="position:absolute; left:9px; top:8px;">
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
           </div>
+        </div>
+
+        <div class="guidance-tabs" id="glossary-categories" style="margin:0; border:none;">
+          <button class="tab-btn active" data-category="ALL">All Terms</button>
+          <button class="tab-btn" data-category="Options &amp; Scoring">Options &amp; Scoring</button>
+          <button class="tab-btn" data-category="Tax &amp; Expat Rules">Tax &amp; Expat Rules</button>
+          <button class="tab-btn" data-category="Portfolio Architecture">Portfolio Architecture</button>
+          <button class="tab-btn" data-category="IBKR &amp; Gateway">IBKR &amp; Gateway</button>
         </div>
       </div>
 
