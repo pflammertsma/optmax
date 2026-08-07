@@ -877,6 +877,23 @@ testAsync('every scanner row opens the dialog, even without option-scanner data'
   assert.strictEqual(openedWith.tab, 'recommendation', 'should land on the Recommendation tab');
 });
 
+test('renderTables populates Option Scanner tables with valid option metrics', () => {
+  const mockData = [
+    { symbol: 'AAPL', currentPrice: 180, strike: 175, dte: 30, premium: 3.5, capitalRequired: 17500, monthlyYield: 2.0, annualizedYield: 24, monthlyIncome: 350, marketCap: 2.8e12, _score: { totalScore: 82, grade: 'A' } },
+    { symbol: 'F', currentPrice: 12, strike: 11, dte: 30, premium: 0.4, capitalRequired: 1100, monthlyYield: 3.6, annualizedYield: 43, monthlyIncome: 40, marketCap: 48e9, _score: { totalScore: 0, grade: 'F' } }
+  ];
+
+  sandbox.renderTables(mockData);
+
+  const top25Rows = getEl('tbody-top25').querySelectorAll('tr');
+  const under10kRows = getEl('tbody-under10k').querySelectorAll('tr');
+  const megacapRows = getEl('tbody-megacaps').querySelectorAll('tr');
+
+  assert.strictEqual(top25Rows.length, 2, 'Top 25 should render both option candidates');
+  assert.strictEqual(under10kRows.length, 1, 'Under 10k should include candidate with capital <= $10,000 (F)');
+  assert.strictEqual(megacapRows.length, 1, 'Mega caps should include candidate with marketCap >= 200B or mega cap symbol (AAPL)');
+});
+
 runAsyncTests().then(() => {
   console.log(`\nUI Views Test Suite Summary: ${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);

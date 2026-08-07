@@ -301,15 +301,16 @@ function initScreenerSorting() {
 
 function buildTableRows(items, tbodyId, sortState) {
   const tbody = el(tbodyId);
-  if (!items.length) {
-    tbody.innerHTML = '<tr><td colspan="12" class="empty-row">No opportunities found.</td></tr>';
+  if (!tbody) return;
+  if (!items || !items.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-row" style="padding: 24px; text-align: center; color: var(--text-muted);">No option opportunities found yet. Click "Discover Scanner" or "Refresh" to scan market options.</td></tr>';
     return;
   }
 
-  let sorted = items.slice(0, 25);
+  let sorted = items.slice();
   if (sortState?.col && sortState.col !== 'rank') {
     const { col, dir } = sortState;
-    sorted = [...sorted].sort((a, b) => {
+    sorted.sort((a, b) => {
       let av, bv;
       if (col === 'score') {
         av = a._score?.totalScore ?? -Infinity;
@@ -326,7 +327,16 @@ function buildTableRows(items, tbodyId, sortState) {
       if (av > bv) return dir === 'asc' ? 1 : -1;
       return 0;
     });
+  } else {
+    sorted.sort((a, b) => {
+      const sa = a._score?.totalScore ?? 0;
+      const sb = b._score?.totalScore ?? 0;
+      if (sb !== sa) return sb - sa;
+      return (b.annualizedYield || 0) - (a.annualizedYield || 0);
+    });
   }
+
+  sorted = sorted.slice(0, 25);
 
   tbody.innerHTML = sorted.map((d, i) => {
     const sc = d._score;
@@ -336,7 +346,7 @@ function buildTableRows(items, tbodyId, sortState) {
       <span style="font-size:11.5px; color:var(--text-muted); font-family:'Outfit', sans-serif; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;">${d.companyName || d.name || ''}</span>
     </div>`;
     return `
-      <tr class="opt-row" data-idx="${sorted.indexOf(d)}">
+      <tr class="opt-row" data-idx="${i}">
         <td class="td-symbol">${symbolCell}</td>
         <td class="td-score">${scoreTd}</td>
         <td class="td-price">${fmt.currency(d.currentPrice)}</td>
@@ -359,9 +369,10 @@ function buildTableRows(items, tbodyId, sortState) {
 }
 
 function renderTables(data) {
-  const active = data.filter(d => d._score && d._score.totalScore > 0);
-  const under10k = active.filter(d => d.currentPrice <= 100);
-  const megacaps = data.filter(d => d.marketCap != null && d.marketCap >= 200e9);
+  const active = data.filter(d => d && (d.strike != null || (d._score && d._score.totalScore >= 0)));
+  const under10k = active.filter(d => (d.capitalRequired != null ? d.capitalRequired : (d.currentPrice || 0) * 100) <= 10000);
+  const megacapSymbols = new Set(['AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK.B', 'AVGO', 'LLY', 'JPM', 'V', 'UNH', 'WMT', 'XOM']);
+  const megacaps = active.filter(d => (d.marketCap != null && d.marketCap >= 200e9) || megacapSymbols.has((d.symbol || '').toUpperCase()));
 
   buildTableRows(active,    'tbody-top25',    tableSortState['table-top25']);
   buildTableRows(under10k,  'tbody-under10k', tableSortState['table-under10k']);

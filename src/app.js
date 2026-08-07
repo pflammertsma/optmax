@@ -36,6 +36,9 @@ function navigate(viewId) {
   if (finalViewId === 'progress' && typeof renderProgressView === 'function') renderProgressView();
   if (finalViewId === 'investment-scanner' && typeof renderInvestmentScanner === 'function') renderInvestmentScanner();
   if (finalViewId === 'sell-scanner' && typeof renderSellScanner === 'function') renderSellScanner();
+  if (finalViewId === 'options-scanner' && typeof renderTables === 'function' && typeof allData !== 'undefined' && Array.isArray(allData)) {
+    renderTables(allData);
+  }
 
   if (view && window.glossaryController && typeof window.glossaryController.wrapTerms === 'function') {
     setTimeout(() => window.glossaryController.wrapTerms(view), 50);

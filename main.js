@@ -1127,12 +1127,29 @@ app.whenReady().then(() => {
   loadQuoteCache();
   loadFundInsightsCache();
   ipcMain.handle('load-initial-data', async () => {
-    const cache    = loadCache();
+    let cache      = loadCache();
     const settings = loadSettings();
+
+    if (!cache || !cache.data || !cache.data.length) {
+      const discCache = loadDiscoveryCache();
+      const seedOpps = Object.values(discCache).map(e => e && e.opp).filter(Boolean);
+      if (seedOpps.length > 0) {
+        const now = new Date().toISOString();
+        cache = {
+          fetchedAt: now,
+          pricedAt: now,
+          minMarginPct: settings.minMarginPct,
+          ivHistory: {},
+          data: seedOpps
+        };
+        saveCache(cache.data, cache.ivHistory);
+      }
+    }
+
     if (!cache) return null;
 
-    const daysAgo  = Math.floor((Date.now() - new Date(cache.fetchedAt)) / (24 * 60 * 60 * 1000));
-    const hoursAgo = Math.floor((Date.now() - new Date(cache.pricedAt || cache.fetchedAt)) / (60 * 60 * 1000));
+    const daysAgo  = Math.floor((Date.now() - new Date(cache.fetchedAt || Date.now())) / (24 * 60 * 60 * 1000));
+    const hoursAgo = Math.floor((Date.now() - new Date(cache.pricedAt || cache.fetchedAt || Date.now())) / (60 * 60 * 1000));
 
     if (cache.data && Array.isArray(cache.data) && cache.data.length > 0) {
       await enrichOpportunitiesWithQuotes(cache.data, settings);
